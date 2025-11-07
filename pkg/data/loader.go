@@ -2,14 +2,14 @@ package data
 
 import (
 	"encoding/csv"
-	"log"
+	"fmt"
 	"os"
 	"strconv"
 	"time"
 )
 
 func LoadDataFromCSV(filename string) ([]OHLCV, error) {
-	log.Printf("Loading data from %s\n", filename)
+	fmt.Printf("Loading data from %s\n", filename)
 	file, err := os.Open(filename)
 	if err != nil {
 		return nil, err
@@ -45,7 +45,7 @@ func LoadDataFromCSV(filename string) ([]OHLCV, error) {
 		})
 	}
 
-	log.Println("Got data with size of", len(data))
+	fmt.Println("Got data with size of", len(data))
 
 	return data, nil
 }

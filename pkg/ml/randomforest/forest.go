@@ -2,6 +2,7 @@ package randomforest
 
 import (
 	"fmt"
+	util "github.com/ch55secake/hyperion/pkg"
 	types "github.com/ch55secake/hyperion/pkg/data"
 	"math/rand"
 	"time"
@@ -39,11 +40,11 @@ func Train(ts *types.TradingStrategy, numTrees, maxDepth, minSample int) {
 		sample := bootstrapSample(trainData)
 		ts.Model.Trees[i] = buildTree(sample, 0, maxDepth, minSample, ts.Model.MaxFeatures)
 		if (i+1)%5 == 0 {
-			//fmt.Printf("  Trained %d/%d trees\n", i+1, numTrees)
+			util.PrintSimpleProgress(fmt.Sprintf("Training %d trees", numTrees), i+1, numTrees)
 		}
 	}
 
-	fmt.Println("Training complete!")
+	fmt.Println("\nTraining complete!")
 }
 
 func bootstrapSample(data []types.Features) []types.Features {
