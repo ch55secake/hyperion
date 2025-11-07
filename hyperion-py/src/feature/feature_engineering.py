@@ -143,9 +143,9 @@ class FeatureEngineering:
         if len(df_clean) == 0:
             raise ValueError("No valid data after removing NaN values")
 
-        X = df_clean[feature_columns]
+        x = df_clean[feature_columns]
         y = df_clean['Target']
         dates = df_clean.index
         prices = df_clean['Close']
 
-        return X, y, dates, prices, feature_columns
+        return x, y, dates, prices, feature_columns

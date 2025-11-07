@@ -3,11 +3,11 @@ import warnings
 
 import pandas as pd
 
-from experimental.walk_foward_validation import WalkForwardValidator
+from experimental import WalkForwardValidator
 from feature import FeatureEngineering
-from simulation.trading_simulation import TradingSimulator, predict_today
-from visualisation.visualisation import Visualizer
-from xbg.xgb_predictor import XGBoostStockPredictor
+from simulation import TradingSimulator, predict_today
+from visualisation import Visualizer
+from xbg import XGBoostStockPredictor
 from data import StockDataDownloader
 
 warnings.filterwarnings('ignore')

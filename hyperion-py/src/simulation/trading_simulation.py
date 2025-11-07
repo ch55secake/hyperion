@@ -396,14 +396,14 @@ def predict_today(symbol, model_path='models'):
 
         print("\n" + "=" * 80)
 
-        # Generate 30-day forecast
-        print("\n5. Generating 30-day forecast...")
+        # Generate 180-day forecast
+        print("\n5. Generating 180-day forecast...")
         forecast_days = 180
         forecast_data = generate_forecast(predictor, df_clean, feature_columns,
                                           latest_price, forecast_days)
 
         # Display forecast summary
-        print(f"\n30-DAY FORECAST SUMMARY:")
+        print(f"\n180-DAY FORECAST SUMMARY:")
         print(f"  Starting Price:      ${latest_price:.2f}")
         print(f"  Forecasted Price:    ${forecast_data['prices'][-1]:.2f}")
         print(f"  Expected Change:     ${forecast_data['prices'][-1] - latest_price:+.2f}")
@@ -428,12 +428,12 @@ def predict_today(symbol, model_path='models'):
             f.write(f"Confidence:       {confidence:.1f}%\n")
             f.write(f"Recommendation:   {action}\n\n")
 
-            # Add 30-day forecast
+            # Add 180-day forecast
             f.write("=" * 60 + "\n")
-            f.write("30-DAY FORECAST\n")
+            f.write("180-DAY FORECAST\n")
             f.write("=" * 60 + "\n\n")
             f.write(f"Starting Price:    ${latest_price:.2f}\n")
-            f.write(f"30-Day Forecast:   ${forecast_data['prices'][-1]:.2f}\n")
+            f.write(f"180-Day Forecast:   ${forecast_data['prices'][-1]:.2f}\n")
             f.write(f"Expected Change:   ${forecast_data['prices'][-1] - latest_price:+.2f}\n")
             f.write(f"Expected Return:   {(forecast_data['prices'][-1]/latest_price - 1)*100:+.2f}%\n")
             f.write(f"Confidence Range:  ${forecast_data['lower_bound'][-1]:.2f} - ${forecast_data['upper_bound'][-1]:.2f}\n\n")
