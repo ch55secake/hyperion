@@ -400,8 +400,8 @@ class XGBoostStockPredictor:
         if params is None:
             params = {
                 'objective': 'reg:squarederror',
-                'max_depth': 8,  # Reduced from 50 - too deep causes overfitting to mean
-                'learning_rate': 0.05,  # Increased from 0.05 for stronger updates
+                'max_depth': 50,  # Reduced from 50 - too deep causes overfitting to mean
+                'learning_rate': 0.1,  # Increased from 0.05 for stronger updates
                 'n_estimators': 1000,  # Reduced from 1000
                 'subsample': 0.9,  # Increased from 0.8
                 'colsample_bytree': 0.9,  # Increased from 0.8
