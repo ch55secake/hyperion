@@ -27,7 +27,7 @@ func stdDev(data []float64, mean float64) float64 {
 	return math.Sqrt(variance / float64(len(data)))
 }
 
-// CalculateStd calculates the population standard deviatio
+// CalculateStd calculates the population standard deviation
 func CalculateStd(prices []float64, period int) float64 {
 	if len(prices) < period {
 		return 0
