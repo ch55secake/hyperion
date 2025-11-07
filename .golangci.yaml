@@ -1,0 +1,67 @@
+version: 2
+
+run:
+  concurrency: 4
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
+linters:
+  enable:
+    - govet
+    - errcheck
+    - staticcheck
+    - unused
+    - ineffassign
+    - gocritic
+    - gocyclo
+    - revive
+    - dupl
+    - gosec
+
+linters-settings:
+  gofmt:
+    simplify: true
+  goimports:
+    local-prefixes: github.com/yourusername/yourproject
+  gocyclo:
+    min-complexity: 15
+  dupl:
+    threshold: 150
+  revive:
+    severity: warning
+    ignore-generated-header: true
+    rules:
+      - name: package-comments
+        severity: disabled
+  errcheck:
+    check-type-assertions: true
+  gocritic:
+    enabled-checks:
+      - rangeValCopy
+      - ifElseChain
+      - typeSwitchVar
+      - hugeParam
+
+issues:
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck
+    - path: .*\.pb\.go
+      linters:
+        - revive
+        - gocritic
+        - dupl
+
+output:
+  format: colored-line-number
+  sort-results: true
