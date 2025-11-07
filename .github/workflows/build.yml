@@ -61,7 +61,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
 
-      # Step 4: Check formatting
       - name: Run go fmt
         run: |
           fmt_output=$(go fmt ./...)
@@ -70,6 +69,12 @@ jobs:
             echo "$fmt_output"
             exit 1
           fi
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+         version: latest
+         args: --timeout=1m
 
   build:
     name: Build Go Code
