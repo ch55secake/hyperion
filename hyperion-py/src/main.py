@@ -1,5 +1,6 @@
 import os
 import warnings
+import requests
 
 import pandas as pd
 
@@ -9,6 +10,7 @@ from simulation import TradingSimulator, predict_today
 from visualisation import Visualizer
 from xbg import XGBoostStockPredictor
 from data import StockDataDownloader
+from server import FlaskServer
 
 warnings.filterwarnings('ignore')
 
@@ -19,7 +21,7 @@ os.makedirs('results', exist_ok=True)
 os.makedirs('models', exist_ok=True)
 
 
-def main():
+def main(ticker: str):
     """Main execution function"""
     print("\n" + "=" * 60)
     print("XGBoost Stock Price Prediction & Trading Simulation")
@@ -27,11 +29,11 @@ def main():
 
     # Configuration
     SYMBOLS = [
-        'AAPL',
+        #'AAPL',
         # "GOOGL",
         # "TSLA",
         # "MSFT",
-        "NFLX",
+        #"NFLX",
         # "NVDA",
         # "EXC",
         # "AMZN",
@@ -364,8 +366,10 @@ def predict_mode():
 
 
 if __name__ == "__main__":
-    main()
-    predict_mode()
+    FlaskServer().run()
+    #requests.post('http://localhost:5000/train', body='')
+    #main()
+    #predict_mode()
 
     # # Check for command line argument
     # if len(sys.argv) > 1 and sys.argv[1] == 'predict':
