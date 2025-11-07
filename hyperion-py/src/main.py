@@ -31,7 +31,7 @@ def main():
         # "GOOGL",
         # "TSLA",
         # "MSFT",
-        # "NFLX",
+        "NFLX",
         # "NVDA",
         # "EXC",
         # "AMZN",

@@ -10,7 +10,7 @@ packages = [
 
 [tool.poetry.dependencies]
 python = ">=3.12,<3.13"
-yfinance = "0.2.32"
+yfinance = "0.2.66"
 xgboost = "2.0.3"
 pandas = "2.1.4"
 numpy = "1.26.2"

@@ -1,3 +1,5 @@
+import logging
+
 import yfinance as yf
 
 class StockDataDownloader:
@@ -18,10 +20,8 @@ class StockDataDownloader:
         for symbol in self.symbols:
             try:
                 print(f"\nDownloading {symbol}...")
-                # df = yf.download(symbol, interval=self.interval, period=self.period)
                 print(f"\n{self.period} {self.interval} data for {symbol}")
                 ticker = yf.Ticker(symbol)
-                # todo test here remove :-1 potentially
                 df = ticker.history(period=self.period, interval=self.interval)
 
                 if df.empty:
@@ -29,7 +29,7 @@ class StockDataDownloader:
                     continue
 
                 # Save to CSV
-                filename = f"../historic_data/{symbol}_{self.period}_{self.interval}.csv"
+                filename = f"./historic_data/{symbol}_{self.period}_{self.interval}.csv"
                 df.to_csv(filename)
 
                 self.data[symbol] = df
