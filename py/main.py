@@ -7,6 +7,15 @@ from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 import os
 import warnings
+import pickle
+from datetime import datetime, timedelta
+import json
+from skl2onnx import convert_sklearn
+from skl2onnx.common.data_types import FloatTensorType
+import onnx
+import onnxruntime as ort
+from skl2onnx import to_onnx
+from skl2onnx.common.data_types import FloatTensorType
 
 warnings.filterwarnings('ignore')
 
@@ -14,6 +23,7 @@ warnings.filterwarnings('ignore')
 os.makedirs('historic_data', exist_ok=True)
 os.makedirs('plots', exist_ok=True)
 os.makedirs('results', exist_ok=True)
+os.makedirs('models', exist_ok=True)
 
 
 class StockDataDownloader:
@@ -34,8 +44,10 @@ class StockDataDownloader:
         for symbol in self.symbols:
             try:
                 print(f"\nDownloading {symbol}...")
+                # df = yf.download(symbol, interval=self.interval, period=self.period)
                 ticker = yf.Ticker(symbol)
-                df = ticker.history(period=self.period, interval=self.interval)
+                # todo test here remove :-1 potentially
+                df = ticker.history(period=self.period, interval=self.interval)[:-1]
 
                 if df.empty:
                     print(f"  ⚠️  No data found for {symbol}")
@@ -290,7 +302,7 @@ class WalkForwardValidator:
         print("\n" + "=" * 60)
         print("Walk-Forward Analysis")
         print("=" * 60)
-        print(f"Train Window: {self.train_window} days (~{self.train_window/252:.1f} years)")
+        print(f"Train Window: {self.train_window} days (~{self.train_window / 252:.1f} years)")
         print(f"Test Window: {self.test_window} days")
         print(f"Retrain Frequency: {self.retrain_frequency} days")
 
@@ -395,16 +407,16 @@ class XGBoostStockPredictor:
         if params is None:
             params = {
                 'objective': 'reg:squarederror',
-                'max_depth': 50,
-                'learning_rate': 0.05,
-                'n_estimators': 1000,
-                'subsample': 0.8,
-                'colsample_bytree': 0.8,
-                'colsample_bylevel': 0.8,
-                'gamma': 0.1,
-                'reg_alpha': 0.5,
-                'reg_lambda': 1.0,
-                'min_child_weight': 3,
+                'max_depth': 8,  # Reduced from 50 - too deep causes overfitting to mean
+                'learning_rate': 0.05,  # Increased from 0.05 for stronger updates
+                'n_estimators': 1000,  # Reduced from 1000
+                'subsample': 0.9,  # Increased from 0.8
+                'colsample_bytree': 0.9,  # Increased from 0.8
+                'colsample_bylevel': 0.9,  # Increased from 0.8
+                'gamma': 0.0,  # Removed minimum split loss requirement
+                'reg_alpha': 0.01,  # Reduced L1 regularization from 0.5
+                'reg_lambda': 0.1,  # Reduced L2 regularization from 1.0
+                'min_child_weight': 1,  # Reduced from 3 to allow smaller splits
                 'random_state': 42,
                 'early_stopping_rounds': 50
             }
@@ -412,6 +424,8 @@ class XGBoostStockPredictor:
         self.model = None
         self.feature_importance = None
         self.scaler = StandardScaler()
+        self.onnx_session = None
+        self.use_onnx = False
 
     def train(self, X_train, y_train, X_val=None, y_val=None):
         """Train the XGBoost model"""
@@ -454,15 +468,34 @@ class XGBoostStockPredictor:
         print(f"✓ Max depth: {self.params['max_depth']}")
 
     def predict(self, X):
-        """Make predictions"""
-        if self.model is None:
-            raise ValueError("Model not trained yet")
+        """Make predictions using ONNX or XGBoost model"""
+        if self.model is None and self.onnx_session is None:
+            raise ValueError("Model not trained or loaded yet")
 
         # Scale features before prediction
         X_scaled = self.scaler.transform(X)
-        X_scaled = pd.DataFrame(X_scaled, columns=X.columns, index=X.index)
 
-        return self.model.predict(X_scaled)
+        # Use ONNX runtime if available
+        if self.use_onnx and self.onnx_session is not None:
+            # ONNX expects float32
+            X_scaled_float32 = X_scaled.astype(np.float32)
+
+            # Get input name from ONNX model
+            input_name = self.onnx_session.get_inputs()[0].name
+
+            # Run inference
+            predictions = self.onnx_session.run(None, {input_name: X_scaled_float32})[0]
+
+            # Flatten if needed
+            if len(predictions.shape) > 1:
+                predictions = predictions.flatten()
+
+            return predictions
+
+        # Fallback to XGBoost model
+        else:
+            X_scaled = pd.DataFrame(X_scaled, columns=X.columns, index=X.index)
+            return self.model.predict(X_scaled)
 
     def evaluate(self, X, y, dataset_name="Test"):
         """Evaluate model performance"""
@@ -486,6 +519,150 @@ class XGBoostStockPredictor:
             'mae': mae,
             'r2': r2
         }
+
+    def save_model(self, symbol: str, save_path: str = "models"):
+        """
+        Save the trained XGBoost model for a given stock symbol.
+
+        Tries ONNX export first (using in-memory booster), falling back to Pickle if conversion fails.
+        Cleans stringified float attributes (e.g. "[5.58903E-4]") to prevent conversion errors.
+        """
+        import os
+        import re
+        import pickle
+        import xgboost as xgb
+
+        os.makedirs(save_path, exist_ok=True)
+        onnx_filename = os.path.join(save_path, f"{symbol}_xgboost_model.onnx")
+        pkl_filename = os.path.join(save_path, f"{symbol}_xgboost_model.pkl")
+
+        if not hasattr(self, "model") or self.model is None:
+            raise ValueError("Model not trained yet. Train the model before saving.")
+
+        booster = self.model.get_booster()
+        n_features = len(booster.feature_names or [])
+        if n_features == 0:
+            raise ValueError("No features found in booster; cannot convert to ONNX.")
+
+        try:
+            print("\nAttempting ONNX conversion (Direct XGBoost → ONNX)...")
+
+            # Clean weird stringified float attributes (e.g., "[5.58903E-4]")
+            cleaned = 0
+            for k, v in list(booster.attributes().items()):
+                if isinstance(v, str) and ("[" in v or "]" in v):
+                    try:
+                        val = float(re.sub(r"[^0-9eE\+\-\.]", "", v))
+                        booster.set_attr(**{k: str(val)})
+                        cleaned += 1
+                    except Exception:
+                        booster.set_attr(**{k: "0.0"})
+            if cleaned:
+                print(f"✓ Cleaned {cleaned} stringified float attributes")
+
+            # In-memory model serialization (no temp files)
+            raw_bytes = booster.save_raw()
+            loaded_booster = xgb.Booster()
+            loaded_booster.load_model(bytearray(raw_bytes))
+
+            # Convert to ONNX
+            from onnxmltools import convert_xgboost
+            from onnxmltools.convert.common.data_types import FloatTensorType as OnnxFloatTensorType
+            import onnx
+            import onnxruntime as ort
+
+            onnx_model = convert_xgboost(
+                loaded_booster,
+                initial_types=[("input", OnnxFloatTensorType([None, n_features]))],
+                target_opset=11
+            )
+
+            onnx.checker.check_model(onnx_model)
+            onnx.save_model(onnx_model, onnx_filename)
+            ort.InferenceSession(onnx_filename)
+
+            print(f"✅ ONNX model saved and verified: {onnx_filename}")
+            return onnx_filename
+
+        except Exception as e:
+            print(f"⚠️ ONNX conversion failed: {e}")
+            print("ℹ️ Falling back to Pickle format...")
+
+            with open(pkl_filename, "wb") as f:
+                pickle.dump(self.model, f)
+            print(f"✅ Pickle model saved to: {pkl_filename}")
+            return pkl_filename
+
+
+    @classmethod
+    def load_model(cls, symbol, load_path='models'):
+        """Load a trained model from ONNX or pickle format"""
+        onnx_filename = f"{load_path}/{symbol}_xgboost_model.onnx"
+        pickle_filename = f"{load_path}/{symbol}_xgboost_model.pkl"
+
+        # Try ONNX first
+        if os.path.exists(onnx_filename):
+            print(f"\n✓ Loading ONNX model from: {onnx_filename}")
+
+            # Load metadata
+            metadata_filename = f"{load_path}/{symbol}_metadata.json"
+            if not os.path.exists(metadata_filename):
+                raise FileNotFoundError(f"Metadata file not found: {metadata_filename}")
+
+            with open(metadata_filename, 'r') as f:
+                metadata = json.load(f)
+
+            # Load scaler parameters
+            scaler_filename = f"{load_path}/{symbol}_scaler.json"
+            if not os.path.exists(scaler_filename):
+                raise FileNotFoundError(f"Scaler file not found: {scaler_filename}")
+
+            with open(scaler_filename, 'r') as f:
+                scaler_data = json.load(f)
+
+            # Create instance
+            instance = cls(params=metadata['params'])
+
+            # Restore scaler
+            instance.scaler.mean_ = np.array(scaler_data['mean'])
+            instance.scaler.scale_ = np.array(scaler_data['scale'])
+            instance.scaler.var_ = np.array(scaler_data['var'])
+            instance.scaler.n_features_in_ = scaler_data['n_features']
+
+            # Load ONNX model for inference
+            instance.onnx_session = ort.InferenceSession(onnx_filename)
+            instance.use_onnx = True
+
+            # Restore feature importance
+            instance.feature_importance = pd.DataFrame(metadata['feature_importance'])
+
+            print(f"  Trained on: {metadata['trained_date']}")
+            print(f"  Format: ONNX")
+            print(f"  Features: {metadata['n_features']}")
+
+            return instance
+
+        # Fallback to pickle
+        elif os.path.exists(pickle_filename):
+            print(f"\n✓ Loading pickle model from: {pickle_filename}")
+
+            with open(pickle_filename, 'rb') as f:
+                model_data = pickle.load(f)
+
+            # Create instance and restore model
+            instance = cls(params=model_data['params'])
+            instance.model = model_data['model']
+            instance.scaler = model_data['scaler']
+            instance.feature_importance = model_data['feature_importance']
+            instance.use_onnx = False
+
+            print(f"  Trained on: {model_data['trained_date']}")
+            print(f"  Format: Pickle")
+
+            return instance
+
+        else:
+            raise FileNotFoundError(f"Model file not found: {onnx_filename} or {pickle_filename}")
 
 
 class TradingSimulator:
@@ -516,40 +693,40 @@ class TradingSimulator:
         # Analyze predictions
         pred_array = np.array(predictions)
         print(f"\nPrediction Statistics:")
-        print(f"  Mean:     {np.mean(pred_array):.6f} ({np.mean(pred_array)*100:.4f}%)")
-        print(f"  Median:   {np.median(pred_array):.6f} ({np.median(pred_array)*100:.4f}%)")
-        print(f"  Std Dev:  {np.std(pred_array):.6f} ({np.std(pred_array)*100:.4f}%)")
-        print(f"  Min:      {np.min(pred_array):.6f} ({np.min(pred_array)*100:.4f}%)")
-        print(f"  Max:      {np.max(pred_array):.6f} ({np.max(pred_array)*100:.4f}%)")
+        print(f"  Mean:     {np.mean(pred_array):.6f} ({np.mean(pred_array) * 100:.4f}%)")
+        print(f"  Median:   {np.median(pred_array):.6f} ({np.median(pred_array) * 100:.4f}%)")
+        print(f"  Std Dev:  {np.std(pred_array):.6f} ({np.std(pred_array) * 100:.4f}%)")
+        print(f"  Min:      {np.min(pred_array):.6f} ({np.min(pred_array) * 100:.4f}%)")
+        print(f"  Max:      {np.max(pred_array):.6f} ({np.max(pred_array) * 100:.4f}%)")
         print(f"  Range:    {np.max(pred_array) - np.min(pred_array):.6f}")
 
         # Count positive/negative predictions
         positive_preds = np.sum(pred_array > 0)
         negative_preds = np.sum(pred_array < 0)
         print(f"\nPrediction Distribution:")
-        print(f"  Positive predictions: {positive_preds} ({positive_preds/len(pred_array)*100:.1f}%)")
-        print(f"  Negative predictions: {negative_preds} ({negative_preds/len(pred_array)*100:.1f}%)")
+        print(f"  Positive predictions: {positive_preds} ({positive_preds / len(pred_array) * 100:.1f}%)")
+        print(f"  Negative predictions: {negative_preds} ({negative_preds / len(pred_array) * 100:.1f}%)")
 
         # Determine threshold
         if threshold == 'auto':
             # Use 25th percentile of absolute predictions
             threshold = np.percentile(np.abs(pred_array), 25)
-            print(f"\nAuto threshold (25th percentile): {threshold:.6f} ({threshold*100:.4f}%)")
+            print(f"\nAuto threshold (25th percentile): {threshold:.6f} ({threshold * 100:.4f}%)")
         elif threshold == 'adaptive':
             # Use 0.3 standard deviations
             threshold = 0.3 * np.std(pred_array)
-            print(f"\nAdaptive threshold (0.3 std): {threshold:.6f} ({threshold*100:.4f}%)")
+            print(f"\nAdaptive threshold (0.3 std): {threshold:.6f} ({threshold * 100:.4f}%)")
         else:
             threshold = float(threshold)
-            print(f"\nFixed threshold: {threshold:.6f} ({threshold*100:.4f}%)")
+            print(f"\nFixed threshold: {threshold:.6f} ({threshold * 100:.4f}%)")
 
         print(f"Strategy: {strategy}")
 
         # Count predictions above/below threshold
         above_threshold = np.sum(pred_array > threshold)
         below_threshold = np.sum(pred_array < -threshold)
-        print(f"Predictions above +threshold: {above_threshold} ({above_threshold/len(pred_array)*100:.1f}%)")
-        print(f"Predictions below -threshold: {below_threshold} ({below_threshold/len(pred_array)*100:.1f}%)")
+        print(f"Predictions above +threshold: {above_threshold} ({above_threshold / len(pred_array) * 100:.1f}%)")
+        print(f"Predictions below -threshold: {below_threshold} ({below_threshold / len(pred_array) * 100:.1f}%)")
 
         capital = self.initial_capital
         shares = 0
@@ -713,12 +890,12 @@ class TradingSimulator:
         print(f"{'=' * 60}")
         print(f"Initial Capital:       ${self.initial_capital:,.2f}")
         print(f"Final Portfolio Value: ${final_value:,.2f}")
-        print(f"Total Return:          {total_return*100:.2f}%")
-        print(f"Buy & Hold Return:     {buy_hold_return*100:.2f}%")
+        print(f"Total Return:          {total_return * 100:.2f}%")
+        print(f"Buy & Hold Return:     {buy_hold_return * 100:.2f}%")
         print(f"Number of Trades:      {len(self.trades)}")
 
         if len(self.trades) > 0:
-            print(f"Strategy Alpha:        {(total_return - buy_hold_return)*100:.2f}%")
+            print(f"Strategy Alpha:        {(total_return - buy_hold_return) * 100:.2f}%")
 
             # Calculate win rate and average profit
             sell_trades = [t for t in self.trades if 'SELL' in t['action']]
@@ -731,8 +908,8 @@ class TradingSimulator:
         else:
             print("⚠️  WARNING: No trades executed!")
             print("    Possible reasons:")
-            print(f"    - Predictions too small (max: {np.max(np.abs(pred_array))*100:.4f}%)")
-            print(f"    - Threshold too high: {threshold*100:.4f}%")
+            print(f"    - Predictions too small (max: {np.max(np.abs(pred_array)) * 100:.4f}%)")
+            print(f"    - Threshold too high: {threshold * 100:.4f}%")
             print("    - Try 'directional' strategy or lower threshold")
 
         return {
@@ -755,8 +932,8 @@ class Visualizer:
 
         plt.subplot(1, 2, 1)
         plt.scatter(actual, predicted, alpha=0.5)
-        plt.plot([actual.min(), actual.max()], 
-                [actual.min(), actual.max()], 'r--', lw=2)
+        plt.plot([actual.min(), actual.max()],
+                 [actual.min(), actual.max()], 'r--', lw=2)
         plt.xlabel('Actual Returns')
         plt.ylabel('Predicted Returns')
         plt.title(f'{symbol} - Actual vs Predicted Returns')
@@ -805,17 +982,17 @@ class Visualizer:
 
         # Portfolio value over time
         ax1 = axes[0]
-        ax1.plot(portfolio_df['date'], portfolio_df['portfolio_value'], 
-                label='Portfolio Value', linewidth=2, color='blue')
-        ax1.axhline(y=simulation_results['final_value'], 
-                   color='g', linestyle='--', alpha=0.5, 
-                   label=f"Final: ${simulation_results['final_value']:,.0f}")
+        ax1.plot(portfolio_df['date'], portfolio_df['portfolio_value'],
+                 label='Portfolio Value', linewidth=2, color='blue')
+        ax1.axhline(y=simulation_results['final_value'],
+                    color='g', linestyle='--', alpha=0.5,
+                    label=f"Final: ${simulation_results['final_value']:,.0f}")
 
         # Show buy & hold for comparison
         first_price = portfolio_df['price'].iloc[0]
         buy_hold_values = (portfolio_df['price'] / first_price) * simulation_results['final_value']
-        ax1.plot(portfolio_df['date'], buy_hold_values, 
-                label='Buy & Hold', linewidth=2, alpha=0.5, linestyle='--', color='orange')
+        ax1.plot(portfolio_df['date'], buy_hold_values,
+                 label='Buy & Hold', linewidth=2, alpha=0.5, linestyle='--', color='orange')
 
         ax1.set_xlabel('Date')
         ax1.set_ylabel('Portfolio Value ($)')
@@ -826,27 +1003,27 @@ class Visualizer:
 
         # Stock price with buy/sell signals
         ax2 = axes[1]
-        ax2.plot(portfolio_df['date'], portfolio_df['price'], 
-                label='Stock Price', linewidth=2, alpha=0.7, color='black')
+        ax2.plot(portfolio_df['date'], portfolio_df['price'],
+                 label='Stock Price', linewidth=2, alpha=0.7, color='black')
 
         if len(trades_df) > 0:
             buys = trades_df[trades_df['action'].str.contains('BUY', case=False, na=False)]
             sells = trades_df[trades_df['action'].str.contains('SELL', case=False, na=False)]
 
             if len(buys) > 0:
-                ax2.scatter(buys['date'], buys['price'], 
-                           color='green', marker='^', s=150, 
-                           label=f'Buy ({len(buys)})', zorder=5, edgecolors='black', linewidth=1)
+                ax2.scatter(buys['date'], buys['price'],
+                            color='green', marker='^', s=150,
+                            label=f'Buy ({len(buys)})', zorder=5, edgecolors='black', linewidth=1)
             if len(sells) > 0:
-                ax2.scatter(sells['date'], sells['price'], 
-                           color='red', marker='v', s=150, 
-                           label=f'Sell ({len(sells)})', zorder=5, edgecolors='black', linewidth=1)
+                ax2.scatter(sells['date'], sells['price'],
+                            color='red', marker='v', s=150,
+                            label=f'Sell ({len(sells)})', zorder=5, edgecolors='black', linewidth=1)
         else:
             # Add warning text if no trades
-            ax2.text(0.5, 0.5, '⚠️ NO TRADES EXECUTED', 
-                    transform=ax2.transAxes, ha='center', va='center',
-                    fontsize=16, color='red', alpha=0.5, fontweight='bold',
-                    bbox=dict(boxstyle='round', facecolor='yellow', alpha=0.3))
+            ax2.text(0.5, 0.5, '⚠️ NO TRADES EXECUTED',
+                     transform=ax2.transAxes, ha='center', va='center',
+                     fontsize=16, color='red', alpha=0.5, fontweight='bold',
+                     bbox=dict(boxstyle='round', facecolor='yellow', alpha=0.3))
 
         ax2.set_xlabel('Date')
         ax2.set_ylabel('Stock Price ($)')
@@ -859,21 +1036,21 @@ class Visualizer:
         ax3 = axes[2]
         if 'prediction' in portfolio_df.columns:
             predictions = portfolio_df['prediction'].values * 100  # Convert to percentage
-            ax3.plot(portfolio_df['date'], predictions, 
-                    label='Predicted Return (%)', linewidth=1.5, alpha=0.8, color='purple')
+            ax3.plot(portfolio_df['date'], predictions,
+                     label='Predicted Return (%)', linewidth=1.5, alpha=0.8, color='purple')
             ax3.axhline(y=0, color='black', linestyle='-', linewidth=1, alpha=0.5)
 
             # Fill areas
-            ax3.fill_between(portfolio_df['date'], 0, predictions, 
+            ax3.fill_between(portfolio_df['date'], 0, predictions,
                              where=(predictions > 0), alpha=0.3, color='green', label='Positive Prediction')
-            ax3.fill_between(portfolio_df['date'], 0, predictions, 
+            ax3.fill_between(portfolio_df['date'], 0, predictions,
                              where=(predictions < 0), alpha=0.3, color='red', label='Negative Prediction')
 
             # Add statistics
             pred_stats = f"Mean: {np.mean(predictions):.3f}% | Std: {np.std(predictions):.3f}% | Range: [{np.min(predictions):.3f}, {np.max(predictions):.3f}]%"
-            ax3.text(0.02, 0.98, pred_stats, transform=ax3.transAxes, 
-                    verticalalignment='top', fontsize=9, 
-                    bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+            ax3.text(0.02, 0.98, pred_stats, transform=ax3.transAxes,
+                     verticalalignment='top', fontsize=9,
+                     bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
 
         ax3.set_xlabel('Date')
         ax3.set_ylabel('Predicted Return (%)')
@@ -906,12 +1083,12 @@ class Visualizer:
 
         # Mark retrain points
         for boundary in fold_boundaries:
-            ax1.axvline(x=boundary['start_date'], color='red', linestyle='--', 
-                       alpha=0.3, linewidth=1)
+            ax1.axvline(x=boundary['start_date'], color='red', linestyle='--',
+                        alpha=0.3, linewidth=1)
 
         # Add legend entry for retrain markers
-        ax1.axvline(x=dates[0], color='red', linestyle='--', 
-                   alpha=0.5, linewidth=1, label='Retrain Point')
+        ax1.axvline(x=dates[0], color='red', linestyle='--',
+                    alpha=0.5, linewidth=1, label='Retrain Point')
 
         ax1.set_xlabel('Date')
         ax1.set_ylabel('Returns')
@@ -929,16 +1106,16 @@ class Visualizer:
 
         # Mark retrain points
         for boundary in fold_boundaries:
-            ax2.axvline(x=boundary['start_date'], color='blue', linestyle='--', 
-                       alpha=0.3, linewidth=1)
+            ax2.axvline(x=boundary['start_date'], color='blue', linestyle='--',
+                        alpha=0.3, linewidth=1)
 
         # Add statistics
         mae = np.mean(np.abs(errors))
-        rmse = np.sqrt(np.mean(errors**2))
+        rmse = np.sqrt(np.mean(errors ** 2))
         stats_text = f'MAE: {mae:.6f} | RMSE: {rmse:.6f}'
         ax2.text(0.02, 0.98, stats_text, transform=ax2.transAxes,
-                verticalalignment='top', fontsize=10,
-                bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+                 verticalalignment='top', fontsize=10,
+                 bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
 
         ax2.set_xlabel('Date')
         ax2.set_ylabel('Error')
@@ -954,15 +1131,15 @@ class Visualizer:
         actual_cumulative = (1 + pd.Series(actuals)).cumprod() - 1
         predicted_cumulative = (1 + pd.Series(predictions)).cumprod() - 1
 
-        ax3.plot(dates, actual_cumulative * 100, label='Actual Cumulative Return', 
-                linewidth=2, alpha=0.8)
-        ax3.plot(dates, predicted_cumulative * 100, label='Predicted Cumulative Return', 
-                linewidth=2, alpha=0.8)
+        ax3.plot(dates, actual_cumulative * 100, label='Actual Cumulative Return',
+                 linewidth=2, alpha=0.8)
+        ax3.plot(dates, predicted_cumulative * 100, label='Predicted Cumulative Return',
+                 linewidth=2, alpha=0.8)
 
         # Mark retrain points
         for boundary in fold_boundaries:
-            ax3.axvline(x=boundary['start_date'], color='green', linestyle='--', 
-                       alpha=0.3, linewidth=1)
+            ax3.axvline(x=boundary['start_date'], color='green', linestyle='--',
+                        alpha=0.3, linewidth=1)
 
         ax3.set_xlabel('Date')
         ax3.set_ylabel('Cumulative Return (%)')
@@ -977,6 +1154,92 @@ class Visualizer:
         plt.close()
 
     @staticmethod
+    def plot_forecast(historical_df, forecast_data, symbol, save_path='plots'):
+        """Plot historical prices and forecasted prices"""
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(16, 12))
+
+        # Plot 1: Price forecast
+        hist_dates = historical_df.index
+        hist_prices = historical_df['Close'].values
+
+        forecast_dates = forecast_data['dates']
+        forecast_prices = forecast_data['prices']
+        forecast_lower = forecast_data['lower_bound']
+        forecast_upper = forecast_data['upper_bound']
+
+        # Historical prices
+        ax1.plot(hist_dates, hist_prices, label='Historical Price',
+                 linewidth=2, color='blue', alpha=0.8)
+
+        # Mark today
+        ax1.axvline(x=hist_dates[-1], color='green', linestyle='--',
+                    linewidth=2, alpha=0.7, label='Today')
+
+        # Forecast prices
+        ax1.plot(forecast_dates, forecast_prices, label='Forecasted Price',
+                 linewidth=2, color='red', linestyle='--', alpha=0.8)
+
+        # Confidence interval
+        ax1.fill_between(forecast_dates, forecast_lower, forecast_upper,
+                         alpha=0.3, color='red', label='Confidence Interval (±1 std)')
+
+        # Add start/end labels
+        current_price = hist_prices[-1]
+        final_forecast = forecast_prices[-1]
+        ax1.scatter([hist_dates[-1]], [current_price],
+                    color='green', s=200, zorder=5, edgecolors='black', linewidth=2)
+        ax1.scatter([forecast_dates[-1]], [final_forecast],
+                    color='red', s=200, zorder=5, edgecolors='black', linewidth=2)
+
+        ax1.text(hist_dates[-1], current_price, f'  Today\n  ${current_price:.2f}',
+                 verticalalignment='center', fontsize=10, fontweight='bold')
+        ax1.text(forecast_dates[-1], final_forecast, f'  30-day\n  ${final_forecast:.2f}',
+                 verticalalignment='center', fontsize=10, fontweight='bold')
+
+        ax1.set_xlabel('Date', fontsize=12)
+        ax1.set_ylabel('Price ($)', fontsize=12)
+        ax1.set_title(f'{symbol} - 30-Day Price Forecast', fontsize=14, fontweight='bold')
+        ax1.legend(loc='best', fontsize=10)
+        ax1.grid(True, alpha=0.3)
+        ax1.tick_params(axis='x', rotation=45)
+
+        # Plot 2: Daily returns forecast
+        forecast_returns = forecast_data['daily_returns']
+
+        colors = ['green' if r > 0 else 'red' for r in forecast_returns]
+        ax2.bar(forecast_dates, np.array(forecast_returns) * 100,
+                color=colors, alpha=0.6, edgecolor='black', linewidth=0.5)
+        ax2.axhline(y=0, color='black', linestyle='-', linewidth=1)
+
+        # Add cumulative return line
+        cumulative_return = (1 + np.array(forecast_returns)).cumprod() - 1
+        ax3 = ax2.twinx()
+        ax3.plot(forecast_dates, cumulative_return * 100,
+                 color='blue', linewidth=2, marker='o', markersize=4,
+                 label='Cumulative Return')
+
+        total_return = cumulative_return[-1] * 100
+        ax2.text(0.02, 0.98, f'30-Day Expected Return: {total_return:+.2f}%',
+                 transform=ax2.transAxes, verticalalignment='top',
+                 fontsize=12, fontweight='bold',
+                 bbox=dict(boxstyle='round', facecolor='yellow', alpha=0.7))
+
+        ax2.set_xlabel('Date', fontsize=12)
+        ax2.set_ylabel('Daily Return (%)', fontsize=12)
+        ax3.set_ylabel('Cumulative Return (%)', fontsize=12, color='blue')
+        ax3.tick_params(axis='y', labelcolor='blue')
+        ax2.set_title(f'{symbol} - Forecasted Daily Returns', fontsize=14, fontweight='bold')
+        ax2.grid(True, alpha=0.3, axis='y')
+        ax2.tick_params(axis='x', rotation=45)
+        ax3.legend(loc='upper left', fontsize=10)
+
+        plt.tight_layout()
+        filename = f'{save_path}/{symbol}_30day_forecast.png'
+        plt.savefig(filename, dpi=300, bbox_inches='tight')
+        print(f"  ✓ Saved forecast plot: {filename}")
+        plt.close()
+
+    @staticmethod
     def plot_price_with_indicators(df, symbol, save_path='plots'):
         """Plot stock price with technical indicators"""
         fig, axes = plt.subplots(3, 1, figsize=(15, 12))
@@ -986,7 +1249,7 @@ class Visualizer:
         ax1.plot(df.index, df['Close'], label='Close', linewidth=2)
         ax1.plot(df.index, df['SMA_20'], label='SMA 20', alpha=0.7)
         ax1.plot(df.index, df['SMA_50'], label='SMA 50', alpha=0.7)
-        ax1.fill_between(df.index, df['BB_Lower'], df['BB_Upper'], 
+        ax1.fill_between(df.index, df['BB_Lower'], df['BB_Upper'],
                          alpha=0.2, label='Bollinger Bands')
         ax1.set_ylabel('Price ($)')
         ax1.set_title(f'{symbol} - Price with Moving Averages')
@@ -1020,6 +1283,295 @@ class Visualizer:
         plt.close()
 
 
+def generate_forecast(predictor, df_features, feature_columns, start_price, num_days=30):
+    """
+    Generate multi-day forecast by iteratively predicting and updating features
+
+    Args:
+        predictor: Trained XGBoostStockPredictor model
+        df_features: DataFrame with all technical indicators
+        feature_columns: List of feature column names
+        start_price: Starting price for forecast
+        num_days: Number of days to forecast
+
+    Returns:
+        Dictionary with forecast data
+    """
+    # Start with the most recent complete data
+    current_features = df_features[feature_columns].iloc[-1:].copy()
+    current_price = start_price
+
+    forecast_prices = [current_price]
+    forecast_returns = []
+    forecast_dates = []
+
+    # Get the last date and start forecasting from next day
+    last_date = df_features.index[-1]
+
+    # Calculate volatility for confidence intervals (use recent volatility)
+    recent_returns = df_features['Price_Change_1d'].iloc[-30:].dropna()
+    volatility = recent_returns.std()
+
+    for day in range(num_days):
+        # Make prediction for next day
+        predicted_return = predictor.predict(current_features)[0]
+
+        # Calculate next price
+        next_price = current_price * (1 + predicted_return)
+
+        # Store results
+        next_date = last_date + timedelta(days=day + 1)
+        forecast_dates.append(next_date)
+        forecast_prices.append(next_price)
+        forecast_returns.append(predicted_return)
+
+        # Update features for next iteration
+        # This is a simplified approach - in reality, we'd need to recalculate
+        # all technical indicators with the new price point
+        current_features = current_features.copy()
+
+        # Update lagged returns
+        if 'Return_Lag_1' in current_features.columns:
+            current_features['Return_Lag_10'] = current_features['Return_Lag_5']
+            current_features['Return_Lag_5'] = current_features['Return_Lag_3']
+            current_features['Return_Lag_3'] = current_features['Return_Lag_2']
+            current_features['Return_Lag_2'] = current_features['Return_Lag_1']
+            current_features['Return_Lag_1'] = predicted_return
+
+        # Update price change features
+        if 'Price_Change_1d' in current_features.columns:
+            current_features['Price_Change_1d'] = predicted_return
+
+        # Add some momentum decay to prevent unrealistic trends
+        decay_factor = 0.95  # Slight decay each day
+        for col in current_features.columns:
+            if 'Momentum' in col or 'ROC' in col:
+                current_features[col] = current_features[col] * decay_factor
+
+        current_price = next_price
+
+    # Calculate confidence bounds (±1 standard deviation per day, compounding)
+    forecast_prices_array = np.array(forecast_prices[1:])  # Exclude starting price
+    days_forward = np.arange(1, num_days + 1)
+
+    # Confidence grows with square root of time
+    confidence_multiplier = volatility * np.sqrt(days_forward)
+    lower_bound = forecast_prices_array * (1 - confidence_multiplier)
+    upper_bound = forecast_prices_array * (1 + confidence_multiplier)
+
+    return {
+        'dates': forecast_dates,
+        'prices': forecast_prices[1:],  # Exclude starting price
+        'daily_returns': forecast_returns,
+        'lower_bound': lower_bound,
+        'upper_bound': upper_bound,
+        'volatility': volatility
+    }
+
+
+def predict_today(symbol, model_path='models'):
+    """
+    Make predictions for today's trading using a saved model
+
+    Args:
+        symbol: Stock symbol to predict
+        model_path: Path to saved models
+    """
+    print("\n" + "=" * 80)
+    print(f"LIVE PREDICTION FOR {symbol}")
+    print("=" * 80)
+
+    try:
+        # Load the trained model
+        print("\n1. Loading trained model...")
+        predictor = XGBoostStockPredictor.load_model(symbol, model_path)
+
+        # Download recent data (need enough history for indicators)
+        print(f"\n2. Downloading recent data for {symbol}...")
+        ticker = yf.Ticker(symbol)
+        # Get last 100 days to calculate indicators
+        df = ticker.history(period='100d', interval='1d')
+
+        if df.empty:
+            print(f"  ✗ No data available for {symbol}")
+            return None
+
+        print(f"  ✓ Downloaded {len(df)} days of data")
+        print(f"  ✓ Latest date: {df.index[-1].date()}")
+        print(f"  ✓ Latest close: ${df['Close'].iloc[-1]:.2f}")
+
+        # Add technical indicators
+        print("\n3. Calculating technical indicators...")
+        df_features = FeatureEngineering.add_technical_indicators(df)
+
+        # We don't need target for prediction
+        feature_columns = [
+            'SMA_5', 'SMA_10', 'SMA_20', 'SMA_50',
+            'EMA_12', 'EMA_26',
+            'MACD', 'MACD_Signal', 'MACD_Hist', 'MACD_Momentum',
+            'RSI', 'Stochastic',
+            'BB_Width',
+            'Price_Change_1d', 'Price_Change_5d', 'Price_Change_10d',
+            'Volume_Change', 'Volume_Ratio', 'Volume_SMA_Ratio',
+            'Volatility_10d', 'Volatility_20d', 'Volatility_Ratio',
+            'HL_Range', 'ATR',
+            'Return_Lag_1', 'Return_Lag_2', 'Return_Lag_3', 'Return_Lag_5', 'Return_Lag_10',
+            'Momentum_5', 'Momentum_10', 'Momentum_20',
+            'Price_to_SMA20', 'Price_to_SMA50',
+            'ROC_5', 'ROC_10'
+        ]
+
+        # Get the latest complete row (has all indicators)
+        df_clean = df_features.dropna()
+
+        if len(df_clean) == 0:
+            print("  ✗ Not enough data to calculate indicators")
+            return None
+
+        # Get features for the most recent day
+        X_today = df_clean[feature_columns].iloc[[-1]]  # Keep as DataFrame
+        latest_date = df_clean.index[-1]
+        latest_price = df_clean['Close'].iloc[-1]
+
+        print(f"  ✓ Using data from: {latest_date.date()}")
+
+        # Make prediction
+        print("\n4. Making prediction...")
+        prediction = predictor.predict(X_today)[0]
+
+        # Display results
+        print("\n" + "=" * 80)
+        print("PREDICTION RESULTS")
+        print("=" * 80)
+        print(f"\nSymbol:              {symbol}")
+        print(f"Current Price:       ${latest_price:.2f}")
+        print(f"Data Date:           {latest_date.date()}")
+        print(f"\nPredicted Return:    {prediction * 100:+.3f}%")
+        print(f"Predicted Price:     ${latest_price * (1 + prediction):.2f}")
+        print(f"Expected Change:     ${latest_price * prediction:+.2f}")
+
+        # Trading signal
+        print("\n" + "-" * 80)
+        print("TRADING SIGNAL")
+        print("-" * 80)
+
+        confidence = abs(prediction) / 0.02  # Normalized confidence (2% = high confidence)
+        confidence = min(confidence, 1.0) * 100
+
+        if prediction > 0.005:  # 0.5% threshold
+            signal = "🟢 STRONG BUY"
+            signal_text = "STRONG BUY"
+            action = "Consider opening a LONG position"
+        elif prediction > 0.002:
+            signal = "🟢 BUY"
+            signal_text = "BUY"
+            action = "Consider opening a small LONG position"
+        elif prediction > 0:
+            signal = "🟡 WEAK BUY"
+            signal_text = "WEAK BUY"
+            action = "Slight bullish bias, monitor closely"
+        elif prediction > -0.002:
+            signal = "🟡 WEAK SELL"
+            signal_text = "WEAK SELL"
+            action = "Slight bearish bias, monitor closely"
+        elif prediction > -0.005:
+            signal = "🔴 SELL"
+            signal_text = "SELL"
+            action = "Consider closing LONG positions or small SHORT"
+        else:
+            signal = "🔴 STRONG SELL"
+            signal_text = "STRONG SELL"
+            action = "Consider closing LONG positions or opening SHORT"
+
+        print(f"\nSignal:              {signal}")
+        print(f"Confidence:          {confidence:.1f}%")
+        print(f"Recommendation:      {action}")
+
+        # Show key indicators
+        print("\n" + "-" * 80)
+        print("KEY INDICATORS (Latest)")
+        print("-" * 80)
+        print(f"RSI:                 {df_clean['RSI'].iloc[-1]:.2f}")
+        print(f"MACD:                {df_clean['MACD'].iloc[-1]:.4f}")
+        print(f"Price vs SMA20:      {df_clean['Price_to_SMA20'].iloc[-1]:.4f}x")
+        print(f"Price vs SMA50:      {df_clean['Price_to_SMA50'].iloc[-1]:.4f}x")
+        print(f"Volatility (10d):    {df_clean['Volatility_10d'].iloc[-1]:.2f}")
+
+        print("\n" + "=" * 80)
+
+        # Generate 30-day forecast
+        print("\n5. Generating 30-day forecast...")
+        forecast_days = 180
+        forecast_data = generate_forecast(predictor, df_clean, feature_columns,
+                                          latest_price, forecast_days)
+
+        # Display forecast summary
+        print(f"\n30-DAY FORECAST SUMMARY:")
+        print(f"  Starting Price:      ${latest_price:.2f}")
+        print(f"  Forecasted Price:    ${forecast_data['prices'][-1]:.2f}")
+        print(f"  Expected Change:     ${forecast_data['prices'][-1] - latest_price:+.2f}")
+        print(f"  Expected Return:     {(forecast_data['prices'][-1] / latest_price - 1) * 100:+.2f}%")
+        print(
+            f"  Confidence Range:    ${forecast_data['lower_bound'][-1]:.2f} - ${forecast_data['upper_bound'][-1]:.2f}")
+
+        # Generate forecast plot
+        print("\n6. Creating forecast visualization...")
+        Visualizer.plot_forecast(df, forecast_data, symbol)
+
+        # Save prediction to file (use UTF-8 encoding and text-only signals)
+        pred_file = f'results/{symbol}_latest_prediction.txt'
+        with open(pred_file, 'w', encoding='utf-8') as f:
+            f.write(f"Latest Prediction for {symbol}\n")
+            f.write("=" * 60 + "\n")
+            f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write(f"Data Date: {latest_date.date()}\n\n")
+            f.write(f"Current Price:    ${latest_price:.2f}\n")
+            f.write(f"Predicted Return: {prediction * 100:+.3f}%\n")
+            f.write(f"Predicted Price:  ${latest_price * (1 + prediction):.2f}\n\n")
+            f.write(f"Signal:           {signal_text}\n")
+            f.write(f"Confidence:       {confidence:.1f}%\n")
+            f.write(f"Recommendation:   {action}\n\n")
+
+            # Add 30-day forecast
+            f.write("=" * 60 + "\n")
+            f.write("30-DAY FORECAST\n")
+            f.write("=" * 60 + "\n\n")
+            f.write(f"Starting Price:    ${latest_price:.2f}\n")
+            f.write(f"30-Day Forecast:   ${forecast_data['prices'][-1]:.2f}\n")
+            f.write(f"Expected Change:   ${forecast_data['prices'][-1] - latest_price:+.2f}\n")
+            f.write(f"Expected Return:   {(forecast_data['prices'][-1] / latest_price - 1) * 100:+.2f}%\n")
+            f.write(
+                f"Confidence Range:  ${forecast_data['lower_bound'][-1]:.2f} - ${forecast_data['upper_bound'][-1]:.2f}\n\n")
+
+            f.write("Weekly Milestones:\n")
+            for week in [0, 6, 13, 20, 29]:
+                if week < len(forecast_data['prices']):
+                    f.write(f"  Day {week + 1:2d}: ${forecast_data['prices'][week]:.2f} "
+                            f"({(forecast_data['prices'][week] / latest_price - 1) * 100:+.2f}%)\n")
+
+        print(f"✓ Prediction saved to: {pred_file}\n")
+
+        return {
+            'symbol': symbol,
+            'date': latest_date,
+            'current_price': latest_price,
+            'predicted_return': prediction,
+            'predicted_price': latest_price * (1 + prediction),
+            'signal': signal,
+            'confidence': confidence
+        }
+
+    except FileNotFoundError as e:
+        print(f"\n✗ Error: {e}")
+        print(f"  Please train a model for {symbol} first by running the main training script.")
+        return None
+    except Exception as e:
+        print(f"\n✗ Error making prediction: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
 def main():
     """Main execution function"""
     print("\n" + "=" * 60)
@@ -1027,16 +1579,52 @@ def main():
     print("=" * 60)
 
     # Configuration
-    SYMBOLS = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', "10M.L"]  # Stock symbols to analyze
-    PERIOD = '1y'  # Data period
+    SYMBOLS = [
+        'AAPL',
+        # "GOOGL",
+        # "TSLA",
+        # "MSFT",
+        # "NFLX",
+        # "NVDA",
+        # "EXC",
+        # "AMZN",
+        # "CNM",
+        # "COIN",
+        # "AMGN",
+        # "PLTR",
+        # "PEP",
+        # "META",
+        # "ORCL",
+        # "CRM",
+        # "ADBE",
+        # "AMD",
+        # "AVGO",
+        # "AMAT",
+        # "NET",
+        # "XZEM",
+        # "BBAI",
+        # "DLB",
+        # "FMAO",
+        # "PG",
+        # "LMT",
+        # "DELL",
+        # "RKLB",
+        # "CELH",
+        # "FDX",
+        # "BLK",
+        # "IBM",
+        # "HUT",
+        # "MARA",
+    ]  # Stock symbols to analyze
+    PERIOD = '5y'  # Data period
     INTERVAL = '1d'  # Data interval
     TEST_SIZE = 0.3  # Train/test split ratio
-    PREDICTION_THRESHOLD = 0.002  # 0.2% threshold for trading signals
+    # PREDICTION_THRESHOLD = 0.002  # 0.2% threshold for trading signals
 
     # Walk-forward configuration
-    USE_WALK_FORWARD = True  # Set to False for simple train/test split
+    USE_WALK_FORWARD = False  # Set to False for simple train/test split
     WALK_FORWARD_TRAIN_WINDOW = 180  # ~9 months of training data (reduced from 252)
-    WALK_FORWARD_TEST_WINDOW = 20   # ~1 month of testing
+    WALK_FORWARD_TEST_WINDOW = 20  # ~1 month of testing
     WALK_FORWARD_RETRAIN_FREQ = 20  # Retrain every ~1 month
 
     # Step 1: Download data
@@ -1116,8 +1704,8 @@ def main():
                 print("\nTraining final model on all data for feature importance...")
                 predictor = XGBoostStockPredictor()
                 split_idx = int(len(X) * 0.9)
-                predictor.train(X.iloc[:split_idx], y.iloc[:split_idx], 
-                              X.iloc[split_idx:], y.iloc[split_idx:])
+                predictor.train(X.iloc[:split_idx], y.iloc[:split_idx],
+                                X.iloc[split_idx:], y.iloc[split_idx:])
 
                 # Generate walk-forward specific plots
                 print("\nGenerating walk-forward visualizations...")
@@ -1145,6 +1733,12 @@ def main():
                 # Step 6: Evaluate
                 train_results = predictor.evaluate(X_train, y_train, "Train")
                 test_results = predictor.evaluate(X_test, y_test, "Test")
+
+            # Save the trained model
+            print("\n" + "=" * 60)
+            print("Saving Model")
+            print("=" * 60)
+            predictor.save_model(symbol)
 
             # Print final test results
             print(f"\nFinal Test Set Performance:")
@@ -1221,7 +1815,7 @@ def main():
                 print(f"\n{'=' * 60}")
                 print(f"🏆 Best Strategy: {best_strategy[0]}")
                 print(f"   Trades: {best_strategy[1]['num_trades']}")
-                print(f"   Return: {best_strategy[1]['total_return']*100:.2f}%")
+                print(f"   Return: {best_strategy[1]['total_return'] * 100:.2f}%")
                 print(f"{'=' * 60}")
                 sim_results = best_strategy[1]
             else:
@@ -1252,19 +1846,19 @@ def main():
                 for strategy_name, strategy_results, strategy_sim in strategies:
                     f.write(f"  {strategy_name} Strategy:\n")
                     f.write(f"    Final Value: ${strategy_results['final_value']:,.2f}\n")
-                    f.write(f"    Total Return: {strategy_results['total_return']*100:.2f}%\n")
+                    f.write(f"    Total Return: {strategy_results['total_return'] * 100:.2f}%\n")
                     f.write(f"    Number of Trades: {strategy_results['num_trades']}\n")
                     if strategy_results['num_trades'] > 0:
                         alpha = (strategy_results['total_return'] - strategy_results['buy_hold_return']) * 100
                         f.write(f"    Alpha vs Buy&Hold: {alpha:.2f}%\n")
                     f.write("\n")
 
-                f.write(f"  Buy & Hold Return: {sim_results['buy_hold_return']*100:.2f}%\n")
+                f.write(f"  Buy & Hold Return: {sim_results['buy_hold_return'] * 100:.2f}%\n")
 
                 if valid_strategies:
                     f.write(f"\n  Best Strategy: {best_strategy[0]}\n")
                     f.write(f"    Final Value: ${best_strategy[1]['final_value']:,.2f}\n")
-                    f.write(f"    Total Return: {best_strategy[1]['total_return']*100:.2f}%\n")
+                    f.write(f"    Total Return: {best_strategy[1]['total_return'] * 100:.2f}%\n")
                     f.write(f"    Number of Trades: {best_strategy[1]['num_trades']}\n")
 
             print(f"✓ Saved detailed results: {results_file}")
@@ -1280,8 +1874,58 @@ def main():
     print(f"✓ Plots saved in: plots/")
     print(f"✓ Results saved in: results/")
     print(f"✓ CSV data saved in: historic_data/")
+    print(f"✓ Models saved in: models/")
     print("=" * 60 + "\n")
 
 
+def predict_mode():
+    """Run prediction mode for today's data"""
+    print("\n" + "=" * 80)
+    print("PREDICTION MODE - Make predictions on today's data")
+    print("=" * 80)
+
+    # Get symbols from saved models
+    model_files = [f for f in os.listdir('models') if f.endswith('_xgboost_model.pkl')]
+
+    if not model_files:
+        print("\n⚠️  No trained models found in 'models/' directory")
+        print("   Please run training mode first to train models")
+        return
+
+    symbols = [f.replace('_xgboost_model.pkl', '') for f in model_files]
+
+    print(f"\nFound trained models for: {', '.join(symbols)}")
+    print("\nMaking predictions for all symbols...\n")
+
+    predictions = []
+    for symbol in symbols:
+        result = predict_today(symbol)
+        if result:
+            predictions.append(result)
+
+    # Summary
+    if predictions:
+        print("\n" + "=" * 80)
+        print("SUMMARY OF ALL PREDICTIONS")
+        print("=" * 80)
+        print(f"\n{'Symbol':<10} {'Current':<12} {'Predicted':<12} {'Return':<10} {'Signal':<20}")
+        print("-" * 80)
+        for p in predictions:
+            print(f"{p['symbol']:<10} ${p['current_price']:<11.2f} ${p['predicted_price']:<11.2f} "
+                  f"{p['predicted_return'] * 100:>+8.3f}% {p['signal']:<20}")
+        print("=" * 80 + "\n")
+
+
 if __name__ == "__main__":
+    import sys
+
     main()
+    predict_mode()
+
+    # # Check for command line argument
+    # if len(sys.argv) > 1 and sys.argv[1] == 'predict':
+    #     # Prediction mode - use saved models on today's data
+    #     predict_mode()
+    # else:
+    #     # Training mode - train new models
+    #     main()
