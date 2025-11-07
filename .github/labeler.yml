@@ -1,0 +1,14 @@
+documentation:
+  - any:
+      - changed-files:
+          - any-glob-to-any-file: ["**/*.md"]
+      - head-branch: ['^docs', 'docs']
+
+feature:
+  - head-branch: ['^feature', 'feature', '^feat', 'feat']
+
+fix:
+  - head-branch: ['^fix', 'fix']
+
+chore:
+  - head-branch: ['^chore', 'chore']
