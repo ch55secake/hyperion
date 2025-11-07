@@ -1,6 +1,7 @@
 package indicators
 
 import (
+	"errors"
 	types "github.com/ch55secake/hyperion/pkg/data"
 	"math"
 )
@@ -75,39 +76,38 @@ func CalculateStochastic(data []types.OHLCV, period int) float64 {
 // CCI calculates the Commodity Channel Index (CCI) for a given dataset.
 // Each input (high, low, close) must be of equal length.
 // Returns a slice of CCI values for the given period.
-func CalculateCCI(high, low, close []float64, period int) []float64 {
-	n := len(close)
-	if len(high) != n || len(low) != n || period <= 0 || n < period {
-		return nil
+func CalculateCCI(data []types.OHLCV, constant float64) (float64, error) {
+	if len(data) == 0 {
+		return 0, errors.New("no data provided")
 	}
 
-	typicalPrices := make([]float64, n)
-	for i := 0; i < n; i++ {
-		typicalPrices[i] = (high[i] + low[i] + close[i]) / 3.0
+	// Calculate typical prices
+	typicalPrices := make([]float64, len(data))
+	for i, d := range data {
+		typicalPrices[i] = (d.High + d.Low + d.Close) / 3
 	}
 
-	ccis := make([]float64, n-period+1)
-	const constant = 0.015
+	// Calculate SMA of typical prices
+	smaTP := 0.0
+	for _, tp := range typicalPrices {
+		smaTP += tp
+	}
+	smaTP /= float64(len(data))
 
-	for i := 0; i <= n-period; i++ {
-		window := typicalPrices[i : i+period]
-		sma := mean(window)
+	// Calculate mean deviation
+	meanDev := 0.0
+	for _, tp := range typicalPrices {
+		meanDev += math.Abs(tp - smaTP)
+	}
+	meanDev /= float64(len(data))
 
-		// Calculate mean deviation
-		var md float64
-		for _, tp := range window {
-			md += math.Abs(tp - sma)
-		}
-		md /= float64(period)
-
-		if md == 0 {
-			ccis[i] = 0
-			continue
-		}
-
-		// Current CCI value
-		ccis[i] = (window[len(window)-1] - sma) / (constant * md)
+	// Calculate CCI for the last point
+	if meanDev == 0 {
+		return 0, errors.New("mean deviation is zero")
 	}
 
-	return ccis
+	lastTP := typicalPrices[len(typicalPrices)-1]
+	cci := (lastTP - smaTP) / (constant * meanDev)
+
+	return cci, nil
 }

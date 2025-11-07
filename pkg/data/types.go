@@ -37,6 +37,7 @@ type Features struct {
 	ROC          float64 // Rate of Change
 	StochK       float64 // Stochastic Oscillator
 	Label        int     // 1 = up, 0 = down
+	CCI          float64
 }
 
 func GetFeatureValue(f Features, idx int) float64 {

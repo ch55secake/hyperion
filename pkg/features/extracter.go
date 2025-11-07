@@ -34,6 +34,8 @@ func ExtractFeatures(ts *types.TradingStrategy) []types.Features {
 		rsiPrev := indicators.CalculateRSI(prices[:len(prices)-5], 14)
 		rsiSlope := rsi - rsiPrev
 
+		cci, _ := indicators.CalculateCCI(ts.Data[:i+1], 0.015)
+
 		// ATR
 		atr := indicators.CalculateATR(ts.Data[:i+1], 14)
 
@@ -99,6 +101,7 @@ func ExtractFeatures(ts *types.TradingStrategy) []types.Features {
 			ROC:          roc,
 			StochK:       stochK,
 			Label:        label,
+			CCI:          cci,
 		}
 
 		features = append(features, feature)
