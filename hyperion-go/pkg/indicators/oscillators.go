@@ -4,7 +4,7 @@ import (
 	"errors"
 	"math"
 
-	types "github.com/ch55secake/hyperion/hyperion-go/pkg/data"
+	types "hyperion-go/pkg/data"
 )
 
 // CalculateRSI computes Relative Strength Index

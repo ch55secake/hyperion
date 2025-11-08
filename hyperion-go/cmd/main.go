@@ -3,9 +3,9 @@ package main
 import (
 	"fmt"
 
-	data2 "github.com/ch55secake/hyperion/hyperion-go/pkg/data"
-	"github.com/ch55secake/hyperion/hyperion-go/pkg/features"
-	"github.com/ch55secake/hyperion/hyperion-go/pkg/ml/randomforest"
+	data2 "hyperion-go/pkg/data"
+	"hyperion-go/pkg/features"
+	"hyperion-go/pkg/ml/randomforest"
 )
 
 func main() {

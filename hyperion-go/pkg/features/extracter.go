@@ -1,8 +1,8 @@
 package features
 
 import (
-	types "github.com/ch55secake/hyperion/hyperion-go/pkg/data"
-	indicators2 "github.com/ch55secake/hyperion/hyperion-go/pkg/indicators"
+	types "hyperion-go/pkg/data"
+	indicators2 "hyperion-go/pkg/indicators"
 )
 
 // ExtractFeatures generates enhanced features

@@ -1,3 +1,3 @@
-module github.com/ch55secake/hyperion
+module hyperion-go
 
 go 1.23.3
