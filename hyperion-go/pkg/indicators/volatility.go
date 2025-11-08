@@ -1,8 +1,9 @@
 package indicators
 
 import (
-	types "github.com/ch55secake/hyperion/pkg/data"
 	"math"
+
+	types "github.com/ch55secake/hyperion/hyperion-go/pkg/data"
 )
 
 // CalculateATR computes Average True Range

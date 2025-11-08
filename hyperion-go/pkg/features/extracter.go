@@ -1,8 +1,8 @@
 package features
 
 import (
-	types "github.com/ch55secake/hyperion/pkg/data"
-	"github.com/ch55secake/hyperion/pkg/indicators"
+	types "github.com/ch55secake/hyperion/hyperion-go/pkg/data"
+	indicators2 "github.com/ch55secake/hyperion/hyperion-go/pkg/indicators"
 )
 
 // ExtractFeatures generates enhanced features
@@ -25,26 +25,26 @@ func ExtractFeatures(ts *types.TradingStrategy) []types.Features {
 		returns10 := (currentPrice - ts.Data[i-10].Close) / ts.Data[i-10].Close
 
 		// Moving averages
-		sma5 := indicators.CalculateSMA(prices, 5)
-		sma20 := indicators.CalculateSMA(prices, 20)
-		ema12 := indicators.CalculateEMA(prices, 12)
+		sma5 := indicators2.CalculateSMA(prices, 5)
+		sma20 := indicators2.CalculateSMA(prices, 20)
+		ema12 := indicators2.CalculateEMA(prices, 12)
 
 		// RSI and slope
-		rsi := indicators.CalculateRSI(prices, 14)
-		rsiPrev := indicators.CalculateRSI(prices[:len(prices)-5], 14)
+		rsi := indicators2.CalculateRSI(prices, 14)
+		rsiPrev := indicators2.CalculateRSI(prices[:len(prices)-5], 14)
 		rsiSlope := rsi - rsiPrev
 
-		cci, _ := indicators.CalculateCCI(ts.Data[:i+1], 0.015)
+		cci, _ := indicators2.CalculateCCI(ts.Data[:i+1], 0.015)
 
 		// ATR
-		atr := indicators.CalculateATR(ts.Data[:i+1], 14)
+		atr := indicators2.CalculateATR(ts.Data[:i+1], 14)
 
 		// MACD
-		macd, signal := indicators.CalculateMACD(prices)
+		macd, signal := indicators2.CalculateMACD(prices)
 
 		// Bollinger Bands position
-		sma20bb := indicators.CalculateSMA(prices, 20)
-		std := indicators.CalculateStd(prices, 20)
+		sma20bb := indicators2.CalculateSMA(prices, 20)
+		std := indicators2.CalculateStd(prices, 20)
 		bollingerPos := 0.0
 		if std > 0 {
 			bollingerPos = (currentPrice - sma20bb) / (2 * std)
@@ -55,7 +55,7 @@ func ExtractFeatures(ts *types.TradingStrategy) []types.Features {
 		for j := 0; j < 20; j++ {
 			volumes[j] = ts.Data[i-19+j].Volume
 		}
-		avgVol := indicators.CalculateSMA(volumes, 20)
+		avgVol := indicators2.CalculateSMA(volumes, 20)
 		volumeRatio := 0.0
 		volumeSMA := 0.0
 		if avgVol > 0 {
@@ -73,7 +73,7 @@ func ExtractFeatures(ts *types.TradingStrategy) []types.Features {
 		}
 
 		// Stochastic
-		stochK := indicators.CalculateStochastic(ts.Data[:i+1], 14)
+		stochK := indicators2.CalculateStochastic(ts.Data[:i+1], 14)
 
 		// Label: 1 if future return > 1%, 0 otherwise
 		label := 0

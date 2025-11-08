@@ -13,6 +13,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  defaults:
+    run:
+      shell: bash
+      working-directory: hyperion-go
+
 #  test:
 #    name: Run tests
 #    runs-on: ubuntu-latest

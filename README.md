@@ -1,29 +1,26 @@
-# hyperion
+# Hyperion 
 
-## Overview
-Hyperion is a machine learning-based trading strategy system implemented in Go. It uses decision trees and feature extraction techniques to analyze and make trading decisions based on financial market data.
+The name is cool, don't hate. 
 
-## Features
-- Decision tree-based trading strategy implementation
-- Feature extraction and engineering for financial data
-- Gini impurity calculation for decision tree optimization
-- Statistical calculations including:
-    - Standard Deviation
-    - Simple Moving Average (SMA)
-    - Majority class detection
-- Binary classification for trading signals
+[!NOTE]
+This project is under development.
 
-## Requirements
-- Go 1.23.3 or later
+## Overview 
 
-## Installation
-```bash
-# Clone the repository
-git clone https://github.com/ch55secake/hyperion.git
+Attempt to make trades based on the predictions of models trained on historical using the XGBoost algorithm. We are trying 
+to aim for a 5-10% ROI on the portfolio.
 
-# Change to project directory
-cd hyperion
+## Features 
 
-# Install dependencies
-go mod download
-```
+We currently have the following features implemented: 
+
+(hyperion-py)
+- XGBoost algorithm 
+- Data plots based on the predictions 
+- Prediction analysis 
+- Experimental walk-foward validation, might be removed in the future 
+- Trading simulation 
+
+(hyperion-go)
+- Deprecated implementation of the random forest algorithm 
+- Trading simulation

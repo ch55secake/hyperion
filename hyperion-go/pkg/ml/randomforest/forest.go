@@ -2,10 +2,11 @@ package randomforest
 
 import (
 	"fmt"
-	util "github.com/ch55secake/hyperion/pkg"
-	types "github.com/ch55secake/hyperion/pkg/data"
 	"math/rand"
 	"time"
+
+	util "github.com/ch55secake/hyperion/hyperion-go/pkg"
+	types "github.com/ch55secake/hyperion/hyperion-go/pkg/data"
 )
 
 // Train with improved Random Forest
@@ -48,7 +49,7 @@ func Train(ts *types.TradingStrategy, numTrees, maxDepth, minSample int) {
 }
 
 func bootstrapSample(data []types.Features) []types.Features {
-	sample := make([]types.Features, len(data))
+	sample := make([]data.Features, len(data))
 	for i := 0; i < len(data); i++ {
 		idx := rand.Intn(len(data))
 		sample[i] = data[idx]

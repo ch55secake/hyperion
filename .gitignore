@@ -12,17 +12,17 @@
 *.test
 
 # Code coverage profiles and other test artifacts
-*.out
-coverage.*
-*.coverprofile
-profile.cov
+hyperion-go/*.out
+hyperion-go/coverage.*
+hyperion-go/*.coverprofile
+hyperion-go/profile.cov
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
 
 # Go workspace file
-go.work
-go.work.sum
+hyperion-go/go.work
+hyperion-go/go.work.sum
 
 # env file
 .env
@@ -41,3 +41,6 @@ hyperion-py/results
 
 # Pycaches
 hyperion-py/**/__pycache__/
+
+# .venv
+hyperion-py/.venv/

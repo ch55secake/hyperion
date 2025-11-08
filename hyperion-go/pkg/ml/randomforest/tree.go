@@ -1,10 +1,12 @@
 package randomforest
 
-import types "github.com/ch55secake/hyperion/pkg/data"
+import (
+	types "github.com/ch55secake/hyperion/hyperion-go/pkg/data"
+)
 
 func buildTree(data []types.Features, depth, maxDepth, minSample, maxFeatures int) *types.DecisionTree {
 	if depth >= maxDepth || len(data) < minSample {
-		return &types.DecisionTree{
+		return &data.DecisionTree{
 			IsLeaf:     true,
 			Prediction: calculateMajorityClass(data),
 		}
@@ -21,7 +23,7 @@ func buildTree(data []types.Features, depth, maxDepth, minSample, maxFeatures in
 	}
 
 	if allSame {
-		return &types.DecisionTree{
+		return &data.DecisionTree{
 			IsLeaf:     true,
 			Prediction: float64(firstLabel),
 		}
@@ -30,7 +32,7 @@ func buildTree(data []types.Features, depth, maxDepth, minSample, maxFeatures in
 	bestFeature, bestThreshold, bestGini := findBestSplit(data, maxFeatures)
 
 	if bestGini >= 0.49 { // No significant improvement
-		return &types.DecisionTree{
+		return &data.DecisionTree{
 			IsLeaf:     true,
 			Prediction: calculateMajorityClass(data),
 		}
@@ -39,13 +41,13 @@ func buildTree(data []types.Features, depth, maxDepth, minSample, maxFeatures in
 	left, right := splitData(data, bestFeature, bestThreshold)
 
 	if len(left) == 0 || len(right) == 0 {
-		return &types.DecisionTree{
+		return &data.DecisionTree{
 			IsLeaf:     true,
 			Prediction: calculateMajorityClass(data),
 		}
 	}
 
-	return &types.DecisionTree{
+	return &data.DecisionTree{
 		FeatureIdx: bestFeature,
 		Threshold:  bestThreshold,
 		Left:       buildTree(left, depth+1, maxDepth, minSample, maxFeatures),

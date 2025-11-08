@@ -1,9 +1,10 @@
 package randomforest
 
 import (
-	types "github.com/ch55secake/hyperion/pkg/data"
 	"math/rand/v2"
 	"sort"
+
+	types "github.com/ch55secake/hyperion/hyperion-go/pkg/data"
 )
 
 func findBestSplit(data []types.Features, maxFeatures int) (int, float64, float64) {
@@ -18,7 +19,7 @@ func findBestSplit(data []types.Features, maxFeatures int) (int, float64, float6
 	for _, featureIdx := range features {
 		values := make([]float64, len(data))
 		for i, f := range data {
-			values[i] = types.GetFeatureValue(f, featureIdx)
+			values[i] = data.GetFeatureValue(f, featureIdx)
 		}
 
 		sort.Float64s(values)
@@ -49,10 +50,10 @@ func findBestSplit(data []types.Features, maxFeatures int) (int, float64, float6
 }
 
 func splitData(data []types.Features, featureIdx int, threshold float64) ([]types.Features, []types.Features) {
-	var left, right []types.Features
+	var left, right []data.Features
 
 	for _, f := range data {
-		if types.GetFeatureValue(f, featureIdx) <= threshold {
+		if data.GetFeatureValue(f, featureIdx) <= threshold {
 			left = append(left, f)
 		} else {
 			right = append(right, f)

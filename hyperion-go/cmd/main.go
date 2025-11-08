@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/ch55secake/hyperion/pkg/data"
-	"github.com/ch55secake/hyperion/pkg/features"
-	"github.com/ch55secake/hyperion/pkg/ml/randomforest"
+
+	data2 "github.com/ch55secake/hyperion/hyperion-go/pkg/data"
+	"github.com/ch55secake/hyperion/hyperion-go/pkg/features"
+	"github.com/ch55secake/hyperion/hyperion-go/pkg/ml/randomforest"
 )
 
 func main() {
@@ -36,14 +37,14 @@ func main() {
 
 	// Generate more data for better training
 	for _, resource := range resources {
-		stockData, err := data.LoadDataFromCSV(resource)
+		stockData, err := data2.LoadDataFromCSV(resource)
 		if err != nil {
 			fmt.Println("Failed to load data from CSV")
 		}
 
 		fmt.Printf("Loaded %d days of data\n", len(stockData))
 
-		strategy := data.NewTradingStrategy(stockData, 20000.0)
+		strategy := data2.NewTradingStrategy(stockData, 20000.0)
 
 		fmt.Println("Extracting enhanced features...")
 		extractedFeatures := features.ExtractFeatures(strategy)
