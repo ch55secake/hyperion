@@ -5,7 +5,8 @@ import (
 	"log"
 	"time"
 
-	"github.com/ch55secake/hyperion/pkg/client"
+	"hyperion-go/pkg/client"
+
 	"github.com/go-co-op/gocron"
 )
 
