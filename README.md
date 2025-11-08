@@ -2,8 +2,8 @@
 
 The name is cool, don't hate. 
 
-[!NOTE]
-This project is under development.
+> [!NOTE]
+> This project is under development.
 
 ## Overview 
 
