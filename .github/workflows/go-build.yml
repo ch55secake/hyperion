@@ -2,6 +2,9 @@ name: Go CI
 
 on:
   push:
+    paths:
+      - hyperion-go/src/**
+      - hyperion-go/tests/**
     branches:
       - main
   pull_request:
