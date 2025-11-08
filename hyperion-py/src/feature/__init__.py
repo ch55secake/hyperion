@@ -1,1 +1,1 @@
-from .feature_engineering import FeatureEngineering
+from .feature_engineering import FeatureEngineering, create_target_features

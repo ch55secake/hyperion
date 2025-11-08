@@ -1,1 +1,1 @@
-from server import FlaskServer
+from server import Server

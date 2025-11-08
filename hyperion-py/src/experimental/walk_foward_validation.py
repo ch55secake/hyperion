@@ -1,5 +1,16 @@
+from typing import Any
+
 import numpy as np
+import pandas as pd
+from pandas import Series
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+
+from src.visualisation import generate_walk_forward_plots
+from src.xbg import XGBoostStockPredictor
+
+WALK_FORWARD_TRAIN_WINDOW = 180  # ~9 months of training data (reduced from 252)
+WALK_FORWARD_TEST_WINDOW = 20  # ~1 month of testing
+WALK_FORWARD_RETRAIN_FREQ = 20  # Retrain every ~1 month
 
 
 class WalkForwardValidator:
@@ -87,7 +98,7 @@ class WalkForwardValidator:
         print("\n" + "=" * 60)
         print("Walk-Forward Analysis")
         print("=" * 60)
-        print(f"Train Window: {self.train_window} days (~{self.train_window/252:.1f} years)")
+        print(f"Train Window: {self.train_window} days (~{self.train_window / 252:.1f} years)")
         print(f"Test Window: {self.test_window} days")
         print(f"Retrain Frequency: {self.retrain_frequency} days")
 
@@ -183,3 +194,58 @@ class WalkForwardValidator:
                 'mse': overall_mse
             }
         }
+
+
+def do_walk_forward_validation(x, dates, prices, use_walk_forward: bool, y) -> tuple[
+    bool, dict[str, np.ndarray[Any, np.dtype[Any]] | list[Any] | dict[str, float | Any]]]:
+    print("\n" + "=" * 60)
+    print("Using Walk-Forward Analysis")
+    print("=" * 60)
+
+    try:
+        # Initialize walk-forward validator
+        wf_validator = WalkForwardValidator(
+            train_window=WALK_FORWARD_TRAIN_WINDOW,
+            test_window=WALK_FORWARD_TEST_WINDOW,
+            retrain_frequency=WALK_FORWARD_RETRAIN_FREQ
+        )
+
+        # Perform walk-forward validation
+        wf_results = wf_validator.validate(
+            x, y, dates, prices,
+            XGBoostStockPredictor,
+            predictor_params=None  # Uses default params
+        )
+    except ValueError as e:
+        print(f"\n⚠️  Walk-forward analysis failed: {e}")
+        print(f"   Falling back to simple train/test split")
+        use_walk_forward = False
+
+    return use_walk_forward, wf_results
+
+def second_pass_walk_forward(x, symbol, wf_results: dict[str, np.ndarray[Any, np.dtype[Any]] | list[Any] | dict[str, float | Any]], y, visualisation: bool = False) -> tuple[
+    XGBoostStockPredictor, dict[str, np.ndarray[Any, np.dtype[Any]] | list[Any] | dict[str, float | Any] | float | Any],
+    np.ndarray[Any, np.dtype[Any]] | list[Any] | dict[str, float | Any], Series, Series]:
+    # Extract results for compatibility with existing code
+    test_results = {
+        'predictions': wf_results['predictions'],
+        'rmse': wf_results['metrics']['rmse'],
+        'mae': wf_results['metrics']['mae'],
+        'r2': wf_results['metrics']['r2'],
+        'mse': wf_results['metrics']['mse']
+    }
+
+    y_test = pd.Series(wf_results['actuals'], index=wf_results['dates'])
+    dates_test = wf_results['dates']
+    prices_test = pd.Series(wf_results['prices'], index=wf_results['dates'])
+
+    # Create a final model for feature importance (trained on all data)
+    print("\nTraining final model on all data for feature importance...")
+    predictor = XGBoostStockPredictor()
+    split_idx = int(len(x) * 0.9)
+    predictor.train(x.iloc[:split_idx], y.iloc[:split_idx],
+                    x.iloc[split_idx:], y.iloc[split_idx:])
+
+    if visualisation: generate_walk_forward_plots(wf_results, symbol)
+
+    return dates_test, predictor, prices_test, test_results, y_test

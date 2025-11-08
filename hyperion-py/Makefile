@@ -7,4 +7,8 @@ clean:
 run:
 	@poetry run python3 src/main.py
 
-.PHONY: clean run
+install:
+	@poetry lock
+	@poetry install
+
+.PHONY: clean run install

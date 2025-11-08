@@ -149,3 +149,7 @@ class FeatureEngineering:
         prices = df_clean['Close']
 
         return x, y, dates, prices, feature_columns
+
+def create_target_features(df):
+    df_features = FeatureEngineering.add_technical_indicators(df)
+    return FeatureEngineering.create_target(df_features, target_days=1)
