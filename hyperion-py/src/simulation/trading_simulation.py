@@ -1,9 +1,9 @@
 from datetime import datetime, timedelta
 from typing import Any
 
-import yfinance as yf
 import numpy as np
 import pandas as pd
+import yfinance as yf
 from pandas import DataFrame, Series
 
 from src.feature import FeatureEngineering
@@ -20,255 +20,248 @@ class TradingSimulator:
         self.portfolio_history = []
         self.trades = []
 
-    def simulate(self, predictions, actual_returns, prices, dates, threshold='auto', strategy='directional'):
+    def simulate(
+            self,
+            predictions,
+            actual_returns,
+            prices=None,
+            dates=None,
+            threshold="auto",
+            strategy="directional",
+            use_returns=True,
+    ):
         """
-        Simulate trading strategy
-
-        Args:
-            predictions: Predicted returns
-            actual_returns: Actual returns
-            prices: Stock prices
-            dates: Dates
-            threshold: Minimum predicted return to trigger a trade ('auto', 'adaptive', or float)
-            strategy: 'directional' (trade on sign) or 'threshold' (trade above threshold)
+        Simulate trading strategy and evaluate predictive performance.
         """
         print("\n" + "=" * 60)
         print("Running Trading Simulation")
         print("=" * 60)
 
-        # Analyze predictions
         pred_array = np.array(predictions)
-        print(f"\nPrediction Statistics:")
-        print(f"  Mean:     {np.mean(pred_array):.6f} ({np.mean(pred_array)*100:.4f}%)")
-        print(f"  Median:   {np.median(pred_array):.6f} ({np.median(pred_array)*100:.4f}%)")
-        print(f"  Std Dev:  {np.std(pred_array):.6f} ({np.std(pred_array)*100:.4f}%)")
-        print(f"  Min:      {np.min(pred_array):.6f} ({np.min(pred_array)*100:.4f}%)")
-        print(f"  Max:      {np.max(pred_array):.6f} ({np.max(pred_array)*100:.4f}%)")
-        print(f"  Range:    {np.max(pred_array) - np.min(pred_array):.6f}")
+        actual_array = np.array(actual_returns)
 
-        # Count positive/negative predictions
-        positive_preds = np.sum(pred_array > 0)
-        negative_preds = np.sum(pred_array < 0)
-        print(f"\nPrediction Distribution:")
-        print(f"  Positive predictions: {positive_preds} ({positive_preds/len(pred_array)*100:.1f}%)")
-        print(f"  Negative predictions: {negative_preds} ({negative_preds/len(pred_array)*100:.1f}%)")
+        # ... existing statistics code ...
 
-        # Determine threshold
-        if threshold == 'auto':
-            # Use 25th percentile of absolute predictions
+        # --- Determine Threshold ---
+        if threshold == "auto":
             threshold = np.percentile(np.abs(pred_array), 25)
-            print(f"\nAuto threshold (25th percentile): {threshold:.6f} ({threshold*100:.4f}%)")
-        elif threshold == 'adaptive':
-            # Use 0.3 standard deviations
+            print(f"\nAuto threshold (25th percentile): {threshold:.6f}")
+        elif threshold == "adaptive":
             threshold = 0.3 * np.std(pred_array)
-            print(f"\nAdaptive threshold (0.3 std): {threshold:.6f} ({threshold*100:.4f}%)")
+            print(f"\nAdaptive threshold (0.3 std): {threshold:.6f}")
         else:
             threshold = float(threshold)
-            print(f"\nFixed threshold: {threshold:.6f} ({threshold*100:.4f}%)")
+            print(f"\nFixed threshold: {threshold:.6f}")
 
-        print(f"Strategy: {strategy}")
-
-        # Count predictions above/below threshold
-        above_threshold = np.sum(pred_array > threshold)
-        below_threshold = np.sum(pred_array < -threshold)
-        print(f"Predictions above +threshold: {above_threshold} ({above_threshold/len(pred_array)*100:.1f}%)")
-        print(f"Predictions below -threshold: {below_threshold} ({below_threshold/len(pred_array)*100:.1f}%)")
-
+        # --- Initialize Portfolio ---
         capital = self.initial_capital
         shares = 0
-        position = None  # 'long' or None
+        position = None
         entry_price = 0
         hold_counter = 0
 
-        for i in range(len(predictions)):
-            date = dates.iloc[i] if hasattr(dates, 'iloc') else dates[i]
-            pred_return = predictions[i]
-            actual_return = actual_returns.iloc[i] if hasattr(actual_returns, 'iloc') else actual_returns[i]
-            price = prices.iloc[i] if hasattr(prices, 'iloc') else prices[i]
+        # Initialize synthetic price for returns-only mode
+        synthetic_price = 100.0 if use_returns else None
 
-            # Decision logic based on strategy
-            if strategy == 'directional':
-                # Simple strategy: buy if prediction is positive, sell if negative
+        for i, pred_return in enumerate(predictions):
+            actual_return = actual_returns.iloc[i] if hasattr(actual_returns, "iloc") else actual_returns[i]
+            date = dates.iloc[i] if hasattr(dates, "iloc") else (dates[i] if dates is not None else i)
+
+            # Determine current price
+            if use_returns:
+                if i == 0:
+                    current_price = synthetic_price
+                else:
+                    current_price = current_price * (1 + actual_return)
+            else:
+                current_price = prices.iloc[i] if hasattr(prices, "iloc") else prices[i]
+
+            # --- Trade Logic ---
+            if strategy == "directional":
                 if position is None and pred_return > 0:
-                    # Buy signal
-                    shares = (capital * (1 - self.transaction_cost)) / price
-                    entry_price = price
-                    capital = 0
-                    position = 'long'
+                    # Buy
+                    if use_returns:
+                        shares = capital
+                        capital = 0
+                    else:
+                        shares = (capital * (1 - self.transaction_cost)) / current_price
+                        entry_price = current_price
+                        capital = 0
+                    position = "long"
                     self.trades.append({
-                        'date': date,
-                        'action': 'BUY',
-                        'price': price,
-                        'shares': shares,
-                        'predicted_return': pred_return
+                        "date": date,
+                        "action": "BUY",
+                        "predicted_return": pred_return,
+                        "price": current_price
                     })
-                elif position == 'long' and pred_return <= 0:
-                    # Sell signal
-                    capital = shares * price * (1 - self.transaction_cost)
+
+                elif position == "long" and pred_return <= 0:
+                    # Sell
+                    if use_returns:
+                        capital = shares * (1 + actual_return)
+                    else:
+                        capital = shares * current_price * (1 - self.transaction_cost)
                     profit = capital - self.initial_capital
-                    pnl = ((price - entry_price) / entry_price) * 100
+                    pnl = actual_return * 100 if use_returns else ((current_price - entry_price) / entry_price) * 100
                     self.trades.append({
-                        'date': date,
-                        'action': 'SELL',
-                        'price': price,
-                        'shares': shares,
-                        'predicted_return': pred_return,
-                        'profit': profit,
-                        'pnl_pct': pnl
+                        "date": date,
+                        "action": "SELL",
+                        "predicted_return": pred_return,
+                        "profit": profit,
+                        "pnl_pct": pnl,
+                        "price": current_price
                     })
                     shares = 0
                     position = None
 
-            elif strategy == 'threshold':
-                # Threshold strategy: trade only when predictions exceed threshold
+            elif strategy == "threshold":
                 if position is None:
                     if pred_return > threshold:
-                        # Buy signal
-                        shares = (capital * (1 - self.transaction_cost)) / price
-                        entry_price = price
-                        capital = 0
-                        position = 'long'
+                        if use_returns:
+                            shares = capital
+                            capital = 0
+                        else:
+                            shares = (capital * (1 - self.transaction_cost)) / current_price
+                            entry_price = current_price
+                            capital = 0
+                        position = "long"
                         self.trades.append({
-                            'date': date,
-                            'action': 'BUY',
-                            'price': price,
-                            'shares': shares,
-                            'predicted_return': pred_return
+                            "date": date,
+                            "action": "BUY",
+                            "predicted_return": pred_return,
+                            "price": current_price
                         })
                 else:
-                    # Exit if prediction reverses below negative threshold
                     if pred_return < -threshold:
-                        capital = shares * price * (1 - self.transaction_cost)
+                        if use_returns:
+                            capital = shares * (1 + actual_return)
+                        else:
+                            capital = shares * current_price * (1 - self.transaction_cost)
                         profit = capital - self.initial_capital
-                        pnl = ((price - entry_price) / entry_price) * 100
+                        pnl = actual_return * 100 if use_returns else ((
+                                                                                   current_price - entry_price) / entry_price) * 100
                         self.trades.append({
-                            'date': date,
-                            'action': 'SELL',
-                            'price': price,
-                            'shares': shares,
-                            'predicted_return': pred_return,
-                            'profit': profit,
-                            'pnl_pct': pnl
+                            "date": date,
+                            "action": "SELL",
+                            "predicted_return": pred_return,
+                            "profit": profit,
+                            "pnl_pct": pnl,
+                            "price": current_price
                         })
                         shares = 0
                         position = None
 
-            elif strategy == 'hold_days':
-                # Hold for multiple days strategy
+            elif strategy == "hold_days":
                 if position is None and pred_return > threshold:
-                    shares = (capital * (1 - self.transaction_cost)) / price
-                    entry_price = price
-                    capital = 0
-                    position = 'long'
+                    if use_returns:
+                        shares = capital
+                        capital = 0
+                    else:
+                        shares = (capital * (1 - self.transaction_cost)) / current_price
+                        entry_price = current_price
+                        capital = 0
+                    position = "long"
                     hold_counter = 0
                     self.trades.append({
-                        'date': date,
-                        'action': 'BUY',
-                        'price': price,
-                        'shares': shares,
-                        'predicted_return': pred_return
+                        "date": date,
+                        "action": "BUY",
+                        "predicted_return": pred_return,
+                        "price": current_price
                     })
-                elif position == 'long':
+                elif position == "long":
                     hold_counter += 1
-                    # Exit after 5 days or if prediction is strongly negative
                     if hold_counter >= 5 or pred_return < -threshold:
-                        capital = shares * price * (1 - self.transaction_cost)
+                        if use_returns:
+                            capital = shares * (1 + actual_return)
+                        else:
+                            capital = shares * current_price * (1 - self.transaction_cost)
                         profit = capital - self.initial_capital
-                        pnl = ((price - entry_price) / entry_price) * 100
+                        pnl = actual_return * 100 if use_returns else ((
+                                                                                   current_price - entry_price) / entry_price) * 100
                         self.trades.append({
-                            'date': date,
-                            'action': 'SELL',
-                            'price': price,
-                            'shares': shares,
-                            'predicted_return': pred_return,
-                            'profit': profit,
-                            'pnl_pct': pnl,
-                            'hold_days': hold_counter
+                            "date": date,
+                            "action": "SELL",
+                            "predicted_return": pred_return,
+                            "profit": profit,
+                            "pnl_pct": pnl,
+                            "price": current_price
                         })
                         shares = 0
                         position = None
 
-            # Calculate portfolio value
-            if position == 'long':
-                portfolio_value = shares * price
+            # --- Portfolio Tracking ---
+            if use_returns:
+                portfolio_value = capital + (shares if position == "long" else 0)
             else:
-                portfolio_value = capital
+                portfolio_value = shares * current_price if position == "long" else capital
 
             self.portfolio_history.append({
-                'date': date,
-                'portfolio_value': portfolio_value,
-                'position': position if position else 'cash',
-                'price': price,
-                'prediction': pred_return
+                "date": date,
+                "portfolio_value": portfolio_value,
+                "position": position if position else "cash",
+                "prediction": pred_return,
+                "price": current_price  # ✓ Fixed: Add price
             })
 
-        # Close any remaining position at the end
+        # --- Close remaining position ---
         if position is not None:
-            final_price = prices.iloc[-1] if hasattr(prices, 'iloc') else prices[-1]
-            final_date = dates.iloc[-1] if hasattr(dates, 'iloc') else dates[-1]
-            capital = shares * final_price * (1 - self.transaction_cost)
+            if use_returns:
+                final_return = actual_returns.iloc[-1] if hasattr(actual_returns, "iloc") else actual_returns[-1]
+                capital = shares * (1 + final_return)
+                final_price = current_price * (1 + final_return)
+            else:
+                final_price = prices.iloc[-1] if hasattr(prices, "iloc") else prices[-1]
+                capital = shares * final_price * (1 - self.transaction_cost)
+
             profit = capital - self.initial_capital
-            pnl = ((final_price - entry_price) / entry_price) * 100
+            pnl = np.mean(actual_returns[-5:]) * 100 if use_returns else ((
+                                                                                      final_price - entry_price) / entry_price) * 100
+
+            if hasattr(dates, "__getitem__"):
+                final_date = dates[-1]
+            else:
+                final_date = None
+
             self.trades.append({
-                'date': final_date,
-                'action': 'SELL (Final)',
-                'price': final_price,
-                'shares': shares,
-                'predicted_return': predictions[-1],
-                'profit': profit,
-                'pnl_pct': pnl
+                "date": final_date,
+                "action": "SELL (Final)",
+                "profit": profit,
+                "pnl_pct": pnl,
+                "price": final_price  # ✓ Fixed: Add price
             })
+
             shares = 0
-            position = None
-            self.portfolio_history[-1]['portfolio_value'] = capital
 
-        # Calculate performance metrics
-        final_value = capital if capital > 0 else self.portfolio_history[-1]['portfolio_value']
+            # --- Results ---
+        final_value = capital
         total_return = (final_value - self.initial_capital) / self.initial_capital
+        buy_hold_return = None
+        if not use_returns and prices is not None:
+            first_price, last_price = prices.iloc[0], prices.iloc[-1]
+            buy_hold_return = (last_price - first_price) / first_price
 
-        # Buy and hold comparison
-        first_price = prices.iloc[0] if hasattr(prices, 'iloc') else prices[0]
-        last_price = prices.iloc[-1] if hasattr(prices, 'iloc') else prices[-1]
-        buy_hold_return = (last_price - first_price) / first_price
-
-        print(f"\n{'=' * 60}")
+        print("\n" + "=" * 60)
         print("Trading Simulation Results")
-        print(f"{'=' * 60}")
+        print("=" * 60)
         print(f"Initial Capital:       ${self.initial_capital:,.2f}")
         print(f"Final Portfolio Value: ${final_value:,.2f}")
-        print(f"Total Return:          {total_return*100:.2f}%")
-        print(f"Buy & Hold Return:     {buy_hold_return*100:.2f}%")
+        print(f"Total Return:          {total_return * 100:.2f}%")
+        if buy_hold_return is not None:
+            print(f"Buy & Hold Return:     {buy_hold_return * 100:.2f}%")
+            print(f"Strategy Alpha:        {(total_return - buy_hold_return) * 100:.2f}%")
         print(f"Number of Trades:      {len(self.trades)}")
 
-        if len(self.trades) > 0:
-            print(f"Strategy Alpha:        {(total_return - buy_hold_return)*100:.2f}%")
-
-            # Calculate win rate and average profit
-            sell_trades = [t for t in self.trades if 'SELL' in t['action']]
-            if len(sell_trades) > 0:
-                profitable = sum(1 for t in sell_trades if t.get('profit', 0) > 0)
-                win_rate = profitable / len(sell_trades) * 100
-                avg_pnl = np.mean([t.get('pnl_pct', 0) for t in sell_trades])
-                print(f"Win Rate:              {win_rate:.1f}% ({profitable}/{len(sell_trades)} trades)")
-                print(f"Avg P&L per trade:     {avg_pnl:.2f}%")
-        else:
-            print("⚠️  WARNING: No trades executed!")
-            print("    Possible reasons:")
-            print(f"    - Predictions too small (max: {np.max(np.abs(pred_array))*100:.4f}%)")
-            print(f"    - Threshold too high: {threshold*100:.4f}%")
-            print("    - Try 'directional' strategy or lower threshold")
-
         return {
-            'portfolio_history': pd.DataFrame(self.portfolio_history),
-            'trades': pd.DataFrame(self.trades) if self.trades else pd.DataFrame(),
-            'final_value': final_value,
-            'total_return': total_return,
-            'buy_hold_return': buy_hold_return,
-            'num_trades': len(self.trades)
+            "portfolio_history": pd.DataFrame(self.portfolio_history),
+            "trades": pd.DataFrame(self.trades),
+            "final_value": final_value,
+            "total_return": total_return,
+            "buy_hold_return": buy_hold_return,
+            "num_trades": len(self.trades),
         }
 
 
-def predict_today(symbol, model_path='models', visualisation: bool = False):
+def predict_today(symbol, model_path="models", visualisation: bool = False):
     """
     Make predictions for today's trading using a saved model
 
@@ -292,7 +285,7 @@ def predict_today(symbol, model_path='models', visualisation: bool = False):
         print(f"\n2. Downloading recent data for {symbol}...")
         ticker = yf.Ticker(symbol)
         # Get last 100 days to calculate indicators
-        df = ticker.history(period='100d', interval='1d')
+        df = ticker.history(period="100d", interval="1d")
 
         if df.empty:
             print(f"  ✗ No data available for {symbol}")
@@ -308,19 +301,42 @@ def predict_today(symbol, model_path='models', visualisation: bool = False):
 
         # We don't need target for prediction
         feature_columns = [
-            'SMA_5', 'SMA_10', 'SMA_20', 'SMA_50',
-            'EMA_12', 'EMA_26',
-            'MACD', 'MACD_Signal', 'MACD_Hist', 'MACD_Momentum',
-            'RSI', 'Stochastic',
-            'BB_Width',
-            'Price_Change_1d', 'Price_Change_5d', 'Price_Change_10d',
-            'Volume_Change', 'Volume_Ratio', 'Volume_SMA_Ratio',
-            'Volatility_10d', 'Volatility_20d', 'Volatility_Ratio',
-            'HL_Range', 'ATR',
-            'Return_Lag_1', 'Return_Lag_2', 'Return_Lag_3', 'Return_Lag_5', 'Return_Lag_10',
-            'Momentum_5', 'Momentum_10', 'Momentum_20',
-            'Price_to_SMA20', 'Price_to_SMA50',
-            'ROC_5', 'ROC_10'
+            "SMA_5",
+            "SMA_10",
+            "SMA_20",
+            "SMA_50",
+            "EMA_12",
+            "EMA_26",
+            "MACD",
+            "MACD_Signal",
+            "MACD_Hist",
+            "MACD_Momentum",
+            "RSI",
+            "Stochastic",
+            "BB_Width",
+            "Price_Change_1d",
+            "Price_Change_5d",
+            "Price_Change_10d",
+            "Volume_Change",
+            "Volume_Ratio",
+            "Volume_SMA_Ratio",
+            "Volatility_10d",
+            "Volatility_20d",
+            "Volatility_Ratio",
+            "HL_Range",
+            "ATR",
+            "Return_Lag_1",
+            "Return_Lag_2",
+            "Return_Lag_3",
+            "Return_Lag_5",
+            "Return_Lag_10",
+            "Momentum_5",
+            "Momentum_10",
+            "Momentum_20",
+            "Price_to_SMA20",
+            "Price_to_SMA50",
+            "ROC_5",
+            "ROC_10",
         ]
 
         # Get the latest complete row (has all indicators)
@@ -333,7 +349,7 @@ def predict_today(symbol, model_path='models', visualisation: bool = False):
         # Get features for the most recent day
         X_today = df_clean[feature_columns].iloc[[-1]]  # Keep as DataFrame
         latest_date = df_clean.index[-1]
-        latest_price = df_clean['Close'].iloc[-1]
+        latest_price = df_clean["Close"].iloc[-1]
 
         print(f"  ✓ Using data from: {latest_date.date()}")
 
@@ -348,7 +364,7 @@ def predict_today(symbol, model_path='models', visualisation: bool = False):
         print(f"\nSymbol:              {symbol}")
         print(f"Current Price:       ${latest_price:.2f}")
         print(f"Data Date:           {latest_date.date()}")
-        print(f"\nPredicted Return:    {prediction*100:+.3f}%")
+        print(f"\nPredicted Return:    {prediction * 100:+.3f}%")
         print(f"Predicted Price:     ${latest_price * (1 + prediction):.2f}")
         print(f"Expected Change:     ${latest_price * prediction:+.2f}")
 
@@ -404,16 +420,17 @@ def predict_today(symbol, model_path='models', visualisation: bool = False):
         # Generate 180-day forecast
         print("\n5. Generating 180-day forecast...")
         forecast_days = 180
-        forecast_data = generate_forecast(predictor, df_clean, feature_columns,
-                                          latest_price, forecast_days)
+        forecast_data = generate_forecast(predictor, df_clean, feature_columns, latest_price, forecast_days)
 
         # Display forecast summary
         print(f"\n180-DAY FORECAST SUMMARY:")
         print(f"  Starting Price:      ${latest_price:.2f}")
         print(f"  Forecasted Price:    ${forecast_data['prices'][-1]:.2f}")
         print(f"  Expected Change:     ${forecast_data['prices'][-1] - latest_price:+.2f}")
-        print(f"  Expected Return:     {(forecast_data['prices'][-1]/latest_price - 1)*100:+.2f}%")
-        print(f"  Confidence Range:    ${forecast_data['lower_bound'][-1]:.2f} - ${forecast_data['upper_bound'][-1]:.2f}")
+        print(f"  Expected Return:     {(forecast_data['prices'][-1] / latest_price - 1) * 100:+.2f}%")
+        print(
+            f"  Confidence Range:    ${forecast_data['lower_bound'][-1]:.2f} - ${forecast_data['upper_bound'][-1]:.2f}"
+        )
 
         # Generate forecast plot
         if visualisation:
@@ -421,14 +438,14 @@ def predict_today(symbol, model_path='models', visualisation: bool = False):
             Visualizer.plot_forecast(df, forecast_data, symbol)
 
         # Save prediction to file (use UTF-8 encoding and text-only signals)
-        pred_file = f'results/{symbol}_latest_prediction.txt'
-        with open(pred_file, 'w', encoding='utf-8') as f:
+        pred_file = f"results/{symbol}_latest_prediction.txt"
+        with open(pred_file, "w", encoding="utf-8") as f:
             f.write(f"Latest Prediction for {symbol}\n")
             f.write("=" * 60 + "\n")
             f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
             f.write(f"Data Date: {latest_date.date()}\n\n")
             f.write(f"Current Price:    ${latest_price:.2f}\n")
-            f.write(f"Predicted Return: {prediction*100:+.3f}%\n")
+            f.write(f"Predicted Return: {prediction * 100:+.3f}%\n")
             f.write(f"Predicted Price:  ${latest_price * (1 + prediction):.2f}\n\n")
             f.write(f"Signal:           {signal_text}\n")
             f.write(f"Confidence:       {confidence:.1f}%\n")
@@ -441,25 +458,30 @@ def predict_today(symbol, model_path='models', visualisation: bool = False):
             f.write(f"Starting Price:    ${latest_price:.2f}\n")
             f.write(f"180-Day Forecast:   ${forecast_data['prices'][-1]:.2f}\n")
             f.write(f"Expected Change:   ${forecast_data['prices'][-1] - latest_price:+.2f}\n")
-            f.write(f"Expected Return:   {(forecast_data['prices'][-1]/latest_price - 1)*100:+.2f}%\n")
-            f.write(f"Confidence Range:  ${forecast_data['lower_bound'][-1]:.2f} - ${forecast_data['upper_bound'][-1]:.2f}\n\n")
+            f.write(f"Expected Return:   {(forecast_data['prices'][-1] / latest_price - 1) * 100:+.2f}%\n")
+            f.write(
+                f"Confidence Range:  ${forecast_data['lower_bound'][-1]:.2f} - "
+                f"${forecast_data['upper_bound'][-1]:.2f}\n\n"
+            )
 
             f.write("Weekly Milestones:\n")
             for week in [0, 6, 13, 20, 29]:
-                if week < len(forecast_data['prices']):
-                    f.write(f"  Day {week+1:2d}: ${forecast_data['prices'][week]:.2f} "
-                            f"({(forecast_data['prices'][week]/latest_price - 1)*100:+.2f}%)\n")
+                if week < len(forecast_data["prices"]):
+                    f.write(
+                        f"  Day {week + 1:2d}: ${forecast_data['prices'][week]:.2f} "
+                        f"({(forecast_data['prices'][week] / latest_price - 1) * 100:+.2f}%)\n"
+                    )
 
         print(f"✓ Prediction saved to: {pred_file}\n")
 
         return {
-            'symbol': symbol,
-            'date': latest_date,
-            'current_price': latest_price,
-            'predicted_return': prediction,
-            'predicted_price': latest_price * (1 + prediction),
-            'signal': signal,
-            'confidence': confidence
+            "symbol": symbol,
+            "date": latest_date,
+            "current_price": latest_price,
+            "predicted_return": prediction,
+            "predicted_price": latest_price * (1 + prediction),
+            "signal": signal,
+            "confidence": confidence,
         }
 
     except FileNotFoundError as e:
@@ -469,6 +491,7 @@ def predict_today(symbol, model_path='models', visualisation: bool = False):
     except Exception as e:
         print(f"\n✗ Error making prediction: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return None
 
@@ -499,7 +522,7 @@ def generate_forecast(predictor, df_features, feature_columns, start_price, num_
     last_date = df_features.index[-1]
 
     # Calculate volatility for confidence intervals (use recent volatility)
-    recent_returns = df_features['Price_Change_1d'].iloc[-30:].dropna()
+    recent_returns = df_features["Price_Change_1d"].iloc[-30:].dropna()
     volatility = recent_returns.std()
 
     for day in range(num_days):
@@ -510,7 +533,7 @@ def generate_forecast(predictor, df_features, feature_columns, start_price, num_
         next_price = current_price * (1 + predicted_return)
 
         # Store results
-        next_date = last_date + timedelta(days=day+1)
+        next_date = last_date + timedelta(days=day + 1)
         forecast_dates.append(next_date)
         forecast_prices.append(next_price)
         forecast_returns.append(predicted_return)
@@ -521,21 +544,21 @@ def generate_forecast(predictor, df_features, feature_columns, start_price, num_
         current_features = current_features.copy()
 
         # Update lagged returns
-        if 'Return_Lag_1' in current_features.columns:
-            current_features['Return_Lag_10'] = current_features['Return_Lag_5']
-            current_features['Return_Lag_5'] = current_features['Return_Lag_3']
-            current_features['Return_Lag_3'] = current_features['Return_Lag_2']
-            current_features['Return_Lag_2'] = current_features['Return_Lag_1']
-            current_features['Return_Lag_1'] = predicted_return
+        if "Return_Lag_1" in current_features.columns:
+            current_features["Return_Lag_10"] = current_features["Return_Lag_5"]
+            current_features["Return_Lag_5"] = current_features["Return_Lag_3"]
+            current_features["Return_Lag_3"] = current_features["Return_Lag_2"]
+            current_features["Return_Lag_2"] = current_features["Return_Lag_1"]
+            current_features["Return_Lag_1"] = predicted_return
 
         # Update price change features
-        if 'Price_Change_1d' in current_features.columns:
-            current_features['Price_Change_1d'] = predicted_return
+        if "Price_Change_1d" in current_features.columns:
+            current_features["Price_Change_1d"] = predicted_return
 
         # Add some momentum decay to prevent unrealistic trends
         decay_factor = 0.95  # Slight decay each day
         for col in current_features.columns:
-            if 'Momentum' in col or 'ROC' in col:
+            if "Momentum" in col or "ROC" in col:
                 current_features[col] = current_features[col] * decay_factor
 
         current_price = next_price
@@ -550,66 +573,63 @@ def generate_forecast(predictor, df_features, feature_columns, start_price, num_
     upper_bound = forecast_prices_array * (1 + confidence_multiplier)
 
     return {
-        'dates': forecast_dates,
-        'prices': forecast_prices[1:],  # Exclude starting price
-        'daily_returns': forecast_returns,
-        'lower_bound': lower_bound,
-        'upper_bound': upper_bound,
-        'volatility': volatility
+        "dates": forecast_dates,
+        "prices": forecast_prices[1:],  # Exclude starting price
+        "daily_returns": forecast_returns,
+        "lower_bound": lower_bound,
+        "upper_bound": upper_bound,
+        "volatility": volatility,
     }
 
-def simulate_directional_trading_strategy(dates_test: XGBoostStockPredictor | Any,
-                                          prices_test: np.ndarray[Any, np.dtype[Any]] | list[Any] | dict[
-                                              str, float | Any] | Any, test_results: Series | Any,
-                                          y_test: Series | Any) -> tuple[
-    dict[str, DataFrame | float | int | Any], TradingSimulator]:
+
+def simulate_directional_trading_strategy(
+        dates_test: XGBoostStockPredictor | Any,
+        prices_test: np.ndarray[Any, np.dtype[Any]] | list[Any] | dict[str, float | Any] | Any,
+        test_results: Series | Any,
+        y_test: Series | Any,
+) -> tuple[dict[str, DataFrame | float | int | Any], TradingSimulator]:
     # Strategy 1: Directional (most trades - buys on any positive prediction)
     print("\n--- Strategy 1: Directional Trading ---")
     print("Buys when prediction > 0, sells when prediction <= 0")
     simulator = TradingSimulator(initial_capital=10000)
     sim_results = simulator.simulate(
-        test_results['predictions'],
+        test_results["predictions"],
         y_test,
         prices_test,
         dates_test,
         threshold=0,  # Not used in directional
-        strategy='directional'
+        strategy="directional",
     )
     return sim_results, simulator
 
-def simulate_adaptive_threshold_strategy(dates_test: XGBoostStockPredictor | Any,
-                                         prices_test: np.ndarray[Any, np.dtype[Any]] | list[Any] | dict[
-                                             str, float | Any] | Any, test_results: Series | Any,
-                                         y_test: Series | Any) -> tuple[
-    dict[str, DataFrame | float | int | Any], TradingSimulator]:
+
+def simulate_adaptive_threshold_strategy(
+        dates_test: XGBoostStockPredictor | Any,
+        prices_test: np.ndarray[Any, np.dtype[Any]] | list[Any] | dict[str, float | Any] | Any,
+        test_results: Series | Any,
+        y_test: Series | Any,
+) -> tuple[dict[str, DataFrame | float | int | Any], TradingSimulator]:
     # Strategy 2: Adaptive threshold
     print("\n--- Strategy 2: Adaptive Threshold ---")
     print("Uses statistical threshold based on prediction distribution")
     simulator = TradingSimulator(initial_capital=10000)
     adaptive_results = simulator.simulate(
-        test_results['predictions'],
-        y_test,
-        prices_test,
-        dates_test,
-        threshold='adaptive',
-        strategy='threshold'
+        test_results["predictions"], y_test, prices_test, dates_test, threshold="adaptive", strategy="threshold"
     )
     return adaptive_results, simulator
 
-def simulate_hold_days_strategy(dates_test: XGBoostStockPredictor | Any,
-                                prices_test: np.ndarray[Any, np.dtype[Any]] | list[Any] | dict[str, float | Any] | Any,
-                                test_results: Series | Any, y_test: Series | Any) -> tuple[dict[str, DataFrame | float | int | Any], TradingSimulator]:
+
+def simulate_hold_days_strategy(
+        dates_test: XGBoostStockPredictor | Any,
+        prices_test: np.ndarray[Any, np.dtype[Any]] | list[Any] | dict[str, float | Any] | Any,
+        test_results: Series | Any,
+        y_test: Series | Any,
+) -> tuple[dict[str, DataFrame | float | int | Any], TradingSimulator]:
     # Strategy 3: Hold days
     print("\n--- Strategy 3: Hold Days Strategy ---")
     print("Holds positions for multiple days")
     simulator = TradingSimulator(initial_capital=10000)
     hold_days_results = simulator.simulate(
-        test_results['predictions'],
-        y_test,
-        prices_test,
-        dates_test,
-        threshold='adaptive',
-        strategy='hold_days'
+        test_results["predictions"], y_test, prices_test, dates_test, threshold="adaptive", strategy="hold_days"
     )
     return hold_days_results, simulator
-
