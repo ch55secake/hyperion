@@ -3,81 +3,120 @@ package client
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 )
 
 type PredictionRequest struct {
 	Ticker string `json:"ticker"`
-	Date   string `json:"date"`
 }
 
 type TrainRequest struct {
-	Ticker string `json:"ticker"`
+	Ticker   string `json:"ticker"`
+	Interval string `json:"interval"`
+	Period   string `json:"period"`
 }
 
 type XGClient struct {
-	client http.Client
 	url    string
+	client *http.Client
 }
 
 func NewClient(url string) *XGClient {
 	return &XGClient{
-		client: http.Client{},
 		url:    url,
+		client: &http.Client{},
 	}
 }
 
+// Train writes a JSON file per (ticker, interval) and posts it to /train.
 func (c *XGClient) Train(ticker string) error {
-	body := TrainRequest{
-		Ticker: ticker,
+	const period = "1y"
+	intervals := []string{"1h", "1d"}
+
+	for _, interval := range intervals {
+		payload := TrainRequest{
+			Ticker:   ticker,
+			Interval: interval,
+			Period:   period,
+		}
+
+		// 1) Marshal JSON
+		bodyBytes, err := json.MarshalIndent(payload, "", "  ")
+		if err != nil {
+			return fmt.Errorf("marshal %s (%s): %w", ticker, interval, err)
+		}
+
+		// 2) Write to a file like ./train_bodies/AAPL_1d.json
+		dir := "train_bodies"
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("create dir %s: %w", dir, err)
+		}
+		filename := filepath.Join(dir, fmt.Sprintf("%s_%s.json", ticker, interval))
+		if err := os.WriteFile(filename, bodyBytes, 0o644); err != nil {
+			return fmt.Errorf("write %s: %w", filename, err)
+		}
+
+		// 3) Read back from the file (parity with `-d @file`) and POST
+		fileBytes, err := os.ReadFile(filename)
+		if err != nil {
+			return fmt.Errorf("read %s: %w", filename, err)
+		}
+
+		req, err := http.NewRequest(
+			http.MethodPost,
+			fmt.Sprintf("%s/train", c.url),
+			bytes.NewReader(fileBytes),
+		)
+		if err != nil {
+			return fmt.Errorf("build request %s (%s): %w", ticker, interval, err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := c.client.Do(req)
+		if err != nil {
+			return fmt.Errorf("send %s (%s): %w", ticker, interval, err)
+		}
+		defer resp.Body.Close()
+
+		respBody, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("status %d for %s (%s): %s", resp.StatusCode, ticker, interval, string(respBody))
+		}
+
+		fmt.Printf("Trained %s interval=%s period=%s OK (body: %s)\n", ticker, interval, period, filename)
 	}
 
-	bodyBytes, err := json.Marshal(body)
-	req, err := http.NewRequest(http.MethodPost, c.url, bytes.NewBuffer(bodyBytes))
-	if err != nil {
-		panic(err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	response, err := c.client.Do(req)
-	if err != nil {
-		return errors.New(fmt.Sprintf("Error sending request: %s", err))
-	}
-
-	responseBody, err := io.ReadAll(response.Body)
-	if err != nil {
-		return errors.New(fmt.Sprintf("Error reading response: %s", err))
-	}
-	fmt.Println(string(responseBody))
 	return nil
 }
 
-func (c *XGClient) Predict(ticker, date string) error {
-	body := PredictionRequest{
-		Ticker: ticker,
-		Date:   date,
-	}
-
+func (c *XGClient) Predict(ticker string) error {
+	body := PredictionRequest{Ticker: ticker}
 	bodyBytes, err := json.Marshal(body)
-	req, err := http.NewRequest(http.MethodGet, c.url, bytes.NewBuffer(bodyBytes))
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("marshal predict %s: %w", ticker, err)
 	}
 
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/predict", c.url), bytes.NewBuffer(bodyBytes))
+	if err != nil {
+		return fmt.Errorf("build predict request %s: %w", ticker, err)
+	}
 	req.Header.Set("Content-Type", "application/json")
-	response, err := c.client.Do(req)
+
+	resp, err := c.client.Do(req)
 	if err != nil {
-		return errors.New(fmt.Sprintf("Error sending request: %s", err))
+		return fmt.Errorf("send predict %s: %w", ticker, err)
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("predict status %d for %s: %s", resp.StatusCode, ticker, string(respBody))
 	}
 
-	responseBody, err := io.ReadAll(response.Body)
-	if err != nil {
-		return errors.New(fmt.Sprintf("Error reading response: %s", err))
-	}
-	fmt.Println(string(responseBody))
+	fmt.Printf("Prediction for %s: %s\n", ticker, string(respBody))
 	return nil
-
 }
