@@ -1,6 +1,8 @@
 package randomforest
 
-import types "github.com/ch55secake/hyperion/pkg/data"
+import (
+	types "hyperion-go/pkg/data"
+)
 
 func buildTree(data []types.Features, depth, maxDepth, minSample, maxFeatures int) *types.DecisionTree {
 	if depth >= maxDepth || len(data) < minSample {

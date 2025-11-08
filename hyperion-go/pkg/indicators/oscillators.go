@@ -2,8 +2,9 @@ package indicators
 
 import (
 	"errors"
-	types "github.com/ch55secake/hyperion/pkg/data"
 	"math"
+
+	types "hyperion-go/pkg/data"
 )
 
 // CalculateRSI computes Relative Strength Index

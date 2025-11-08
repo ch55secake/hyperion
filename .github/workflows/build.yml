@@ -13,33 +13,37 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-#  test:
-#    name: Run tests
-#    runs-on: ubuntu-latest
-#    steps:
-#      - name: Checkout code
-#        uses: actions/checkout@v3
-#
-#      - name: Set up Go
-#        uses: actions/setup-go@v4
-#        with:
-#          go-version: 1.23.3
-#
-#      - name: Cache Go modules
-#        uses: actions/cache@v3
-#        with:
-#          path: |
-#            ~/.cache/go-build
-#            ~/go/pkg/mod
-#          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-#          restore-keys: |
-#            ${{ runner.os }}-go-
-#
-#      - name: Test
-#        run: go test -v ./...
+
+  #  test:
+  #    name: Run tests
+  #    runs-on: ubuntu-latest
+  #    steps:
+  #      - name: Checkout code
+  #        uses: actions/checkout@v3
+  #
+  #      - name: Set up Go
+  #        uses: actions/setup-go@v4
+  #        with:
+  #          go-version: 1.23.3
+  #
+  #      - name: Cache Go modules
+  #        uses: actions/cache@v3
+  #        with:
+  #          path: |
+  #            ~/.cache/go-build
+  #            ~/go/pkg/mod
+  #          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+  #          restore-keys: |
+  #            ${{ runner.os }}-go-
+  #
+  #      - name: Test
+  #        run: go test -v ./...
 
 
   fmt:
+    defaults:
+      run:
+        working-directory: hyperion-go
     name: Check Formatting
     runs-on: ubuntu-latest
     steps:
@@ -71,6 +75,9 @@ jobs:
           fi
 
   build:
+    defaults:
+      run:
+        working-directory: hyperion-go
     name: Build Go Code
     runs-on: ubuntu-latest
 

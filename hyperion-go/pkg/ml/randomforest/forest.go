@@ -2,10 +2,11 @@ package randomforest
 
 import (
 	"fmt"
-	util "github.com/ch55secake/hyperion/pkg"
-	types "github.com/ch55secake/hyperion/pkg/data"
 	"math/rand"
 	"time"
+
+	util "hyperion-go/pkg"
+	types "hyperion-go/pkg/data"
 )
 
 // Train with improved Random Forest

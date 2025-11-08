@@ -1,9 +1,10 @@
 package randomforest
 
 import (
-	types "github.com/ch55secake/hyperion/pkg/data"
 	"math/rand/v2"
 	"sort"
+
+	types "hyperion-go/pkg/data"
 )
 
 func findBestSplit(data []types.Features, maxFeatures int) (int, float64, float64) {
