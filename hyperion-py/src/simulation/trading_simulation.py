@@ -275,6 +275,9 @@ def predict_today(symbol, model_path='models', visualisation: bool = False):
     Args:
         symbol: Stock symbol to predict
         model_path: Path to saved models
+        :param symbol:
+        :param model_path:
+        :param visualisation:
     """
     print("\n" + "=" * 80)
     print(f"LIVE PREDICTION FOR {symbol}")

@@ -58,7 +58,7 @@ def train_model(symbols=None, period: str = '5y', interval: str = '1d', visualiz
 
     if not stock_data:
         print("\n⚠️  No data downloaded. Exiting.")
-        return
+        return False
 
     # Process each symbol
     for symbol, df in stock_data.items():
@@ -84,51 +84,14 @@ def train_model(symbols=None, period: str = '5y', interval: str = '1d', visualiz
 
             if visualization: generate_plots(dates_test, df_features, predictor, symbol, test_results, y_test)
 
-            # Step 8: Trading simulation with multiple strategies
-            print("\n" + "=" * 60)
-            print("Testing Multiple Trading Strategies")
-            print("=" * 60)
-
-            directional_trading_results, directional_simulator = simulate_directional_trading_strategy(dates_test,
-                                                                                                       prices_test,
-                                                                                                       test_results,
-                                                                                                       y_test)
-
-            adaptive_threshold_results, adaptive_simulator = simulate_adaptive_threshold_strategy(dates_test,
-                                                                                                  prices_test,
-                                                                                                  test_results,
-                                                                                                  y_test)
-
-            hold_days_results, hold_days_simulator = simulate_hold_days_strategy(dates_test, prices_test, test_results,
-                                                                                 y_test)
-
-            # Compare strategies and use the best performing one for plots
-            strategies = [
-                ('Directional', directional_trading_results, directional_simulator),
-                ('Adaptive Threshold', adaptive_threshold_results, adaptive_simulator),
-                ('Hold Days', hold_days_results, hold_days_simulator)
-            ]
-
-            # Find strategy with most trades (or best return if tied)
-            valid_strategies = [(name, res, sim) for name, res, sim in strategies if res['num_trades'] > 0]
-
-            if valid_strategies:
-                best_strategy, sim_results = output_best_strategy(valid_strategies)
-            else:
-                print(f"\n⚠️  WARNING: No strategy generated trades!")
-                sim_results = directional_trading_results  # Use first strategy anyway for plotting
-
-            # Step 9: Plot trading results
-            if visualization: Visualizer.plot_trading_simulation(sim_results, symbol)
-
-            persist_results(x, x_test, x_train, best_strategy, period, sim_results, strategies, symbol, test_results,
-                            valid_strategies)
+            run_trade_simulation(dates_test, period, prices_test, symbol, test_results, visualization, x, x_test,
+                                 x_train, y_test)
 
         except Exception as e:
             print(f"\n✗ Error processing {symbol}: {str(e)}")
             import traceback
             traceback.print_exc()
-            continue
+            return False
 
     print("\n" + "=" * 60)
     print("✓ All processing complete!")
@@ -137,3 +100,47 @@ def train_model(symbols=None, period: str = '5y', interval: str = '1d', visualiz
     print(f"✓ CSV data saved in: historic_data/")
     print(f"✓ Models saved in: models/")
     print("=" * 60 + "\n")
+
+    return True
+
+
+def run_trade_simulation(dates_test, period: str, prices_test, symbol, test_results, visualization: bool, x,
+                         x_test: XGBoostStockPredictor, x_train: dict[str, float | Any], y_test):
+    print("\n" + "=" * 60)
+    print("Testing Multiple Trading Strategies")
+    print("=" * 60)
+
+    directional_trading_results, directional_simulator = simulate_directional_trading_strategy(dates_test,
+                                                                                               prices_test,
+                                                                                               test_results,
+                                                                                               y_test)
+
+    adaptive_threshold_results, adaptive_simulator = simulate_adaptive_threshold_strategy(dates_test,
+                                                                                          prices_test,
+                                                                                          test_results,
+                                                                                          y_test)
+
+    hold_days_results, hold_days_simulator = simulate_hold_days_strategy(dates_test, prices_test, test_results,
+                                                                         y_test)
+
+    # Compare strategies and use the best performing one for plots
+    strategies = [
+        ('Directional', directional_trading_results, directional_simulator),
+        ('Adaptive Threshold', adaptive_threshold_results, adaptive_simulator),
+        ('Hold Days', hold_days_results, hold_days_simulator)
+    ]
+
+    # Find strategy with most trades (or best return if tied)
+    valid_strategies = [(name, res, sim) for name, res, sim in strategies if res['num_trades'] > 0]
+
+    if valid_strategies:
+        best_strategy, sim_results = output_best_strategy(valid_strategies)
+    else:
+        print(f"\n⚠️  WARNING: No strategy generated trades!")
+        sim_results = directional_trading_results  # Use first strategy anyway for plotting
+
+    # Step 9: Plot trading results
+    if visualization: Visualizer.plot_trading_simulation(sim_results, symbol)
+
+    persist_results(x, x_test, x_train, best_strategy, period, sim_results, strategies, symbol, test_results,
+                    valid_strategies)

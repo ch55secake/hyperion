@@ -1,8 +1,7 @@
 import os
 import warnings
 
-from src.simulation.predict import predict_mode
-from train import train_model
+from server import ModelServer
 
 warnings.filterwarnings('ignore')
 
@@ -13,10 +12,9 @@ os.makedirs('results', exist_ok=True)
 os.makedirs('models', exist_ok=True)
 
 if __name__ == "__main__":
-    # FlaskServer().run()
-    # requests.post('http://localhost:5000/train', body='')
-    train_model(visualization=True)
-    predict_mode(visualisation=True)
+    # train_model(visualization=True)
+    # predict_mode(visualisation=True)
+    ModelServer(port=8080).run()
     # # Check for command line argument
     # if len(sys.argv) > 1 and sys.argv[1] == 'predict':
     #     # Prediction mode - use saved models on today's data
