@@ -1,8 +1,10 @@
 from datetime import datetime, timedelta
+from typing import Any
 
 import yfinance as yf
 import numpy as np
 import pandas as pd
+from pandas import DataFrame, Series
 
 from src.feature import FeatureEngineering
 from src.visualisation import Visualizer
@@ -266,13 +268,16 @@ class TradingSimulator:
         }
 
 
-def predict_today(symbol, model_path='models'):
+def predict_today(symbol, model_path='models', visualisation: bool = False):
     """
     Make predictions for today's trading using a saved model
 
     Args:
         symbol: Stock symbol to predict
         model_path: Path to saved models
+        :param symbol:
+        :param model_path:
+        :param visualisation:
     """
     print("\n" + "=" * 80)
     print(f"LIVE PREDICTION FOR {symbol}")
@@ -411,8 +416,9 @@ def predict_today(symbol, model_path='models'):
         print(f"  Confidence Range:    ${forecast_data['lower_bound'][-1]:.2f} - ${forecast_data['upper_bound'][-1]:.2f}")
 
         # Generate forecast plot
-        print("\n6. Creating forecast visualization...")
-        Visualizer.plot_forecast(df, forecast_data, symbol)
+        if visualisation:
+            print("\n6. Creating forecast visualization...")
+            Visualizer.plot_forecast(df, forecast_data, symbol)
 
         # Save prediction to file (use UTF-8 encoding and text-only signals)
         pred_file = f'results/{symbol}_latest_prediction.txt'
@@ -551,4 +557,59 @@ def generate_forecast(predictor, df_features, feature_columns, start_price, num_
         'upper_bound': upper_bound,
         'volatility': volatility
     }
+
+def simulate_directional_trading_strategy(dates_test: XGBoostStockPredictor | Any,
+                                          prices_test: np.ndarray[Any, np.dtype[Any]] | list[Any] | dict[
+                                              str, float | Any] | Any, test_results: Series | Any,
+                                          y_test: Series | Any) -> tuple[
+    dict[str, DataFrame | float | int | Any], TradingSimulator]:
+    # Strategy 1: Directional (most trades - buys on any positive prediction)
+    print("\n--- Strategy 1: Directional Trading ---")
+    print("Buys when prediction > 0, sells when prediction <= 0")
+    simulator = TradingSimulator(initial_capital=10000)
+    sim_results = simulator.simulate(
+        test_results['predictions'],
+        y_test,
+        prices_test,
+        dates_test,
+        threshold=0,  # Not used in directional
+        strategy='directional'
+    )
+    return sim_results, simulator
+
+def simulate_adaptive_threshold_strategy(dates_test: XGBoostStockPredictor | Any,
+                                         prices_test: np.ndarray[Any, np.dtype[Any]] | list[Any] | dict[
+                                             str, float | Any] | Any, test_results: Series | Any,
+                                         y_test: Series | Any) -> tuple[
+    dict[str, DataFrame | float | int | Any], TradingSimulator]:
+    # Strategy 2: Adaptive threshold
+    print("\n--- Strategy 2: Adaptive Threshold ---")
+    print("Uses statistical threshold based on prediction distribution")
+    simulator = TradingSimulator(initial_capital=10000)
+    adaptive_results = simulator.simulate(
+        test_results['predictions'],
+        y_test,
+        prices_test,
+        dates_test,
+        threshold='adaptive',
+        strategy='threshold'
+    )
+    return adaptive_results, simulator
+
+def simulate_hold_days_strategy(dates_test: XGBoostStockPredictor | Any,
+                                prices_test: np.ndarray[Any, np.dtype[Any]] | list[Any] | dict[str, float | Any] | Any,
+                                test_results: Series | Any, y_test: Series | Any) -> tuple[dict[str, DataFrame | float | int | Any], TradingSimulator]:
+    # Strategy 3: Hold days
+    print("\n--- Strategy 3: Hold Days Strategy ---")
+    print("Holds positions for multiple days")
+    simulator = TradingSimulator(initial_capital=10000)
+    hold_days_results = simulator.simulate(
+        test_results['predictions'],
+        y_test,
+        prices_test,
+        dates_test,
+        threshold='adaptive',
+        strategy='hold_days'
+    )
+    return hold_days_results, simulator
 

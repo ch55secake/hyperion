@@ -34,7 +34,7 @@ class XGBoostStockPredictor:
         self.feature_importance = None
         self.scaler = StandardScaler()
 
-    def train(self, X_train, y_train, X_val=None, y_val=None):
+    def train(self, x_train, y_train, x_val=None, y_val=None):
         """Train the XGBoost model"""
         print("\n" + "=" * 60)
         print("Training XGBoost Model")
@@ -42,30 +42,30 @@ class XGBoostStockPredictor:
 
         # Scale features
         print("Scaling features...")
-        X_train_scaled = self.scaler.fit_transform(X_train)
-        X_train_scaled = pd.DataFrame(X_train_scaled, columns=X_train.columns, index=X_train.index)
+        x_train_scaled = self.scaler.fit_transform(x_train)
+        x_train_scaled = pd.DataFrame(x_train_scaled, columns=x_train.columns, index=x_train.index)
 
         # Extract early stopping rounds if present
         early_stopping = self.params.pop('early_stopping_rounds', None)
 
         self.model = xgboost.XGBRegressor(**self.params)
 
-        if X_val is not None and y_val is not None and early_stopping is not None:
-            X_val_scaled = self.scaler.transform(X_val)
-            X_val_scaled = pd.DataFrame(X_val_scaled, columns=X_val.columns, index=X_val.index)
+        if x_val is not None and y_val is not None and early_stopping is not None:
+            x_val_scaled = self.scaler.transform(x_val)
+            x_val_scaled = pd.DataFrame(x_val_scaled, columns=x_val.columns, index=x_val.index)
 
-            eval_set = [(X_train_scaled, y_train), (X_val_scaled, y_val)]
+            eval_set = [(x_train_scaled, y_train), (x_val_scaled, y_val)]
             self.model.fit(
-                X_train_scaled, y_train,
+                x_train_scaled, y_train,
                 eval_set=eval_set,
                 verbose=False
             )
         else:
-            self.model.fit(X_train_scaled, y_train)
+            self.model.fit(x_train_scaled, y_train)
 
         # Store feature importance
         self.feature_importance = pd.DataFrame({
-            'feature': X_train.columns,
+            'feature': x_train.columns,
             'importance': self.model.feature_importances_
         }).sort_values('importance', ascending=False)
 
@@ -74,20 +74,20 @@ class XGBoostStockPredictor:
         print(f"✓ Best iteration: {self.model.best_iteration if hasattr(self.model, 'best_iteration') else 'N/A'}")
         print(f"✓ Max depth: {self.params['max_depth']}")
 
-    def predict(self, X):
+    def predict(self, x):
         """Make predictions"""
         if self.model is None:
             raise ValueError("Model not trained yet")
 
         # Scale features before prediction
-        X_scaled = self.scaler.transform(X)
-        X_scaled = pd.DataFrame(X_scaled, columns=X.columns, index=X.index)
+        x_scaled = self.scaler.transform(x)
+        x_scaled = pd.DataFrame(x_scaled, columns=x.columns, index=x.index)
 
-        return self.model.predict(X_scaled)
+        return self.model.predict(x_scaled)
 
-    def evaluate(self, X, y, dataset_name="Test"):
+    def evaluate(self, x, y, dataset_name="Test"):
         """Evaluate model performance"""
-        predictions = self.predict(X)
+        predictions = self.predict(x)
 
         mse = mean_squared_error(y, predictions)
         rmse = np.sqrt(mse)

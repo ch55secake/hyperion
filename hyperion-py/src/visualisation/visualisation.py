@@ -1,6 +1,11 @@
+from typing import Any
+
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
+from pandas import Series
+
+from src.xbg import XGBoostStockPredictor
 
 
 class Visualizer:
@@ -274,12 +279,12 @@ class Visualizer:
 
         ax1.text(hist_dates[-1], current_price, f'  Today\n  ${current_price:.2f}',
                  verticalalignment='center', fontsize=10, fontweight='bold')
-        ax1.text(forecast_dates[-1], final_forecast, f'  30-day\n  ${final_forecast:.2f}',
+        ax1.text(forecast_dates[-1], final_forecast, f'  180-day\n  ${final_forecast:.2f}',
                  verticalalignment='center', fontsize=10, fontweight='bold')
 
         ax1.set_xlabel('Date', fontsize=12)
         ax1.set_ylabel('Price ($)', fontsize=12)
-        ax1.set_title(f'{symbol} - 30-Day Price Forecast', fontsize=14, fontweight='bold')
+        ax1.set_title(f'{symbol} - 180-Day Price Forecast', fontsize=14, fontweight='bold')
         ax1.legend(loc='best', fontsize=10)
         ax1.grid(True, alpha=0.3)
         ax1.tick_params(axis='x', rotation=45)
@@ -300,7 +305,7 @@ class Visualizer:
                  label='Cumulative Return')
 
         total_return = cumulative_return[-1] * 100
-        ax2.text(0.02, 0.98, f'30-Day Expected Return: {total_return:+.2f}%',
+        ax2.text(0.02, 0.98, f'180-Day Expected Return: {total_return:+.2f}%',
                  transform=ax2.transAxes, verticalalignment='top',
                  fontsize=12, fontweight='bold',
                  bbox=dict(boxstyle='round', facecolor='yellow', alpha=0.7))
@@ -315,7 +320,7 @@ class Visualizer:
         ax3.legend(loc='upper left', fontsize=10)
 
         plt.tight_layout()
-        filename = f'{save_path}/{symbol}_30day_forecast.png'
+        filename = f'{save_path}/{symbol}_180day_forecast.png'
         plt.savefig(filename, dpi=300, bbox_inches='tight')
         print(f"  ✓ Saved forecast plot: {filename}")
         plt.close()
@@ -362,3 +367,21 @@ class Visualizer:
         plt.savefig(f'{save_path}/{symbol}_technical_indicators.png', dpi=300, bbox_inches='tight')
         print(f"  ✓ Saved technical indicators plot: {save_path}/{symbol}_technical_indicators.png")
         plt.close()
+
+
+def generate_plots(dates_test: XGBoostStockPredictor | Any,
+                   df_features,
+                   predictor: dict[str, np.ndarray[Any, np.dtype[Any]] | list[Any] | dict[str, float | Any] | float | Any] | Any,
+                   symbol,
+                   test_results: Series | Any,
+                   y_test: Series | Any):
+    # Step 7: Generate plots
+    print("\nGenerating visualizations...")
+    Visualizer.plot_predictions(dates_test, y_test, test_results['predictions'], symbol)
+    Visualizer.plot_feature_importance(predictor.feature_importance, symbol)
+    Visualizer.plot_price_with_indicators(df_features, symbol)
+
+def generate_walk_forward_plots(wf_results, symbol):
+    # Generate walk-forward specific plots
+    print("\nGenerating walk-forward visualizations...")
+    Visualizer.plot_walk_forward_results(wf_results, symbol)
