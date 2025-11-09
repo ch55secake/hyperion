@@ -17,6 +17,9 @@ concurrency:
 
 jobs:
   pylint:
+    defaults:
+      run:
+        working-directory: hyperion-go
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -49,6 +52,9 @@ jobs:
           poetry run pylint --fail-under=9 $(git ls-files '*.py')
 
   black:
+    defaults:
+      run:
+        working-directory: hyperion-go
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -88,6 +94,9 @@ jobs:
     
 
   build:
+    defaults:
+      run:
+        working-directory: hyperion-go
     runs-on: ubuntu-latest
     strategy:
       matrix:
