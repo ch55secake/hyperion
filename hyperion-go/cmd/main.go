@@ -9,11 +9,15 @@ import (
 func main() {
 	url := "http://localhost:8080"
 	xgc := client.NewClient(url)
-
-	pennyStocks := []string{
-		"QD","DDL","RERE","IH","WDH","UXIN","TBLA","BZUN","DAO","KC",
-		"SCWO","BDTX","CYH","BABB","TBTC","SVRA","VFF","NPWR","ME","GEVO",
+    pennyStocks := []string{
+        "KC",
 	}
+
+
+// 	pennyStocks := []string{
+// 		"QD","DDL","RERE","IH","WDH","UXIN","TBLA","BZUN","DAO","KC",
+// 		"SCWO","BDTX","CYH","BABB","TBTC","SVRA","VFF","NPWR","ME","GEVO",
+// 	}
 
 	for _, ticker := range pennyStocks {
 		if err := xgc.Train(ticker); err != nil {
