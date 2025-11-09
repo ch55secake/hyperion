@@ -3,6 +3,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import matplotlib
+
 matplotlib.use("Agg")
 from matplotlib import pyplot as plt
 from pandas import Series
@@ -56,8 +57,14 @@ class Visualizer:
 
         plt.tight_layout()
         if len(symbol.split("_")) > 1:
-            plt.savefig(f"{save_path}/{symbol.split("_")[0]}/{symbol.split("_")[1]}_feature_importance.png", dpi=300, bbox_inches="tight")
-            print(f"  ✓ Saved feature importance plot: {save_path}/{symbol.split("_")[0]}/{symbol.split("_")[1]}_feature_importance.png")
+            plt.savefig(
+                f"{save_path}/{symbol.split("_")[0]}/{symbol.split("_")[1]}_feature_importance.png",
+                dpi=300,
+                bbox_inches="tight",
+            )
+            print(
+                f"  ✓ Saved feature importance plot: {save_path}/{symbol.split("_")[0]}/{symbol.split("_")[1]}_feature_importance.png"
+            )
         else:
             plt.savefig(f"{save_path}/{symbol}/feature_importance.png", dpi=300, bbox_inches="tight")
             print(f"  ✓ Saved feature importance plot: {save_path}/{symbol}/feature_importance.png")
