@@ -44,3 +44,7 @@ hyperion-py/**/__pycache__/
 
 # .venv
 hyperion-py/.venv/
+
+# .DS_STORE I FUCKING HATE YOU
+**/.DS_Store
+.DS_Store
