@@ -1,9 +1,10 @@
 import yfinance as yf
 
+
 class StockDataDownloader:
     """Downloads and manages stock data from yfinance"""
 
-    def __init__(self, symbols, period='2y', interval='1d'):
+    def __init__(self, symbols, period="2y", interval="1d"):
         self.symbols = symbols if isinstance(symbols, list) else [symbols]
         self.period = period
         self.interval = interval
@@ -21,6 +22,7 @@ class StockDataDownloader:
                 print(f"\n{self.period} {self.interval} data for {symbol}")
                 ticker = yf.Ticker(symbol)
                 df = ticker.history(period=self.period, interval=self.interval)
+                df = df.resample("2D").last()
 
                 if df.empty:
                     print(f"  ⚠️  No data found for {symbol}")

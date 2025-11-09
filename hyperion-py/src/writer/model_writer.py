@@ -5,16 +5,22 @@ from pandas import Series
 
 
 def save_trained_model(
-        predictor: dict[str, ndarray[Any, dtype[Any]] | list[Any] | dict[str, float | Any] | float | Any] | Any, symbol,
-        test_results: Series | Any):
+    predictor: dict[str, ndarray[Any, dtype[Any]] | list[Any] | dict[str, float | Any] | float | Any] | Any,
+    symbol,
+    test_results: Series | Any,
+):
     # Save the trained model
     print("\n" + "=" * 60)
     print("Saving Model")
     print("=" * 60)
-    predictor.save_model(symbol)
+    if test_results["r2"] > 0.0012:
+        predictor.save_model(symbol)
+
+    if test_results["r2"] < -0.3:
+        predictor.save_model(symbol, save_path="invalid_models")
 
     # Print final test results
-    print(f"\nFinal Test Set Performance:")
+    print("\nFinal Test Set Performance:")
     print(f"  RMSE: {test_results['rmse']:.8f}")
     print(f"  MAE:  {test_results['mae']:.8f}")
     print(f"  R²:   {test_results['r2']:.8f}")
