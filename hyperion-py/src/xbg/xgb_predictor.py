@@ -25,11 +25,11 @@ class XGBoostStockPredictor:
                 "gamma": 0.0,  # Removed minimum split loss requirement
                 "reg_alpha": 0.01,  # Reduced L1 regularization from 0.5
                 "reg_lambda": 0.1,  # Reduced L2 regularization from 1.0
-                'lambda': 0.3,
-                'alpha': 0.0,
-                'tree_method': 'exact',
-                'device': 'cuda',
-                'nthread': -1,
+                "lambda": 0.3,
+                "alpha": 0.0,
+                "tree_method": "exact",
+                "device": "cuda",
+                "nthread": -1,
                 "min_child_weight": 1,  # Reduced from 3 to allow smaller splits
                 "random_state": 42,
                 "early_stopping_rounds": 50,
@@ -37,32 +37,32 @@ class XGBoostStockPredictor:
 
             # THIS PRODUCES 4 SUCCESSFUL MODELS
             tuned_params = {
-                'objective': 'reg:squarederror',
-                'learning_rate': 0.05,          # <-- lower LR for smoother learning
-                'max_depth': 5,                 # slightly deeper to capture nonlinearity
-                'min_child_weight': 4,
-                'subsample': 0.9,
-                'colsample_bytree': 0.8,
-                'lambda': 1.2,
-                'alpha': 0.6,
-                'gamma': 0.1,
-                'n_estimators': 1500,           # <-- more trees with smaller steps
-                'tree_method': 'exact',
-                'seed': 42
+                "objective": "reg:squarederror",
+                "learning_rate": 0.05,  # <-- lower LR for smoother learning
+                "max_depth": 5,  # slightly deeper to capture nonlinearity
+                "min_child_weight": 4,
+                "subsample": 0.9,
+                "colsample_bytree": 0.8,
+                "lambda": 1.2,
+                "alpha": 0.6,
+                "gamma": 0.1,
+                "n_estimators": 1500,  # <-- more trees with smaller steps
+                "tree_method": "exact",
+                "seed": 42,
             }
 
             tuned_params_v2 = {
-                'objective': 'reg:squarederror',
-                'learning_rate': 0.04,          # <-- lower LR for smoother learning
-                'max_depth': 5,                 # slightly deeper to capture nonlinearity
-                'min_child_weight': 4,
-                'subsample': 0.9,
-                'colsample_bytree': 0.8,
-                'lambda': 1.2,
-                'alpha': 0.6,
-                'gamma': 0.1,
-                'n_estimators': 1500,           # <-- more trees with smaller steps
-                'tree_method': 'exact',
+                "objective": "reg:squarederror",
+                "learning_rate": 0.04,  # <-- lower LR for smoother learning
+                "max_depth": 5,  # slightly deeper to capture nonlinearity
+                "min_child_weight": 4,
+                "subsample": 0.9,
+                "colsample_bytree": 0.8,
+                "lambda": 1.2,
+                "alpha": 0.6,
+                "gamma": 0.1,
+                "n_estimators": 1500,  # <-- more trees with smaller steps
+                "tree_method": "exact",
                 # 'seed': 42
             }
 

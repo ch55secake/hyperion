@@ -13,10 +13,10 @@ def save_trained_model(
     print("\n" + "=" * 60)
     print("Saving Model")
     print("=" * 60)
-    if test_results['r2'] > 0.0012:
+    if test_results["r2"] > 0.0012:
         predictor.save_model(symbol)
 
-    if test_results['r2'] < -0.3:
+    if test_results["r2"] < -0.3:
         predictor.save_model(symbol, save_path="invalid_models")
 
     # Print final test results

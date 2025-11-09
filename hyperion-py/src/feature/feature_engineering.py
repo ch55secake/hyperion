@@ -78,7 +78,9 @@ class FeatureEngineering:
             df["BB_Lower"] = df["BB_Middle"] - 2 * bb_std
             df["BB_Width"] = df["BB_Upper"] - df["BB_Lower"]
             df["BB_Width_Ratio"] = df["BB_Width"] / df["BB_Middle"].replace(0, np.nan)
-            df["Price_BB_Position"] = (df["Close"] - df["BB_Lower"]) / (df["BB_Upper"] - df["BB_Lower"]).replace(0, np.nan)
+            df["Price_BB_Position"] = (df["Close"] - df["BB_Lower"]) / (df["BB_Upper"] - df["BB_Lower"]).replace(
+                0, np.nan
+            )
 
         # ============================================================
         # PRICE CHANGES
@@ -165,7 +167,9 @@ class FeatureEngineering:
             trur = df["ATR"]
             df["Plus_DI"] = 100 * (plus_dm.rolling(14).sum() / trur.replace(0, np.nan))
             df["Minus_DI"] = 100 * (minus_dm.rolling(14).sum() / trur.replace(0, np.nan))
-            df["ADX"] = 100 * (abs(df["Plus_DI"] - df["Minus_DI"]) / (df["Plus_DI"] + df["Minus_DI"]).replace(0, np.nan))
+            df["ADX"] = 100 * (
+                abs(df["Plus_DI"] - df["Minus_DI"]) / (df["Plus_DI"] + df["Minus_DI"]).replace(0, np.nan)
+            )
 
         # ============================================================
         # SHIFT ALL FEATURES BY 1 DAY

@@ -20,7 +20,7 @@ USE_WALK_FORWARD = False  # Set to False for a simple train / test split
 
 
 def simple_train_test_split(
-        x, dates, prices, y
+    x, dates, prices, y
 ) -> tuple[XGBoostStockPredictor, dict[str, float | Any], Any, Any, Any, Any, Any]:
     """
     Simple train/test split with proper time-series handling
@@ -39,19 +39,21 @@ def simple_train_test_split(
 
     # Check for data leakage - FIXED
     print("\nData Leakage Check:")
-    print(f"First date: {dates[0]}")      # ✓ Direct indexing
-    print(f"Last date: {dates[-1]}")      # ✓ Direct indexing
+    print(f"First date: {dates[0]}")  # ✓ Direct indexing
+    print(f"Last date: {dates[-1]}")  # ✓ Direct indexing
     print(f"Target mean: {y.mean():.6f} (should be ~0)")
     print(f"Target std: {y.std():.6f} (should be 0.01-0.03)")
 
     # Show alignment - FIXED
     print("\nFirst 3 rows (verify alignment):")
-    sample_df = pd.DataFrame({
-        'Date': dates[:3],           # ✓ Slice instead of iloc
-        'Price': prices.iloc[:3],
-        'SMA_20': x['SMA_20'].iloc[:3],
-        'Target': y.iloc[:3]
-    })
+    sample_df = pd.DataFrame(
+        {
+            "Date": dates[:3],  # ✓ Slice instead of iloc
+            "Price": prices.iloc[:3],
+            "SMA_20": x["SMA_20"].iloc[:3],
+            "Target": y.iloc[:3],
+        }
+    )
     print(sample_df)
 
     # Step 4: Train/test split (time-based)
@@ -59,16 +61,16 @@ def simple_train_test_split(
 
     x_train, x_test = x.iloc[:split_idx], x.iloc[split_idx:]
     y_train, y_test = y.iloc[:split_idx], y.iloc[split_idx:]
-    dates_test = dates[split_idx:]       # ✓ Direct slicing
+    dates_test = dates[split_idx:]  # ✓ Direct slicing
     prices_test = prices.iloc[split_idx:]
 
     print(f"\n✓ Train set: {len(x_train)} samples")
-    print(f"  Date range: {dates[0]} to {dates[split_idx-1]}")      # ✓ Fixed
+    print(f"  Date range: {dates[0]} to {dates[split_idx-1]}")  # ✓ Fixed
     print(f"✓ Test set: {len(x_test)} samples")
-    print(f"  Date range: {dates[split_idx]} to {dates[-1]}")       # ✓ Fixed
+    print(f"  Date range: {dates[split_idx]} to {dates[-1]}")  # ✓ Fixed
 
     # Verify no overlap - FIXED
-    assert dates[split_idx-1] < dates[split_idx], "Train/test dates overlap!"
+    assert dates[split_idx - 1] < dates[split_idx], "Train/test dates overlap!"
 
     # Step 5: Train model
     print("\nTraining XGBoost model...")
@@ -110,36 +112,38 @@ def train_model(symbols=None, period: str = "5y", interval: str = "1d", visualiz
     :param interval: a Data interval to download
     """
     if symbols is None:
-        symbols = ["AAPL",
-                   "NFLX",
-                   "TSLA",
-                   "MSFT",
-                   "GOOG",
-                   "AMZN",
-                   "META",
-                   "SPY",
-                   "VOO",
-                   "VTI",
-                   "VOOG",
-                   "VOOD",
-                   "VOOX",
-                   "EXC",
-                   "DELL",
-                   "AMD",
-                   "AMGN",
-                   "PEP",
-                   "PLTR",
-                   "CNM",
-                   "BMNR",
-                   "COIN",
-                   "MARA",
-                   "HUT",
-                   "IBM",
-                   "BA",
-                   "FDX",
-                   "LMT",
-                   "NET",
-                   "FMAO"]
+        symbols = [
+            "AAPL",
+            "NFLX",
+            "TSLA",
+            "MSFT",
+            "GOOG",
+            "AMZN",
+            "META",
+            "SPY",
+            "VOO",
+            "VTI",
+            "VOOG",
+            "VOOD",
+            "VOOX",
+            "EXC",
+            "DELL",
+            "AMD",
+            "AMGN",
+            "PEP",
+            "PLTR",
+            "CNM",
+            "BMNR",
+            "COIN",
+            "MARA",
+            "HUT",
+            "IBM",
+            "BA",
+            "FDX",
+            "LMT",
+            "NET",
+            "FMAO",
+        ]
         # symbols = ["AAPL"]
     print("\n" + "=" * 60)
     print("XGBoost Stock Price Prediction & Trading Simulation")
@@ -237,7 +241,16 @@ def run_trade_simulation(
         best_strategy, sim_results = output_best_strategy(valid_strategies)
         if best_strategy is not None:
             persist_results(
-                x, x_test, x_train, best_strategy, period, sim_results, strategies, symbol, test_results, valid_strategies
+                x,
+                x_test,
+                x_train,
+                best_strategy,
+                period,
+                sim_results,
+                strategies,
+                symbol,
+                test_results,
+                valid_strategies,
             )
 
     else:
@@ -246,5 +259,3 @@ def run_trade_simulation(
 
     if visualization:
         Visualizer.plot_trading_simulation(sim_results, symbol)
-
-
