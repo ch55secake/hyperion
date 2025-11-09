@@ -11,4 +11,8 @@ install:
 	@poetry lock
 	@poetry install
 
+ctrain:
+	@make clean
+	@make run
+
 .PHONY: clean run install

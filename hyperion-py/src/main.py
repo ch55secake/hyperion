@@ -1,15 +1,15 @@
 import os
 import warnings
 
-from server import ModelServer
+from src.server import ModelServer
 
-warnings.filterwarnings('ignore')
+warnings.filterwarnings("ignore")
 
 # Create directories for outputs
-os.makedirs('historic_data', exist_ok=True)
-os.makedirs('plots', exist_ok=True)
-os.makedirs('results', exist_ok=True)
-os.makedirs('models', exist_ok=True)
+os.makedirs("./historic_data", exist_ok=True)
+os.makedirs("./plots", exist_ok=True)
+os.makedirs("./results", exist_ok=True)
+os.makedirs("./models", exist_ok=True)
 
 if __name__ == "__main__":
     # train_model(visualization=True)

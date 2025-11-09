@@ -1,9 +1,10 @@
 import yfinance as yf
 
+
 class StockDataDownloader:
     """Downloads and manages stock data from yfinance"""
 
-    def __init__(self, symbols, period='2y', interval='1d'):
+    def __init__(self, symbols, period="2y", interval="1d"):
         self.symbols = symbols if isinstance(symbols, list) else [symbols]
         self.period = period
         self.interval = interval

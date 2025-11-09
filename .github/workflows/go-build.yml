@@ -2,6 +2,8 @@ name: Go CI
 
 on:
   push:
+    paths:
+      - hyperion-go/**
     branches:
       - main
   pull_request:
