@@ -1,9 +1,8 @@
 package main
 
 import (
-	"log"
-	//"time"
 	"hyperion-go/pkg/client"
+	"log"
 )
 
 func main() {
