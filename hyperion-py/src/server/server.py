@@ -18,7 +18,7 @@ class ModelServer:
         self._setup_routes()
 
     def _setup_routes(self):
-        @self.app.route("/tradingresults/<ticker>", methods=["GET"])
+        @self.app.route("/trading-results/<ticker>", methods=["GET"])
         def results(ticker: str):
             try:
                 if not isinstance(ticker, str) or not ticker:
@@ -105,7 +105,7 @@ class ModelServer:
                 if not isinstance(period, str):
                     return jsonify({"error": "period must be a string"}), 400
 
-                result = train_model(symbols=ticker, period=period, interval=interval)
+                result = train_model(symbols=ticker, period=period, interval=interval, visualization=False)
 
                 if result is None:
                     return jsonify({"error": "Model training failed - no result returned"}), 500

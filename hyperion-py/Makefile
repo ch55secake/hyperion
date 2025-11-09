@@ -4,6 +4,7 @@ clean:
 	@rm -rf invalid_models/*
 	@rm -rf historic_data/*
 	@rm -rf results/*
+	@rm -rf invalid_models/
 
 run:
 	@poetry run python3 src/main.py

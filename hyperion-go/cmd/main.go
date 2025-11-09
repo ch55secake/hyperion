@@ -1,69 +1,30 @@
 package main
 
 import (
-	"fmt"
-
-	data2 "hyperion-go/pkg/data"
-	"hyperion-go/pkg/features"
-	"hyperion-go/pkg/ml/randomforest"
+	"hyperion-go/pkg/client"
+	"log"
 )
 
 func main() {
-	fmt.Println("Enhanced ML Trading Strategy in Go")
-	fmt.Println("===================================\n")
+	url := "http://localhost:8080"
+	xgc := client.NewClient(url)
 
-	resources := []string{
-		//"resources/AXP_1y.csv",
-		//"resources/RRR.L_1y.csv",
-		//"resources/RRR_1y.csv",
-		//"resources/NFLX_1y.csv",
-		//"resources/AAPL_1y.csv",
-		//"resources/GOOGL_1y.csv",
-		//"resources/MSFT_1y.csv",
-		//"resources/NVDA_1y.csv",
-		//"resources/TSLA_1y.csv",
-		//"resources/WORX_1y.csv",
-		//"resources/BTC-USD_1y.csv",
-		//"resources/AGL_1y.csv",
-		//"resources/YGMZ_1y.csv",
-		//"resources/BYND_1y.csv",
-		"resources/IBRX_1y.csv",
-		//"resources/EQX_1y.csv",
-		//"resources/80M.L_1y.csv",
-		//"resources/80M.L_5y.csv",
-		//"resources/CNM_1y.csv",
-		//"resources/AMZN_1y.csv",
+	pennyStocks := []string{
+		"QD", "DDL", "RERE", "IH", "WDH", "UXIN", "TBLA", "BZUN", "DAO", "KC",
+		"SCWO", "BDTX", "CYH", "BABB", "TBTC", "SVRA", "VFF", "NPWR", "ME", "GEVO",
 	}
 
-	// Generate more data for better training
-	for _, resource := range resources {
-		stockData, err := data2.LoadDataFromCSV(resource)
-		if err != nil {
-			fmt.Println("Failed to load data from CSV")
+	for _, ticker := range pennyStocks {
+		if err := xgc.Train(ticker); err != nil {
+			log.Printf("failed to train %s: %v", ticker, err)
+			continue
 		}
 
-		fmt.Printf("Loaded %d days of data\n", len(stockData))
+		log.Printf("Getting the trading results for %s\n", ticker)
 
-		strategy := data2.NewTradingStrategy(stockData, 20000.0)
-
-		fmt.Println("Extracting enhanced features...")
-		extractedFeatures := features.ExtractFeatures(strategy)
-		strategy.Features = extractedFeatures
-
-		fmt.Printf("Generated %d feature vectors with 18 features each\n", len(strategy.Features))
-
-		// Train with more trees and better parameters
-		// 2000, 200, 18 - the penny stock merchant
-		randomforest.Train(strategy, 2000, 200, 18) // 50 trees, max depth 8, min samples 15
-
-		fmt.Printf("Backtesting for %s", resource)
-		strategy.Backtest()
+		if err := xgc.TradingResults(ticker); err != nil {
+			log.Printf("failed to train %s: %v", ticker, err)
+			continue
+		}
 	}
-
-	//fmt.Println("\n=== Next Steps ===")
-	//fmt.Println("1. Try different thresholds in backtest (currently 0.52/0.48)")
-	//fmt.Println("2. Add position sizing based on confidence")
-	//fmt.Println("3. Implement stop-loss and take-profit")
-	//fmt.Println("4. Test with real market data")
-	//fmt.Println("5. Add walk-forward optimization")
 }
