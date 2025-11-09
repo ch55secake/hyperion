@@ -36,6 +36,7 @@ resources
 # Training files
 hyperion-py/historic_data
 hyperion-py/models
+hyperion-py/invalid_models
 hyperion-py/plots
 hyperion-py/results
 

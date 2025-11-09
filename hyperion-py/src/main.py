@@ -12,6 +12,7 @@ os.makedirs("./historic_data", exist_ok=True)
 os.makedirs("./plots", exist_ok=True)
 os.makedirs("./results", exist_ok=True)
 os.makedirs("./models", exist_ok=True)
+os.makedirs("./invalid_models", exist_ok=True)
 
 if __name__ == "__main__":
     train_model(period="10y", interval="1d", visualization=True)

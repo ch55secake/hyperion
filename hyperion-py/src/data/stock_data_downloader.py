@@ -22,6 +22,7 @@ class StockDataDownloader:
                 print(f"\n{self.period} {self.interval} data for {symbol}")
                 ticker = yf.Ticker(symbol)
                 df = ticker.history(period=self.period, interval=self.interval)
+                df = df.resample("2D").last()
 
                 if df.empty:
                     print(f"  ⚠️  No data found for {symbol}")
