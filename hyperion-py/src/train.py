@@ -1,3 +1,4 @@
+import os
 from typing import Dict, Tuple
 import traceback
 
@@ -115,6 +116,8 @@ def train_model(symbols=None, period: str = "5y", interval: str = "1d", visualiz
         return False
 
     for symbol in symbols:
+        if visualization:
+            os.makedirs("./plots/" + symbol, exist_ok=True)
         try:
             print("\n" + "=" * 60)
             print(f"Processing {symbol}")

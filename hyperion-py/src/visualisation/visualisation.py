@@ -2,6 +2,8 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+import matplotlib
+matplotlib.use("Agg")
 from matplotlib import pyplot as plt
 from pandas import Series
 
@@ -35,7 +37,7 @@ class Visualizer:
         plt.grid(True, alpha=0.3)
 
         plt.tight_layout()
-        plt.savefig(f"{save_path}/{symbol}_predictions.png", dpi=300, bbox_inches="tight")
+        plt.savefig(f"{save_path}/{symbol}/predictions.png", dpi=300, bbox_inches="tight")
         print(f"  ✓ Saved predictions plot: {save_path}/{symbol}_predictions.png")
         plt.close()
 
@@ -53,8 +55,12 @@ class Visualizer:
         plt.grid(True, alpha=0.3, axis="x")
 
         plt.tight_layout()
-        plt.savefig(f"{save_path}/{symbol}_feature_importance.png", dpi=300, bbox_inches="tight")
-        print(f"  ✓ Saved feature importance plot: {save_path}/{symbol}_feature_importance.png")
+        if len(symbol.split("_")) > 1:
+            plt.savefig(f"{save_path}/{symbol.split("_")[0]}/{symbol.split("_")[1]}_feature_importance.png", dpi=300, bbox_inches="tight")
+            print(f"  ✓ Saved feature importance plot: {save_path}/{symbol.split("_")[0]}/{symbol.split("_")[1]}_feature_importance.png")
+        else:
+            plt.savefig(f"{save_path}/{symbol}/feature_importance.png", dpi=300, bbox_inches="tight")
+            print(f"  ✓ Saved feature importance plot: {save_path}/{symbol}/feature_importance.png")
         plt.close()
 
     @staticmethod
@@ -209,7 +215,7 @@ class Visualizer:
         ax3.tick_params(axis="x", rotation=45)
 
         plt.tight_layout()
-        plt.savefig(f"{save_path}/{symbol}_trading_simulation.png", dpi=300, bbox_inches="tight")
+        plt.savefig(f"{save_path}/{symbol}/trading_simulation.png", dpi=300, bbox_inches="tight")
         print(f"  ✓ Saved trading simulation plot: {save_path}/{symbol}_trading_simulation.png")
         plt.close()
 
@@ -297,7 +303,7 @@ class Visualizer:
         ax3.tick_params(axis="x", rotation=45)
 
         plt.tight_layout()
-        plt.savefig(f"{save_path}/{symbol}_walk_forward.png", dpi=300, bbox_inches="tight")
+        plt.savefig(f"{save_path}/{symbol}/walk_forward.png", dpi=300, bbox_inches="tight")
         print(f"  ✓ Saved walk-forward plot: {save_path}/{symbol}_walk_forward.png")
         plt.close()
 
@@ -413,7 +419,7 @@ class Visualizer:
         ax3.legend(loc="upper left", fontsize=10)
 
         plt.tight_layout()
-        filename = f"{save_path}/{symbol}_180day_forecast.png"
+        filename = f"{save_path}/{symbol}/180day_forecast.png"
         plt.savefig(filename, dpi=300, bbox_inches="tight")
         print(f"  ✓ Saved forecast plot: {filename}")
         plt.close()
@@ -456,7 +462,7 @@ class Visualizer:
             ax.tick_params(axis="x", rotation=45)
 
         plt.tight_layout()
-        plt.savefig(f"{save_path}/{symbol}_technical_indicators.png", dpi=300, bbox_inches="tight")
+        plt.savefig(f"{save_path}/{symbol}/technical_indicators.png", dpi=300, bbox_inches="tight")
         print(f"  ✓ Saved technical indicators plot: {save_path}/{symbol}_technical_indicators.png")
         plt.close()
 
