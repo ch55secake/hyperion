@@ -14,54 +14,6 @@ class XGBoostStockPredictor:
 
     def __init__(self, params=None):
         if params is None:
-            conservative_params = {
-                'objective': 'reg:squarederror',
-                'learning_rate': 0.01,
-                'max_depth': 4,
-                'min_child_weight': 5,
-                'subsample': 0.7,
-                'colsample_bytree': 0.7,
-                'lambda': 2.0,
-                'alpha': 0.5,
-                'gamma': 0.2,
-                'n_estimators': 1500,
-                'early_stopping_rounds': 100,
-                'tree_method': 'hist',
-                'seed': 42
-            }
-
-            balanced_params = {
-                'objective': 'reg:squarederror',
-                'learning_rate': 0.3,
-                'max_depth': 4,
-                'min_child_weight': 5,
-                'subsample': 0.8,
-                'colsample_bytree': 0.8,
-                'lambda': 1.0,
-                'alpha': 0.5,
-                'gamma': 0.3,
-                'n_estimators': 1000,
-                'early_stopping_rounds': 50,
-                'tree_method': 'exact',
-                'seed': 42
-            }
-
-            aggressive_params = {
-                'objective': 'reg:squarederror',
-                'learning_rate': 0.1,
-                'max_depth': 8,
-                'min_child_weight': 1,
-                'subsample': 0.9,
-                'colsample_bytree': 0.9,
-                'lambda': 0.5,
-                'alpha': 0.0,
-                'gamma': 0.0,
-                'n_estimators': 500,
-                'early_stopping_rounds': 30,
-                'tree_method': 'hist',
-                'seed': 42
-            }
-
             params = {
                 "objective": "reg:squarederror",
                 "max_depth": 7,  # Reduced from 50 - too deep causes overfitting to mean
@@ -82,7 +34,39 @@ class XGBoostStockPredictor:
                 "random_state": 42,
                 "early_stopping_rounds": 50,
             }
-        self.params = balanced_params
+
+            # THIS PRODUCES 4 SUCCESSFUL MODELS
+            tuned_params = {
+                'objective': 'reg:squarederror',
+                'learning_rate': 0.05,          # <-- lower LR for smoother learning
+                'max_depth': 5,                 # slightly deeper to capture nonlinearity
+                'min_child_weight': 4,
+                'subsample': 0.9,
+                'colsample_bytree': 0.8,
+                'lambda': 1.2,
+                'alpha': 0.6,
+                'gamma': 0.1,
+                'n_estimators': 1500,           # <-- more trees with smaller steps
+                'tree_method': 'exact',
+                'seed': 42
+            }
+
+            tuned_params_v2 = {
+                'objective': 'reg:squarederror',
+                'learning_rate': 0.04,          # <-- lower LR for smoother learning
+                'max_depth': 5,                 # slightly deeper to capture nonlinearity
+                'min_child_weight': 4,
+                'subsample': 0.9,
+                'colsample_bytree': 0.8,
+                'lambda': 1.2,
+                'alpha': 0.6,
+                'gamma': 0.1,
+                'n_estimators': 1500,           # <-- more trees with smaller steps
+                'tree_method': 'exact',
+                # 'seed': 42
+            }
+
+        self.params = tuned_params_v2
         self.model = None
         self.feature_importance = None
         self.scaler = StandardScaler()
