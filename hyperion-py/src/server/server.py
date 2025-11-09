@@ -105,7 +105,7 @@ class ModelServer:
                 if not isinstance(period, str):
                     return jsonify({"error": "period must be a string"}), 400
 
-                result = train_model(symbols=ticker, period=period, interval=interval)
+                result = train_model(symbols=ticker, period=period, interval=interval, visualization=False)
 
                 if result is None:
                     return jsonify({"error": "Model training failed - no result returned"}), 500

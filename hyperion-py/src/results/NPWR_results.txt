@@ -1,0 +1,39 @@
+XGBoost Stock Prediction Results for NPWR
+============================================================
+
+Data Period: 10y
+Total Samples: 768
+Train Samples: 537
+Test Samples: 231
+
+Model Performance:
+  Test RMSE: 0.27380646
+  Test MAE: 0.22313128
+  Test R²: -0.08206546
+
+Trading Simulation Results:
+  Initial Capital: $10,000.00
+
+  Directional Strategy:
+    Final Value: $6,249.89
+    Total Return: -37.50%
+    Number of Trades: 10
+    Alpha vs Buy&Hold: N/A (no price data)
+
+  Adaptive Threshold Strategy:
+    Final Value: $9,581.01
+    Total Return: -4.19%
+    Number of Trades: 2
+    Alpha vs Buy&Hold: N/A (no price data)
+
+  Hold Days Strategy:
+    Final Value: $4,308.39
+    Total Return: -56.92%
+    Number of Trades: 68
+    Alpha vs Buy&Hold: N/A (no price data)
+
+
+  Best Strategy: Adaptive Threshold
+    Final Value: $9,581.01
+    Total Return: -4.19%
+    Number of Trades: 2

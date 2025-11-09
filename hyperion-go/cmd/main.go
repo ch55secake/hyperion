@@ -2,7 +2,7 @@ package main
 
 import (
 	"log"
-    "time"
+    //"time"
 	"hyperion-go/pkg/client"
 )
 
@@ -10,7 +10,7 @@ func main() {
 	url := "http://localhost:8080"
 	xgc := client.NewClient(url)
     pennyStocks := []string{
-        "KC",
+        "IH",
 	}
 
 
@@ -24,13 +24,19 @@ func main() {
 			log.Printf("failed to train %s: %v", ticker, err)
 			continue
 		}
-        log.Printf("trained %s — waiting 20s before predict", ticker)
-		time.Sleep(20 * time.Second)
-
-		if err := xgc.Predict(ticker); err != nil {
-			log.Printf("failed to predict %s: %v", ticker, err)
+        if err := xgc.TradingResults(ticker); err != nil {
+			log.Printf("failed to train %s: %v", ticker, err)
 			continue
 		}
-		log.Printf("predicted %s", ticker)
+
+        //log.Printf("trained %s — waiting 20s before predict", ticker)
+		//time.Sleep(20 * time.Second)
+
+// 		if err := xgc.Predict(ticker); err != nil {
+// 			log.Printf("failed to predict %s: %v", ticker, err)
+// 			continue
+// 		}
+// 		log.Printf("predicted %s", ticker)
+//
 	}
 }

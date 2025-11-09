@@ -1,0 +1,39 @@
+XGBoost Stock Prediction Results for KC
+============================================================
+
+Data Period: 10y
+Total Samples: 995
+Train Samples: 696
+Test Samples: 299
+
+Model Performance:
+  Test RMSE: 0.32403374
+  Test MAE: 0.23390417
+  Test R²: -0.17347897
+
+Trading Simulation Results:
+  Initial Capital: $10,000.00
+
+  Directional Strategy:
+    Final Value: $19,562.27
+    Total Return: 95.62%
+    Number of Trades: 20
+    Alpha vs Buy&Hold: N/A (no price data)
+
+  Adaptive Threshold Strategy:
+    Final Value: $6,991.24
+    Total Return: -30.09%
+    Number of Trades: 8
+    Alpha vs Buy&Hold: N/A (no price data)
+
+  Hold Days Strategy:
+    Final Value: $60,715.15
+    Total Return: 507.15%
+    Number of Trades: 60
+    Alpha vs Buy&Hold: N/A (no price data)
+
+
+  Best Strategy: Hold Days
+    Final Value: $60,715.15
+    Total Return: 507.15%
+    Number of Trades: 60

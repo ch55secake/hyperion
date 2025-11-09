@@ -34,8 +34,8 @@ func NewClient(url string) *XGClient {
 
 // Train writes a JSON file per (ticker, interval) and posts it to /train.
 func (c *XGClient) Train(ticker string) error {
-	const period = "1y"
-	intervals := []string{"1h", "1d"}
+	const period = "10y"
+	intervals := []string{"1d"}
 
 	for _, interval := range intervals {
 		payload := TrainRequest{
@@ -87,20 +87,36 @@ func (c *XGClient) Train(ticker string) error {
 			return fmt.Errorf("status %d for %s (%s): %s", resp.StatusCode, ticker, interval, string(respBody))
 		}
 
-		fmt.Printf("Trained %s interval=%s period=%s OK (body: %s)\n", ticker, interval, period, filename)
+		//fmt.Printf("Trained %s interval=%s period=%s OK (body: %s)\n", ticker, interval, period, filename)
 	}
 
 	return nil
 }
 
-func (c *XGClient) Predict(ticker string) error {
-	body := PredictionRequest{Ticker: ticker}
-	bodyBytes, err := json.Marshal(body)
+func (c *XGClient) TradingResults(ticker string) error {
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/trading-results/%s", c.url, ticker), nil)
 	if err != nil {
-		return fmt.Errorf("marshal predict %s: %w", ticker, err)
+		return fmt.Errorf("build predict request %s: %w", ticker, err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("send predict %s: %w", ticker, err)
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("predict status %d for %s: %s", resp.StatusCode, ticker, string(respBody))
 	}
 
-	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/predict", c.url), bytes.NewBuffer(bodyBytes))
+	fmt.Printf("%s", respBody[""])
+	return nil
+}
+
+func (c *XGClient) Predict(ticker string) error {
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/predict/%s", c.url, ticker), nil)
 	if err != nil {
 		return fmt.Errorf("build predict request %s: %w", ticker, err)
 	}

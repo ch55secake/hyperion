@@ -1,0 +1,39 @@
+XGBoost Stock Prediction Results for UXIN
+============================================================
+
+Data Period: 10y
+Total Samples: 1336
+Train Samples: 935
+Test Samples: 401
+
+Model Performance:
+  Test RMSE: 0.53874322
+  Test MAE: 0.29952403
+  Test R²: -0.24634881
+
+Trading Simulation Results:
+  Initial Capital: $10,000.00
+
+  Directional Strategy:
+    Final Value: $1,870.45
+    Total Return: -81.30%
+    Number of Trades: 46
+    Alpha vs Buy&Hold: N/A (no price data)
+
+  Adaptive Threshold Strategy:
+    Final Value: $6,581.54
+    Total Return: -34.18%
+    Number of Trades: 18
+    Alpha vs Buy&Hold: N/A (no price data)
+
+  Hold Days Strategy:
+    Final Value: $1,396.38
+    Total Return: -86.04%
+    Number of Trades: 82
+    Alpha vs Buy&Hold: N/A (no price data)
+
+
+  Best Strategy: Adaptive Threshold
+    Final Value: $6,581.54
+    Total Return: -34.18%
+    Number of Trades: 18

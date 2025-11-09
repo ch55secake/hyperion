@@ -1,0 +1,39 @@
+XGBoost Stock Prediction Results for SCWO
+============================================================
+
+Data Period: 10y
+Total Samples: 1816
+Train Samples: 1271
+Test Samples: 545
+
+Model Performance:
+  Test RMSE: 0.41937267
+  Test MAE: 0.35621746
+  Test R²: -2.23964664
+
+Trading Simulation Results:
+  Initial Capital: $10,000.00
+
+  Directional Strategy:
+    Final Value: $11,699.42
+    Total Return: 16.99%
+    Number of Trades: 28
+    Alpha vs Buy&Hold: N/A (no price data)
+
+  Adaptive Threshold Strategy:
+    Final Value: $11,186.09
+    Total Return: 11.86%
+    Number of Trades: 8
+    Alpha vs Buy&Hold: N/A (no price data)
+
+  Hold Days Strategy:
+    Final Value: $1,320.20
+    Total Return: -86.80%
+    Number of Trades: 150
+    Alpha vs Buy&Hold: N/A (no price data)
+
+
+  Best Strategy: Directional
+    Final Value: $11,699.42
+    Total Return: 16.99%
+    Number of Trades: 28
