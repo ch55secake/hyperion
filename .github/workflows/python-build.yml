@@ -19,7 +19,7 @@ jobs:
   pylint:
     defaults:
       run:
-        working-directory: hyperion-go
+        working-directory: hyperion-py
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -54,7 +54,7 @@ jobs:
   black:
     defaults:
       run:
-        working-directory: hyperion-go
+        working-directory: hyperion-py
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -96,7 +96,7 @@ jobs:
   build:
     defaults:
       run:
-        working-directory: hyperion-go
+        working-directory: hyperion-py
     runs-on: ubuntu-latest
     strategy:
       matrix:
