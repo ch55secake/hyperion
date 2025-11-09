@@ -158,4 +158,3 @@ def run_trade_simulation(
     # Step 9: Plot trading results
     if visualization:
         Visualizer.plot_trading_simulation(sim_results, symbol)
-

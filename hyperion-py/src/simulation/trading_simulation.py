@@ -15,6 +15,7 @@ class TradingSimulator:
     """
     Simulates trading based on model predictions
     """
+
     def __init__(self, initial_capital=10000, transaction_cost=0.001):
         self.initial_capital = initial_capital
         self.transaction_cost = transaction_cost
@@ -22,14 +23,14 @@ class TradingSimulator:
         self.trades = []
 
     def simulate(
-            self,
-            predictions,
-            actual_returns,
-            prices=None,
-            dates=None,
-            threshold="auto",
-            strategy="directional",
-            use_returns=True,
+        self,
+        predictions,
+        actual_returns,
+        prices=None,
+        dates=None,
+        threshold="auto",
+        strategy="directional",
+        use_returns=True,
     ):
         """
         Simulate trading strategy and evaluate predictive performance.
@@ -80,12 +81,9 @@ class TradingSimulator:
                         entry_price = current_price
                         capital = 0
                     position = "long"
-                    self.trades.append({
-                        "date": date,
-                        "action": "BUY",
-                        "predicted_return": pred_return,
-                        "price": current_price
-                    })
+                    self.trades.append(
+                        {"date": date, "action": "BUY", "predicted_return": pred_return, "price": current_price}
+                    )
 
                 elif position == "long" and pred_return <= 0:
                     # Sell
@@ -95,14 +93,16 @@ class TradingSimulator:
                         capital = shares * current_price * (1 - self.transaction_cost)
                     profit = capital - self.initial_capital
                     pnl = actual_return * 100 if use_returns else ((current_price - entry_price) / entry_price) * 100
-                    self.trades.append({
-                        "date": date,
-                        "action": "SELL",
-                        "predicted_return": pred_return,
-                        "profit": profit,
-                        "pnl_pct": pnl,
-                        "price": current_price
-                    })
+                    self.trades.append(
+                        {
+                            "date": date,
+                            "action": "SELL",
+                            "predicted_return": pred_return,
+                            "profit": profit,
+                            "pnl_pct": pnl,
+                            "price": current_price,
+                        }
+                    )
                     shares = 0
                     position = None
 
@@ -117,12 +117,9 @@ class TradingSimulator:
                             entry_price = current_price
                             capital = 0
                         position = "long"
-                        self.trades.append({
-                            "date": date,
-                            "action": "BUY",
-                            "predicted_return": pred_return,
-                            "price": current_price
-                        })
+                        self.trades.append(
+                            {"date": date, "action": "BUY", "predicted_return": pred_return, "price": current_price}
+                        )
                 else:
                     if pred_return < -threshold:
                         if use_returns:
@@ -130,16 +127,19 @@ class TradingSimulator:
                         else:
                             capital = shares * current_price * (1 - self.transaction_cost)
                         profit = capital - self.initial_capital
-                        pnl = actual_return * 100 if use_returns else ((
-                                                                                   current_price - entry_price) / entry_price) * 100
-                        self.trades.append({
-                            "date": date,
-                            "action": "SELL",
-                            "predicted_return": pred_return,
-                            "profit": profit,
-                            "pnl_pct": pnl,
-                            "price": current_price
-                        })
+                        pnl = (
+                            actual_return * 100 if use_returns else ((current_price - entry_price) / entry_price) * 100
+                        )
+                        self.trades.append(
+                            {
+                                "date": date,
+                                "action": "SELL",
+                                "predicted_return": pred_return,
+                                "profit": profit,
+                                "pnl_pct": pnl,
+                                "price": current_price,
+                            }
+                        )
                         shares = 0
                         position = None
 
@@ -154,12 +154,9 @@ class TradingSimulator:
                         capital = 0
                     position = "long"
                     hold_counter = 0
-                    self.trades.append({
-                        "date": date,
-                        "action": "BUY",
-                        "predicted_return": pred_return,
-                        "price": current_price
-                    })
+                    self.trades.append(
+                        {"date": date, "action": "BUY", "predicted_return": pred_return, "price": current_price}
+                    )
                 elif position == "long":
                     hold_counter += 1
                     if hold_counter >= 5 or pred_return < -threshold:
@@ -168,16 +165,19 @@ class TradingSimulator:
                         else:
                             capital = shares * current_price * (1 - self.transaction_cost)
                         profit = capital - self.initial_capital
-                        pnl = actual_return * 100 if use_returns else ((
-                                                                                   current_price - entry_price) / entry_price) * 100
-                        self.trades.append({
-                            "date": date,
-                            "action": "SELL",
-                            "predicted_return": pred_return,
-                            "profit": profit,
-                            "pnl_pct": pnl,
-                            "price": current_price
-                        })
+                        pnl = (
+                            actual_return * 100 if use_returns else ((current_price - entry_price) / entry_price) * 100
+                        )
+                        self.trades.append(
+                            {
+                                "date": date,
+                                "action": "SELL",
+                                "predicted_return": pred_return,
+                                "profit": profit,
+                                "pnl_pct": pnl,
+                                "price": current_price,
+                            }
+                        )
                         shares = 0
                         position = None
 
@@ -187,13 +187,15 @@ class TradingSimulator:
             else:
                 portfolio_value = shares * current_price if position == "long" else capital
 
-            self.portfolio_history.append({
-                "date": date,
-                "portfolio_value": portfolio_value,
-                "position": position if position else "cash",
-                "prediction": pred_return,
-                "price": current_price  # ✓ Fixed: Add price
-            })
+            self.portfolio_history.append(
+                {
+                    "date": date,
+                    "portfolio_value": portfolio_value,
+                    "position": position if position else "cash",
+                    "prediction": pred_return,
+                    "price": current_price,  # ✓ Fixed: Add price
+                }
+            )
 
         # --- Close remaining position ---
         if position is not None:
@@ -206,20 +208,24 @@ class TradingSimulator:
                 capital = shares * final_price * (1 - self.transaction_cost)
 
             profit = capital - self.initial_capital
-            pnl = np.mean(actual_returns[-5:]) * 100 if use_returns else ((final_price - entry_price) / entry_price) * 100
+            pnl = (
+                np.mean(actual_returns[-5:]) * 100 if use_returns else ((final_price - entry_price) / entry_price) * 100
+            )
 
             if hasattr(dates, "__getitem__"):
                 final_date = dates[-1]
             else:
                 final_date = None
 
-            self.trades.append({
-                "date": final_date,
-                "action": "SELL (Final)",
-                "profit": profit,
-                "pnl_pct": pnl,
-                "price": final_price  # ✓ Fixed: Add price
-            })
+            self.trades.append(
+                {
+                    "date": final_date,
+                    "action": "SELL (Final)",
+                    "profit": profit,
+                    "pnl_pct": pnl,
+                    "price": final_price,  # ✓ Fixed: Add price
+                }
+            )
 
             shares = 0
 
@@ -574,10 +580,10 @@ def generate_forecast(predictor, df_features, feature_columns, start_price, num_
 
 
 def simulate_directional_trading_strategy(
-        dates_test: XGBoostStockPredictor | Any,
-        prices_test: np.ndarray[Any, np.dtype[Any]] | list[Any] | dict[str, float | Any] | Any,
-        test_results: Series | Any,
-        y_test: Series | Any,
+    dates_test: XGBoostStockPredictor | Any,
+    prices_test: np.ndarray[Any, np.dtype[Any]] | list[Any] | dict[str, float | Any] | Any,
+    test_results: Series | Any,
+    y_test: Series | Any,
 ) -> tuple[dict[str, DataFrame | float | int | Any], TradingSimulator]:
     # Strategy 1: Directional (most trades - buys on any positive prediction)
     print("\n--- Strategy 1: Directional Trading ---")
@@ -595,10 +601,10 @@ def simulate_directional_trading_strategy(
 
 
 def simulate_adaptive_threshold_strategy(
-        dates_test: XGBoostStockPredictor | Any,
-        prices_test: np.ndarray[Any, np.dtype[Any]] | list[Any] | dict[str, float | Any] | Any,
-        test_results: Series | Any,
-        y_test: Series | Any,
+    dates_test: XGBoostStockPredictor | Any,
+    prices_test: np.ndarray[Any, np.dtype[Any]] | list[Any] | dict[str, float | Any] | Any,
+    test_results: Series | Any,
+    y_test: Series | Any,
 ) -> tuple[dict[str, DataFrame | float | int | Any], TradingSimulator]:
     # Strategy 2: Adaptive threshold
     print("\n--- Strategy 2: Adaptive Threshold ---")
@@ -611,10 +617,10 @@ def simulate_adaptive_threshold_strategy(
 
 
 def simulate_hold_days_strategy(
-        dates_test: XGBoostStockPredictor | Any,
-        prices_test: np.ndarray[Any, np.dtype[Any]] | list[Any] | dict[str, float | Any] | Any,
-        test_results: Series | Any,
-        y_test: Series | Any,
+    dates_test: XGBoostStockPredictor | Any,
+    prices_test: np.ndarray[Any, np.dtype[Any]] | list[Any] | dict[str, float | Any] | Any,
+    test_results: Series | Any,
+    y_test: Series | Any,
 ) -> tuple[dict[str, DataFrame | float | int | Any], TradingSimulator]:
     # Strategy 3: Hold days
     print("\n--- Strategy 3: Hold Days Strategy ---")
