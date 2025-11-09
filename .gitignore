@@ -36,6 +36,7 @@ resources
 # Training files
 hyperion-py/historic_data
 hyperion-py/models
+hyperion-py/invalid_models
 hyperion-py/plots
 hyperion-py/results
 
@@ -44,3 +45,7 @@ hyperion-py/**/__pycache__/
 
 # .venv
 hyperion-py/.venv/
+
+# .DS_STORE I FUCKING HATE YOU
+**/.DS_Store
+.DS_Store
