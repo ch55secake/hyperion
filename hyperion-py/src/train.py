@@ -52,7 +52,7 @@ def train_model(symbols=None, period: str = "5y", interval: str = "1d", visualiz
     :param interval: a Data interval to download
     """
     if symbols is None:
-        symbols = ["AAPL"]
+        symbols = ["AAPL", "NFLX", "TSLA", "MSFT", "GOOG", "AMZN", "FB", "SPY", "VOO", "VTI", "VOOG", "VOOD", "VOOX"]
     print("\n" + "=" * 60)
     print("XGBoost Stock Price Prediction & Trading Simulation")
     print("=" * 60)

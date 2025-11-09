@@ -12,8 +12,9 @@ from src.xbg.xgb_predictor import XGBoostStockPredictor
 
 
 class TradingSimulator:
-    """Simulates trading based on model predictions"""
-
+    """
+    Simulates trading based on model predictions
+    """
     def __init__(self, initial_capital=10000, transaction_cost=0.001):
         self.initial_capital = initial_capital
         self.transaction_cost = transaction_cost
@@ -38,9 +39,6 @@ class TradingSimulator:
         print("=" * 60)
 
         pred_array = np.array(predictions)
-        actual_array = np.array(actual_returns)
-
-        # ... existing statistics code ...
 
         # --- Determine Threshold ---
         if threshold == "auto":
@@ -60,19 +58,13 @@ class TradingSimulator:
         entry_price = 0
         hold_counter = 0
 
-        # Initialize synthetic price for returns-only mode
-        synthetic_price = 100.0 if use_returns else None
-
         for i, pred_return in enumerate(predictions):
             actual_return = actual_returns.iloc[i] if hasattr(actual_returns, "iloc") else actual_returns[i]
             date = dates.iloc[i] if hasattr(dates, "iloc") else (dates[i] if dates is not None else i)
 
             # Determine current price
             if use_returns:
-                if i == 0:
-                    current_price = synthetic_price
-                else:
-                    current_price = current_price * (1 + actual_return)
+                current_price = prices.iloc[i] * (1 + actual_return)
             else:
                 current_price = prices.iloc[i] if hasattr(prices, "iloc") else prices[i]
 
@@ -214,8 +206,7 @@ class TradingSimulator:
                 capital = shares * final_price * (1 - self.transaction_cost)
 
             profit = capital - self.initial_capital
-            pnl = np.mean(actual_returns[-5:]) * 100 if use_returns else ((
-                                                                                      final_price - entry_price) / entry_price) * 100
+            pnl = np.mean(actual_returns[-5:]) * 100 if use_returns else ((final_price - entry_price) / entry_price) * 100
 
             if hasattr(dates, "__getitem__"):
                 final_date = dates[-1]

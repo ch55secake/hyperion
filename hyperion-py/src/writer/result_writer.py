@@ -70,7 +70,7 @@ def output_best_strategy(
 ) -> tuple[
     dict[str, DataFrame | float | int | Any], tuple[str, dict[str, DataFrame | float | int | Any], TradingSimulator]
 ]:
-    best_strategy = max(valid_strategies, key=lambda x: (x[1]["num_trades"], x[1]["total_return"]))
+    best_strategy = max(valid_strategies, key=lambda x: (x[1]["total_return"], x[1]["num_trades"]))
     print(f"\n{'=' * 60}")
     print(f"🏆 Best Strategy: {best_strategy[0]}")
     print(f"   Trades: {best_strategy[1]['num_trades']}")
