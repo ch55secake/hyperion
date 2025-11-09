@@ -1,5 +1,5 @@
-# src/stacking/stack.py
-import copy
+import os
+import pickle
 from typing import Callable, Dict, List, Optional, Any
 import numpy as np
 import pandas as pd
@@ -277,9 +277,6 @@ class StackedStockPredictor:
         """
         preds = self.predict(x_dict)
 
-        from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-        import numpy as np
-
         mse = mean_squared_error(y_true, preds)
         rmse = np.sqrt(mse)
         mae = mean_absolute_error(y_true, preds)
@@ -299,17 +296,22 @@ class StackedStockPredictor:
             "r2": r2,
         }
 
-    def save_model(self, symbol: str, save_path: str = "models"):
-        """
-        Save all base models (optional, can be expanded).
-        """
-        for name, model in self.models.items():
-            model.save_model(f"{symbol}_{name}", save_path)
-        print(f"✓ Stacked model saved: {symbol}")
+    def save_model(self, symbol, save_path="models"):
+        os.makedirs(save_path, exist_ok=True)
+        filename = f"{save_path}/{symbol}_stacked_model.pkl"
+        with open(filename, "wb") as f:
+            pickle.dump(self, f)
+        print(f"✓ Saved full stacked model to {filename}")
+
+    @staticmethod
+    def load_model(symbol, save_path="models"):
+        filename = f"{save_path}/{symbol}_stacked_model.pkl"
+        with open(filename, "rb") as f:
+            predictor = pickle.load(f)
+        print(f"✓ Loaded stacked model from {filename}")
+        return predictor
 
     def compute_feature_importance(self):
-        import pandas as pd
-
         combined = None
         for name, model in self.models.items():
             if hasattr(model, "feature_importance") and model.feature_importance is not None:

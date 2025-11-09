@@ -1,4 +1,4 @@
-from typing import Any, Dict, Tuple
+from typing import Dict, Tuple
 import traceback
 
 import numpy as np
@@ -96,6 +96,7 @@ def train_model(symbols=None, period: str = "5y", interval: str = "1d", visualiz
             "LMT",
             "NET",
             "FMAO",
+            "ORCL"
         ]
         # symbols = ["AAPL"]
     print("\n" + "=" * 60)
