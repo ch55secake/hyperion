@@ -18,7 +18,7 @@ class ModelServer:
         self._setup_routes()
 
     def _setup_routes(self):
-        @self.app.route('/trading-results/<ticker>', methods=['GET'])
+        @self.app.route("/trading-results/<ticker>", methods=["GET"])
         def results(ticker: str):
             try:
                 if not isinstance(ticker, str) or not ticker:

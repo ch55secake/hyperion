@@ -63,7 +63,7 @@ class XGBoostStockPredictor:
                 "gamma": 0.1,
                 "n_estimators": 1500,  # <-- more trees with smaller steps
                 "tree_method": "exact",
-                'seed': 42
+                "seed": 42,
             }
 
         self.params = params
