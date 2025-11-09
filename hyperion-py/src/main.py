@@ -15,7 +15,7 @@ os.makedirs("./models", exist_ok=True)
 os.makedirs("./invalid_models", exist_ok=True)
 
 if __name__ == "__main__":
-    train_model(period="10y", interval="1d", visualization=True)
+    train_model(period="2y", interval="1h", visualization=True)
     # predict_mode(visualisation=True)
     # ModelServer(port=8080).run()
     # # Check for command line argument

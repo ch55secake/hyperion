@@ -276,6 +276,7 @@ def predict_today(symbol, model_path="models", visualisation: bool = False):
     try:
         # Load the trained model
         print("\n1. Loading trained model...")
+        # todo fix
         predictor = XGBoostStockPredictor.load_model(symbol, model_path)
 
         # Download recent data (need enough history for indicators)
@@ -580,53 +581,50 @@ def generate_forecast(predictor, df_features, feature_columns, start_price, num_
 
 
 def simulate_directional_trading_strategy(
-    dates_test: XGBoostStockPredictor | Any,
-    prices_test: np.ndarray[Any, np.dtype[Any]] | list[Any] | dict[str, float | Any] | Any,
-    test_results: Series | Any,
-    y_test: Series | Any,
-) -> tuple[dict[str, DataFrame | float | int | Any], TradingSimulator]:
-    # Strategy 1: Directional (most trades - buys on any positive prediction)
+    dates_test,
+    prices_test,
+    predictions,  # ✅ Changed from test_results
+    y_test,
+) -> tuple[dict, TradingSimulator]:
     print("\n--- Strategy 1: Directional Trading ---")
     print("Buys when prediction > 0, sells when prediction <= 0")
     simulator = TradingSimulator(initial_capital=10000)
     sim_results = simulator.simulate(
-        test_results["predictions"],
+        predictions,  # ✅ Use predictions directly
         y_test,
         prices_test,
         dates_test,
-        threshold=0,  # Not used in directional
+        threshold=0,
         strategy="directional",
     )
     return sim_results, simulator
 
 
 def simulate_adaptive_threshold_strategy(
-    dates_test: XGBoostStockPredictor | Any,
-    prices_test: np.ndarray[Any, np.dtype[Any]] | list[Any] | dict[str, float | Any] | Any,
-    test_results: Series | Any,
-    y_test: Series | Any,
-) -> tuple[dict[str, DataFrame | float | int | Any], TradingSimulator]:
-    # Strategy 2: Adaptive threshold
+    dates_test,
+    prices_test,
+    predictions,  # ✅ Changed from test_results
+    y_test,
+) -> tuple[dict, TradingSimulator]:
     print("\n--- Strategy 2: Adaptive Threshold ---")
     print("Uses statistical threshold based on prediction distribution")
     simulator = TradingSimulator(initial_capital=10000)
     adaptive_results = simulator.simulate(
-        test_results["predictions"], y_test, prices_test, dates_test, threshold="adaptive", strategy="threshold"
+        predictions, y_test, prices_test, dates_test, threshold="adaptive", strategy="threshold"
     )
     return adaptive_results, simulator
 
 
 def simulate_hold_days_strategy(
-    dates_test: XGBoostStockPredictor | Any,
-    prices_test: np.ndarray[Any, np.dtype[Any]] | list[Any] | dict[str, float | Any] | Any,
-    test_results: Series | Any,
-    y_test: Series | Any,
-) -> tuple[dict[str, DataFrame | float | int | Any], TradingSimulator]:
-    # Strategy 3: Hold days
+    dates_test,
+    prices_test,
+    predictions,  # ✅ Changed from test_results
+    y_test,
+) -> tuple[dict, TradingSimulator]:
     print("\n--- Strategy 3: Hold Days Strategy ---")
     print("Holds positions for multiple days")
     simulator = TradingSimulator(initial_capital=10000)
     hold_days_results = simulator.simulate(
-        test_results["predictions"], y_test, prices_test, dates_test, threshold="adaptive", strategy="hold_days"
+        predictions, y_test, prices_test, dates_test, threshold="adaptive", strategy="hold_days"
     )
     return hold_days_results, simulator

@@ -461,8 +461,29 @@ class Visualizer:
         plt.close()
 
 
+def combined_feature_importance(stacked_predictor):
+    combined = None
+    for name, model in stacked_predictor.models.items():
+        if hasattr(model, "feature_importance") and model.feature_importance is not None:
+            fi = model.feature_importance.copy()
+            # Apply weight if desired
+            weight = stacked_predictor.weights.get(name, 1.0)
+            fi["importance"] *= weight
+            fi.rename(columns={"importance": f"importance_{name}"}, inplace=True)
+            if combined is None:
+                combined = fi
+            else:
+                combined = combined.merge(fi, on="feature", how="outer")
+    if combined is not None:
+        # Sum weighted importances across models
+        importance_cols = [c for c in combined.columns if c.startswith("importance_")]
+        combined["importance"] = combined[importance_cols].sum(axis=1)
+        return combined[["feature", "importance"]].sort_values("importance", ascending=False)
+    return None
+
+
 def generate_plots(
-    dates_test: XGBoostStockPredictor | Any,
+    dates_test: Any,
     df_features,
     predictor: dict[str, np.ndarray[Any, np.dtype[Any]] | list[Any] | dict[str, float | Any] | float | Any] | Any,
     symbol,
@@ -471,8 +492,20 @@ def generate_plots(
 ):
     # Step 7: Generate plots
     print("\nGenerating visualizations...")
+    for name, model in predictor.models.items():
+        if hasattr(model, "feature_importance") and model.feature_importance is not None:
+            Visualizer.plot_feature_importance(model.feature_importance, f"{symbol}_{name}")
+    fi_combined = combined_feature_importance(predictor)
+    if fi_combined is not None:
+        Visualizer.plot_feature_importance(fi_combined, symbol)
+    # Plot predictions
     Visualizer.plot_predictions(dates_test, y_test, test_results["predictions"], symbol)
-    Visualizer.plot_feature_importance(predictor.feature_importance, symbol)
+
+    # Plot feature importance (combined from stacked models)
+    if predictor.feature_importance is not None:
+        Visualizer.plot_feature_importance(predictor.feature_importance, symbol)
+
+    # Plot price + indicators
     Visualizer.plot_price_with_indicators(df_features, symbol)
 
 

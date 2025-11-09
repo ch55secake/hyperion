@@ -23,6 +23,7 @@ seaborn = "0.13.0"
 flask = "3.1.2"
 black = "25.1.0"
 pylint = "3.3.6"
+lightgbm = "4.6.0"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Dict, Tuple
 import traceback
 
 import numpy as np
@@ -14,102 +14,55 @@ from src.simulation import (
     simulate_adaptive_threshold_strategy,
     simulate_hold_days_strategy,
 )
+from src.lgb import LightGBMStockPredictor
+from src.stacker import StackedStockPredictor
 
 TEST_SIZE = 0.3  # Train/test split ratio
 USE_WALK_FORWARD = False  # Set to False for a simple train / test split
 
 
 def simple_train_test_split(
-    x, dates, prices, y
-) -> tuple[XGBoostStockPredictor, dict[str, float | Any], Any, Any, Any, Any, Any]:
-    """
-    Simple train/test split with proper time-series handling
-    """
-    print("\n" + "=" * 60)
-    print("Using Simple Train/Test Split")
-    print("=" * 60)
+    x_daily: pd.DataFrame, x_hourly: pd.DataFrame, dates: pd.Series, prices: pd.Series, y: pd.Series
+) -> Tuple[
+    Dict[str, pd.DataFrame], Dict[str, pd.DataFrame], pd.Series, StackedStockPredictor, pd.Series, dict, pd.Series
+]:
 
-    # Debug: Check data before split
-    print("\nData Quality Check:")
-    print(f"Total samples: {len(x)}")
-    print(f"Features shape: {x.shape}")
-    print(f"Target shape: {y.shape}")
-    print(f"NaN in features: {x.isna().sum().sum()}")
-    print(f"NaN in target: {y.isna().sum()}")
+    split_idx = int(len(x_daily) * (1 - TEST_SIZE))
 
-    # Check for data leakage - FIXED
-    print("\nData Leakage Check:")
-    print(f"First date: {dates[0]}")  # ✓ Direct indexing
-    print(f"Last date: {dates[-1]}")  # ✓ Direct indexing
-    print(f"Target mean: {y.mean():.6f} (should be ~0)")
-    print(f"Target std: {y.std():.6f} (should be 0.01-0.03)")
+    x_train_daily, x_test_daily = x_daily.iloc[:split_idx], x_daily.iloc[split_idx:]
+    x_train_hourly, x_test_hourly = x_hourly.iloc[:split_idx], x_hourly.iloc[split_idx:]
 
-    # Show alignment - FIXED
-    print("\nFirst 3 rows (verify alignment):")
-    sample_df = pd.DataFrame(
-        {
-            "Date": dates[:3],  # ✓ Slice instead of iloc
-            "Price": prices.iloc[:3],
-            "SMA_20": x["SMA_20"].iloc[:3],
-            "Target": y.iloc[:3],
-        }
-    )
-    print(sample_df)
-
-    # Step 4: Train/test split (time-based)
-    split_idx = int(len(x) * (1 - TEST_SIZE))
-
-    x_train, x_test = x.iloc[:split_idx], x.iloc[split_idx:]
     y_train, y_test = y.iloc[:split_idx], y.iloc[split_idx:]
-    dates_test = dates[split_idx:]  # ✓ Direct slicing
+    dates_test = dates[split_idx:]
     prices_test = prices.iloc[split_idx:]
 
-    print(f"\n✓ Train set: {len(x_train)} samples")
-    print(f"  Date range: {dates[0]} to {dates[split_idx-1]}")  # ✓ Fixed
-    print(f"✓ Test set: {len(x_test)} samples")
-    print(f"  Date range: {dates[split_idx]} to {dates[-1]}")  # ✓ Fixed
+    x_train_dict = {"daily": x_train_daily, "hourly": x_train_hourly}
+    x_test_dict = {"daily": x_test_daily, "hourly": x_test_hourly}
 
-    # Verify no overlap - FIXED
-    assert dates[split_idx - 1] < dates[split_idx], "Train/test dates overlap!"
+    # Create stacked predictor
+    stacked = StackedStockPredictor(
+        {
+            "daily": XGBoostStockPredictor(),
+            "hourly": LightGBMStockPredictor(),
+        }
+    )
 
-    # Step 5: Train model
-    print("\nTraining XGBoost model...")
-    predictor = XGBoostStockPredictor()
-    predictor.train(x_train, y_train, x_test, y_test)
+    # Train base models
+    train_data = {
+        "daily": (x_train_daily, y_train, x_test_daily, y_test),
+        "hourly": (x_train_hourly, y_train, x_test_hourly, y_test),
+    }
+    stacked.train(train_data)
 
-    # Step 6: Evaluate
-    print("\n" + "=" * 60)
-    print("Model Evaluation")
-    print("=" * 60)
+    # Evaluate on test set
+    test_results = stacked.evaluate(x_test_dict, y_test)
 
-    predictor.evaluate(x_train, y_train, "Train")
-    test_results = predictor.evaluate(x_test, y_test, "Test")
-
-    # Additional diagnostics
-    print("\nDiagnostics:")
-    y_train_pred = predictor.predict(x_train)
-    y_test_pred = predictor.predict(x_test)
-
-    # Check if predictions are reasonable
-    print(f"Train predictions - mean: {y_train_pred.mean():.6f}, std: {y_train_pred.std():.6f}")
-    print(f"Test predictions - mean: {y_test_pred.mean():.6f}, std: {y_test_pred.std():.6f}")
-
-    # Directional accuracy
-    train_dir_acc = (np.sign(y_train_pred) == np.sign(y_train)).mean() * 100
-    test_dir_acc = (np.sign(y_test_pred) == np.sign(y_test)).mean() * 100
-    print(f"Train directional accuracy: {train_dir_acc:.2f}%")
-    print(f"Test directional accuracy: {test_dir_acc:.2f}%")
-
-    return x_test, x_train, dates_test, predictor, prices_test, test_results, y_test
+    return x_test_dict, x_train_dict, dates_test, stacked, prices_test, test_results, y_test
 
 
 def train_model(symbols=None, period: str = "5y", interval: str = "1d", visualization: bool = False):
     """
-    Train a model for each ticker, defaults to AAPL
-    :param visualization: should or should not generate plots
-    :param symbols: List of stock symbols to process
-    :param period: a Data period to download
-    :param interval: a Data interval to download
+    Train stacked model for each ticker, using daily + hourly features.
     """
     if symbols is None:
         symbols = [
@@ -124,8 +77,8 @@ def train_model(symbols=None, period: str = "5y", interval: str = "1d", visualiz
             "VOO",
             "VTI",
             "VOOG",
-            "VOOD",
-            "VOOX",
+            # "VOOD",
+            # "VOOX",
             "EXC",
             "DELL",
             "AMD",
@@ -146,43 +99,57 @@ def train_model(symbols=None, period: str = "5y", interval: str = "1d", visualiz
         ]
         # symbols = ["AAPL"]
     print("\n" + "=" * 60)
-    print("XGBoost Stock Price Prediction & Trading Simulation")
+    print("Stacked Stock Price Prediction (Daily + Hourly)")
     print("=" * 60)
 
-    # Step 1: Download data
-    downloader = StockDataDownloader(symbols, period=period, interval=interval)
-    stock_data: dict[Any, Any] = downloader.download_data()
+    # Download data (daily) + hourly (interval='1h')
+    downloader_daily = StockDataDownloader(symbols, period=period, interval="1d")
+    downloader_hourly = StockDataDownloader(symbols, period=period, interval="1h")
 
-    if not stock_data:
-        print("\n⚠️  No data downloaded. Exiting.")
+    stock_data_daily = downloader_daily.download_data()
+    stock_data_hourly = downloader_hourly.download_data()
+
+    if not stock_data_daily or not stock_data_hourly:
+        print("⚠️  No data downloaded. Exiting.")
         return False
 
-    # Process each symbol
-    for symbol, df in stock_data.items():
+    for symbol in symbols:
         try:
             print("\n" + "=" * 60)
             print(f"Processing {symbol}")
             print("=" * 60)
 
-            # Step 2: Feature engineering
-            print("\nAdding technical indicators...")
-            df_features = create_target_features(df)
+            # Daily features
+            df_daily = create_target_features(stock_data_daily[symbol])
+            x_daily, y_daily, dates_daily, prices_daily, _ = FeatureEngineering.prepare_features(df_daily)
 
-            # Step 3: Prepare features
-            x, y, dates, prices, feature_columns = FeatureEngineering.prepare_features(df_features)
-            print(f"✓ Prepared {len(x)} samples with {len(feature_columns)} features")
+            # Hourly features
+            df_hourly = create_target_features(stock_data_hourly[symbol])
+            x_hourly, _, _, _, _ = FeatureEngineering.prepare_features(df_hourly)
+            # Align hourly target with daily (optional: forward-fill or aggregate)
+            # Here we just slice to daily index for stacking
+            x_hourly = x_hourly.loc[x_daily.index]
 
-            x_test, x_train, dates_test, predictor, prices_test, test_results, y_test = simple_train_test_split(
-                x, dates, prices, y
+            x_test_dict, x_train_dict, dates_test, predictor, prices_test, test_results, y_test = (
+                simple_train_test_split(x_daily, x_hourly, dates_daily, prices_daily, y_daily)
             )
 
             save_trained_model(predictor, symbol, test_results)
 
             if visualization:
-                generate_plots(dates_test, df_features, predictor, symbol, test_results, y_test)
+                generate_plots(dates_test, df_daily, predictor, symbol, test_results, y_test)
 
             run_trade_simulation(
-                dates_test, period, prices_test, symbol, test_results, visualization, x, x_test, x_train, y_test
+                dates_test,
+                period,
+                prices_test,
+                symbol,
+                test_results,
+                visualization,
+                x_daily,
+                x_test_dict,
+                x_train_dict,
+                y_test,
             )
 
         except Exception as e:
@@ -192,12 +159,6 @@ def train_model(symbols=None, period: str = "5y", interval: str = "1d", visualiz
 
     print("\n" + "=" * 60)
     print("✓ All processing complete!")
-    print("✓ Plots saved in: plots/")
-    print("✓ Results saved in: results/")
-    print("✓ CSV data saved in: historic_data/")
-    print("✓ Models saved in: models/")
-    print("=" * 60 + "\n")
-
     return True
 
 
@@ -205,45 +166,55 @@ def run_trade_simulation(
     dates_test,
     period: str,
     prices_test,
-    symbol,
-    test_results,
+    symbol: str,
+    test_results: dict,
     visualization: bool,
     x,
-    x_test: XGBoostStockPredictor,
-    x_train: dict[str, float | Any],
+    x_test_dict: dict,
+    x_train_dict: dict,
     y_test,
 ):
     print("\n" + "=" * 60)
     print("Testing Multiple Trading Strategies")
     print("=" * 60)
 
+    preds = test_results.get("predictions")
+    if preds is None:
+        print("⚠️  Predictions missing, computing via predictor.predict()")
+        predictor = x_test_dict.get("predictor")
+        preds = predictor.predict(x_test_dict)
+
+    # Ensure 1D
+    preds = np.asarray(preds).ravel()
+    test_results["predictions"] = preds
+
+    # Directional trading
     directional_trading_results, directional_simulator = simulate_directional_trading_strategy(
-        dates_test, prices_test, test_results, y_test
+        dates_test, prices_test, preds, y_test
     )
 
     adaptive_threshold_results, adaptive_simulator = simulate_adaptive_threshold_strategy(
-        dates_test, prices_test, test_results, y_test
+        dates_test, prices_test, preds, y_test
     )
 
-    hold_days_results, hold_days_simulator = simulate_hold_days_strategy(dates_test, prices_test, test_results, y_test)
+    hold_days_results, hold_days_simulator = simulate_hold_days_strategy(dates_test, prices_test, preds, y_test)
 
-    # Compare strategies and use the best performing one for plots
+    # Compare strategies and persist
     strategies = [
         ("Directional", directional_trading_results, directional_simulator),
         ("Adaptive Threshold", adaptive_threshold_results, adaptive_simulator),
         ("Hold Days", hold_days_results, hold_days_simulator),
     ]
 
-    # Find strategy with most trades (or best return if tied)
     valid_strategies = [(name, res, sim) for name, res, sim in strategies if res["num_trades"] > 0]
 
     if valid_strategies:
         best_strategy, sim_results = output_best_strategy(valid_strategies)
-        if best_strategy is not None:
+        if best_strategy:
             persist_results(
                 x,
-                x_test,
-                x_train,
+                x_test_dict,
+                x_train_dict,
                 best_strategy,
                 period,
                 sim_results,
@@ -252,10 +223,9 @@ def run_trade_simulation(
                 test_results,
                 valid_strategies,
             )
-
     else:
-        print("\n⚠️  WARNING: No strategy generated trades!")
-        sim_results = directional_trading_results  # Use first strategy anyway for plotting
+        print("⚠️  No strategy generated trades, using directional as fallback")
+        sim_results = directional_trading_results
 
     if visualization:
         Visualizer.plot_trading_simulation(sim_results, symbol)

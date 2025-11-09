@@ -1,6 +1,7 @@
 clean:
 	@rm -rf plots/*
 	@rm -rf models/*
+	@rm -rf invalid_models/*
 	@rm -rf historic_data/*
 	@rm -rf results/*
 

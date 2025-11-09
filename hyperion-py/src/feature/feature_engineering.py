@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from sklearn.preprocessing import StandardScaler
 
 
 class FeatureEngineering:
@@ -194,7 +195,7 @@ class FeatureEngineering:
         return df
 
     @staticmethod
-    def prepare_features(df):
+    def prepare_features(df, scale=True):
         feature_columns = df.columns.difference(["Open", "High", "Low", "Close", "Volume", "Target"])
 
         # Fill missing values instead of dropping all
@@ -202,7 +203,6 @@ class FeatureEngineering:
 
         # If Target has NaN at the end, drop only those rows
         df_clean = df.dropna(subset=["Target"])
-
         if len(df_clean) == 0:
             raise ValueError("No valid data after processing features")
 
@@ -210,6 +210,15 @@ class FeatureEngineering:
         y = df_clean["Target"]
         dates = df_clean.index
         prices = df_clean["Close"]
+
+        # ============================================================
+        # SCALE FEATURES IF REQUESTED
+        # ============================================================
+        if scale:
+            scaler = StandardScaler()
+            x_scaled = pd.DataFrame(scaler.fit_transform(x), columns=x.columns, index=x.index)
+            x = x_scaled
+
         return x, y, dates, prices, feature_columns.tolist()
 
 
