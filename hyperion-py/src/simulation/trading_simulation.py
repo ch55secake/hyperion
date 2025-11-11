@@ -1,5 +1,4 @@
-from datetime import datetime, timedelta
-from typing import Any
+from datetime import timedelta
 
 import numpy as np
 import pandas as pd
@@ -303,8 +302,13 @@ def predict_today(symbol, model_path="models", visualisation: bool = False):
 
         # Add technical indicators
         print("\n3. Calculating technical indicators...")
-        df_daily_features = FeatureEngineering.add_technical_indicators(df_daily)
-        df_hourly_features = FeatureEngineering.add_technical_indicators(df_hourly)
+        daily_features = FeatureEngineering(df_daily)
+        daily_features.add_all_technical_indicators()
+        df_daily_features = daily_features.get_df()
+
+        hourly_features = FeatureEngineering(df_hourly)
+        hourly_features.add_all_technical_indicators()
+        df_hourly_features = hourly_features.get_df()
 
         # Add Dividends and Stock Splits columns if they don't exist (yfinance sometimes doesn't include them)
         if "Dividends" not in df_daily_features.columns:
@@ -397,6 +401,7 @@ def predict_today(symbol, model_path="models", visualisation: bool = False):
             "Return_Lag_10",
             "Return_Lag_20",
             # MOMENTUM
+            "Momentum_1",
             "Momentum_5",
             "Momentum_10",
             "Momentum_20",

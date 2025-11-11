@@ -2,204 +2,217 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
+_required_cols = ["Open", "High", "Low", "Close", "Volume"]
+_all_cols = ["Open", "High", "Low", "Close", "Volume", "Dividends", "Stock Splits"]
+_all_cols_with_targets = ["Open", "High", "Low", "Close", "Volume", "Target", "Dividends", "Stock Splits"]
+_ma_windows = [5, 10, 12, 20, 26, 50, 100]
+_price_change_windows = [1, 5, 10, 20, 50, 100]
+_volume_change_windows = [5, 10, 20, 50]
+_volatility_windows = [5, 10, 20, 50]
+_lagged_returns_windows = [1, 2, 3, 5, 10, 20]
+_momentum_windows = [1, 5, 10, 20, 50]
+_rate_of_change_windows = [5, 10, 20, 50]
+
 
 class FeatureEngineering:
     """Creates technical indicators and features for machine learning, robust to small/incomplete data."""
 
-    @staticmethod
-    def add_technical_indicators(df):
-        df = df.copy()
+    def __init__(self, df):
+        self.df = self._ensure_required_columns(df)
+        self.__n_rows = len(self.df)
+        self.__calculated = False
+        self.__df_prepared = None
 
-        # Ensure required columns exist
-        required_cols = ["Close", "High", "Low", "Volume"]
-        for col in required_cols:
+    @staticmethod
+    def _ensure_required_columns(df):
+        for col in _required_cols:
             if col not in df.columns:
                 raise ValueError(f"Missing required column: {col}")
+        return df.copy()
 
-        n_rows = len(df)
+    def get_df(self):
+        return self.df
 
-        # ============================================================
-        # SIMPLE AND EXPONENTIAL MOVING AVERAGES
-        # ============================================================
-        ma_windows = [5, 10, 12, 20, 26, 50, 100]
-        for w in ma_windows:
-            if n_rows >= w:
-                df[f"SMA_{w}"] = df["Close"].rolling(window=w).mean()
-                df[f"EMA_{w}"] = df["Close"].ewm(span=w, adjust=False).mean()
+    def _add_moving_averages(self):
+        for w in _ma_windows:
+            if self.__n_rows >= w:
+                self.df[f"SMA_{w}"] = self.df["Close"].rolling(window=w).mean()
+                self.df[f"EMA_{w}"] = self.df["Close"].ewm(span=w, adjust=False).mean()
 
-        # Safe price ratios
-        df["Price_to_SMA20"] = df["Close"] / df.get("SMA_20", pd.Series(1)).replace(0, np.nan)
-        df["Price_to_SMA50"] = df["Close"] / df.get("SMA_50", pd.Series(1)).replace(0, np.nan)
-        df["Price_to_EMA12"] = df["Close"] / df.get("EMA_12", pd.Series(1)).replace(0, np.nan)
-        df["Price_to_EMA26"] = df["Close"] / df.get("EMA_26", pd.Series(1)).replace(0, np.nan)
-        if "EMA_12" in df.columns and "EMA_26" in df.columns:
-            df["EMA_12_26_Ratio"] = df["EMA_12"] / df["EMA_26"].replace(0, np.nan)
-        if "SMA_5" in df.columns and "SMA_20" in df.columns:
-            df["SMA_5_20_Ratio"] = df["SMA_5"] / df["SMA_20"].replace(0, np.nan)
-        if "SMA_10" in df.columns and "SMA_50" in df.columns:
-            df["SMA_10_50_Ratio"] = df["SMA_10"] / df["SMA_50"].replace(0, np.nan)
+    def _add_safe_price_ratios(self):
+        self.df["Price_to_SMA20"] = self.df["Close"] / self.df.get("SMA_20", pd.Series(1)).replace(0, np.nan)
+        self.df["Price_to_SMA50"] = self.df["Close"] / self.df.get("SMA_50", pd.Series(1)).replace(0, np.nan)
+        self.df["Price_to_EMA12"] = self.df["Close"] / self.df.get("EMA_12", pd.Series(1)).replace(0, np.nan)
+        self.df["Price_to_EMA26"] = self.df["Close"] / self.df.get("EMA_26", pd.Series(1)).replace(0, np.nan)
+        if "EMA_12" in self.df.columns and "EMA_26" in self.df.columns:
+            self.df["EMA_12_26_Ratio"] = self.df["EMA_12"] / self.df["EMA_26"].replace(0, np.nan)
+        if "SMA_5" in self.df.columns and "SMA_20" in self.df.columns:
+            self.df["SMA_5_20_Ratio"] = self.df["SMA_5"] / self.df["SMA_20"].replace(0, np.nan)
+        if "SMA_10" in self.df.columns and "SMA_50" in self.df.columns:
+            self.df["SMA_10_50_Ratio"] = self.df["SMA_10"] / self.df["SMA_50"].replace(0, np.nan)
 
-        # ============================================================
-        # MACD
-        # ============================================================
-        if "EMA_12" in df.columns and "EMA_26" in df.columns:
-            df["MACD"] = df["EMA_12"] - df["EMA_26"]
-            df["MACD_Signal"] = df["MACD"].ewm(span=9, adjust=False).mean()
-            df["MACD_Hist"] = df["MACD"] - df["MACD_Signal"]
-            df["MACD_Momentum"] = df["MACD"].diff()
-            df["MACD_Cross"] = (df["MACD"] > df["MACD_Signal"]).astype(int)
+    def _add_macd(self):
+        if "EMA_12" in self.df.columns and "EMA_26" in self.df.columns:
+            self.df["MACD"] = self.df["EMA_12"] - self.df["EMA_26"]
+            self.df["MACD_Signal"] = self.df["MACD"].ewm(span=9, adjust=False).mean()
+            self.df["MACD_Hist"] = self.df["MACD"] - self.df["MACD_Signal"]
+            self.df["MACD_Momentum"] = self.df["MACD"].diff()
+            self.df["MACD_Cross"] = (self.df["MACD"] > self.df["MACD_Signal"]).astype(int)
 
-        # ============================================================
-        # RSI
-        # ============================================================
-        if n_rows >= 14:
-            delta = df["Close"].diff()
-            gain = delta.where(delta > 0, 0).rolling(14).mean()
-            loss = -delta.where(delta < 0, 0).rolling(14).mean()
-            rs = gain / loss.replace(0, np.nan)
-            df["RSI"] = 100 - (100 / (1 + rs))
-            df["RSI_Overbought"] = (df["RSI"] > 70).astype(int)
-            df["RSI_Oversold"] = (df["RSI"] < 30).astype(int)
+    def _add_rsi(self):
+        if self.__n_rows < 14:
+            return
+        delta = self.df["Close"].diff()
+        gain = delta.where(delta > 0, 0).rolling(14).mean()
+        loss = -delta.where(delta < 0, 0).rolling(14).mean()
+        rs = gain / loss.replace(0, np.nan)
+        self.df["RSI"] = 100 - (100 / (1 + rs))
+        self.df["RSI_Overbought"] = (self.df["RSI"] > 70).astype(int)
+        self.df["RSI_Oversold"] = (self.df["RSI"] < 30).astype(int)
 
-        # ============================================================
-        # STOCHASTIC OSCILLATOR
-        # ============================================================
-        if n_rows >= 14:
-            low_14 = df["Low"].rolling(14).min()
-            high_14 = df["High"].rolling(14).max()
-            df["Stochastic"] = 100 * (df["Close"] - low_14) / (high_14 - low_14).replace(0, np.nan)
+    def _add_stochastic_oscillator(self):
+        if self.__n_rows < 14:
+            return
+        low_14 = self.df["Low"].rolling(14).min()
+        high_14 = self.df["High"].rolling(14).max()
+        self.df["Stochastic"] = 100 * (self.df["Close"] - low_14) / (high_14 - low_14).replace(0, np.nan)
 
-        # ============================================================
-        # BOLLINGER BANDS
-        # ============================================================
-        if n_rows >= 20:
-            df["BB_Middle"] = df["Close"].rolling(20).mean()
-            bb_std = df["Close"].rolling(20).std()
-            df["BB_Upper"] = df["BB_Middle"] + 2 * bb_std
-            df["BB_Lower"] = df["BB_Middle"] - 2 * bb_std
-            df["BB_Width"] = df["BB_Upper"] - df["BB_Lower"]
-            df["BB_Width_Ratio"] = df["BB_Width"] / df["BB_Middle"].replace(0, np.nan)
-            df["Price_BB_Position"] = (df["Close"] - df["BB_Lower"]) / (df["BB_Upper"] - df["BB_Lower"]).replace(
-                0, np.nan
-            )
+    def _add_bollinger_bands(self):
+        if self.__n_rows < 20:
+            return
+        self.df["BB_Upper"] = self.df["Close"].rolling(20).mean() + 2 * self.df["Close"].rolling(20).std()
+        self.df["BB_Lower"] = self.df["Close"].rolling(20).mean() - 2 * self.df["Close"].rolling(20).std()
+        self.df["BB_Middle"] = self.df["Close"].rolling(20).mean()
+        self.df["BB_Width"] = self.df["BB_Upper"] - self.df["BB_Lower"]
+        self.df["BB_Width_Ratio"] = self.df["BB_Width"] / self.df["BB_Middle"].replace(0, np.nan)
+        self.df["Price_BB_Position"] = (self.df["Close"] - self.df["BB_Lower"]) / (
+            self.df["BB_Upper"] - self.df["BB_Lower"]
+        ).replace(0, np.nan)
 
-        # ============================================================
-        # PRICE CHANGES
-        # ============================================================
-        for days in [1, 5, 10, 20, 50, 100]:
-            if n_rows >= days:
-                df[f"Price_Change_{days}d"] = df["Close"].pct_change(days)
+    def _add_price_changes(self):
+        for days in _price_change_windows:
+            if self.__n_rows >= days:
+                self.df[f"Price_Change_{days}d"] = self.df["Close"].pct_change(days)
 
-        # ============================================================
-        # VOLUME INDICATORS
-        # ============================================================
-        df["Volume_Change"] = df["Volume"].pct_change(1)
-        for w in [5, 10, 20, 50]:
-            if n_rows >= w:
-                df[f"Volume_MA_{w}"] = df["Volume"].rolling(window=w).mean()
-        df["Volume_Ratio"] = df["Volume"] / df.get("Volume_MA_5", pd.Series(1)).replace(0, np.nan)
-        df["Volume_SMA_Ratio"] = df["Volume"] / df.get("Volume_MA_20", pd.Series(1)).replace(0, np.nan)
-        if "Volume_MA_10" in df.columns and "Volume_MA_20" in df.columns:
-            df["Volume_MA_Ratio_10_20"] = df["Volume_MA_10"] / df["Volume_MA_20"].replace(0, np.nan)
+    def _add_volume_indicators(self):
+        self.df["Volume_Change"] = self.df["Volume"].pct_change(1)
+        for w in _volume_change_windows:
+            if self.__n_rows >= w:
+                self.df[f"Volume_MA_{w}"] = self.df["Volume"].rolling(window=w).mean()
+        self.df["Volume_Ratio"] = self.df["Volume"] / self.df.get("Volume_MA_5", pd.Series(1)).replace(0, np.nan)
+        self.df["Volume_SMA_Ratio"] = self.df["Volume"] / self.df.get("Volume_MA_20", pd.Series(1)).replace(0, np.nan)
+        if "Volume_MA_10" in self.df.columns and "Volume_MA_20" in self.df.columns:
+            self.df["Volume_MA_Ratio_10_20"] = self.df["Volume_MA_10"] / self.df["Volume_MA_20"].replace(0, np.nan)
 
-        # ============================================================
-        # VOLATILITY
-        # ============================================================
-        for w in [5, 10, 20, 50]:
-            if n_rows >= w:
-                df[f"Volatility_{w}d"] = df["Close"].rolling(window=w).std()
-        if "Volatility_10d" in df.columns and "Volatility_20d" in df.columns:
-            df["Volatility_Ratio_10_20"] = df["Volatility_10d"] / df["Volatility_20d"].replace(0, np.nan)
+    def _add_volatility_indicators(self):
+        for w in _volatility_windows:
+            if self.__n_rows >= w:
+                self.df[f"Volatility_{w}d"] = self.df["Close"].rolling(window=w).std()
+        if "Volatility_10d" in self.df.columns and "Volatility_20d" in self.df.columns:
+            self.df["Volatility_Ratio_10_20"] = self.df["Volatility_10d"] / self.df["Volatility_20d"].replace(0, np.nan)
 
-        # ============================================================
-        # HIGH-LOW RANGE
-        # ============================================================
-        df["HL_Range"] = (df["High"] - df["Low"]) / df["Close"].replace(0, np.nan)
-        if n_rows >= 5:
-            df["HL_Range_MA_5"] = df["HL_Range"].rolling(5).mean()
-        if n_rows >= 20:
-            df["HL_Range_MA_20"] = df["HL_Range"].rolling(20).mean()
-            if "HL_Range_MA_5" in df.columns:
-                df["HL_Range_Ratio_5_20"] = df["HL_Range_MA_5"] / df["HL_Range_MA_20"].replace(0, np.nan)
+    def _add_high_low_range(self):
+        self.df["HL_Range"] = (self.df["High"] - self.df["Low"]) / self.df["Close"].replace(0, np.nan)
+        if self.__n_rows >= 5:
+            self.df["HL_Range_MA_5"] = self.df["HL_Range"].rolling(5).mean()
+        if self.__n_rows >= 20:
+            self.df["HL_Range_MA_20"] = self.df["HL_Range"].rolling(20).mean()
+            if "HL_Range_MA_5" in self.df.columns:
+                self.df["HL_Range_Ratio_5_20"] = self.df["HL_Range_MA_5"] / self.df["HL_Range_MA_20"].replace(0, np.nan)
 
-        # ============================================================
-        # ATR
-        # ============================================================
-        high_low = df["High"] - df["Low"]
-        high_close = np.abs(df["High"] - df["Close"].shift())
-        low_close = np.abs(df["Low"] - df["Close"].shift())
+    def _add_atr(self):
+        if self.__n_rows < 14:
+            return
+        high_low = self.df["High"] - self.df["Low"]
+        high_close = np.abs(self.df["High"] - self.df["Close"].shift())
+        low_close = np.abs(self.df["Low"] - self.df["Close"].shift())
         ranges = pd.concat([high_low, high_close, low_close], axis=1)
         true_range = np.max(ranges, axis=1)
-        if n_rows >= 14:
-            df["ATR"] = true_range.rolling(14).mean()
+        self.df["ATR"] = true_range.rolling(14).mean()
 
-        # ============================================================
-        # LAGGED RETURNS
-        # ============================================================
-        for lag in [1, 2, 3, 5, 10, 20]:
-            df[f"Return_Lag_{lag}"] = df["Close"].pct_change(1).shift(lag)
+    def _add_lagged_returns(self):
+        for lag in _lagged_returns_windows:
+            self.df[f"Return_Lag_{lag}"] = self.df["Close"].pct_change(1).shift(lag)
+            # TODO:
+            # self.df[f"Lagged_Return_{lag}d_Volatility"] = self.df[f"Lagged_Return_{lag}d"].rolling(20).std()
+            # self.df[f"Lagged_Return_{lag}d_Volatility_Ratio"] = self.df[f"Lagged_Return_{lag}d_Volatility"] / self.df["Volatility_20d"].replace(0, np.nan)
+            # self.df[f"Lagged_Return_{lag}d_Volatility_Ratio_SMA_20"] = self.df[f"Lagged_Return_{lag}d_Volatility_Ratio"].rolling(20).mean()
 
-        # ============================================================
-        # MOMENTUM
-        # ============================================================
-        for m in [5, 10, 20, 50]:
-            if n_rows >= m:
-                df[f"Momentum_{m}"] = df["Close"] - df["Close"].shift(m)
-        if "Momentum_5" in df.columns and "Momentum_10" in df.columns:
-            df["Momentum_Ratio_5_10"] = df["Momentum_5"] / df["Momentum_10"].replace(0, np.nan)
-        if "Momentum_10" in df.columns and "Momentum_20" in df.columns:
-            df["Momentum_Ratio_10_20"] = df["Momentum_10"] / df["Momentum_20"].replace(0, np.nan)
+    def _add_momentum(self):
+        for m in [1, 5, 10, 20, 50]:
+            if self.__n_rows >= m:
+                self.df[f"Momentum_{m}"] = self.df["Close"] - self.df["Close"].shift(m)
+            if "Momentum_5" in self.df.columns and "Momentum_10" in self.df.columns:
+                self.df["Momentum_Ratio_5_10"] = self.df["Momentum_5"] / self.df["Momentum_10"].replace(0, np.nan)
+            if "Momentum_10" in self.df.columns and "Momentum_20" in self.df.columns:
+                self.df["Momentum_Ratio_10_20"] = self.df["Momentum_10"] / self.df["Momentum_20"].replace(0, np.nan)
 
-        # ============================================================
-        # RATE OF CHANGE
-        # ============================================================
-        for r in [5, 10, 20, 50]:
-            if n_rows >= r:
-                df[f"ROC_{r}"] = ((df["Close"] - df["Close"].shift(r)) / df["Close"].shift(r)).replace(0, np.nan) * 100
+    def _add_rate_of_change(self):
+        for r in _rate_of_change_windows:
+            if self.__n_rows >= r:
+                self.df[f"ROC_{r}"] = (
+                    (self.df["Close"] - self.df["Close"].shift(r)) / self.df["Close"].shift(r)
+                ).replace(0, np.nan) * 100
 
-        # ============================================================
-        # ADX / DIRECTIONAL INDICATORS
-        # ============================================================
-        if "ATR" in df.columns and n_rows >= 14:
-            high_diff = df["High"].diff()
-            low_diff = -df["Low"].diff()
+    def _add_directional_indicators(self):
+        if "ATR" in self.df.columns and self.__n_rows >= 14:
+            high_diff = self.df["High"].diff()
+            low_diff = -self.df["Low"].diff()
             plus_dm = high_diff.where((high_diff > low_diff) & (high_diff > 0), 0.0)
             minus_dm = low_diff.where((low_diff > high_diff) & (low_diff > 0), 0.0)
-            trur = df["ATR"]
-            df["Plus_DI"] = 100 * (plus_dm.rolling(14).sum() / trur.replace(0, np.nan))
-            df["Minus_DI"] = 100 * (minus_dm.rolling(14).sum() / trur.replace(0, np.nan))
-            df["ADX"] = 100 * (
-                abs(df["Plus_DI"] - df["Minus_DI"]) / (df["Plus_DI"] + df["Minus_DI"]).replace(0, np.nan)
+            trur = self.df["ATR"]
+            self.df["Plus_DI"] = 100 * (plus_dm.rolling(14).sum() / trur.replace(0, np.nan))
+            self.df["Minus_DI"] = 100 * (minus_dm.rolling(14).sum() / trur.replace(0, np.nan))
+            self.df["ADX"] = 100 * (
+                abs(self.df["Plus_DI"] - self.df["Minus_DI"])
+                / (self.df["Plus_DI"] + self.df["Minus_DI"]).replace(0, np.nan)
             )
+            # TODO Maybe
+            # self.df["ATR_Directional_Up"] = (self.df["High"] - self.df["Close"].shift(1)).where(self.df["High"] - self.df["Close"].shift(1) > self.df["ATR"], 0)
+            # self.df["ATR_Directional_Down"] = (self.df["Close"].shift(1) - self.df["Low"]).where(self.df["Close"].shift(1) - self.df["Low"] > self.df["ATR"], 0)
+            # self.df["ATR_Directional_Up_Ratio"] = self.df["ATR_Directional_Up"] / self.df["ATR"].replace(0, np.nan)
+            # self.df["ATR_Directional_Down_Ratio"] = self.df["ATR_Directional_Down"] / self.df["ATR"].replace(0, np.nan)
 
-        # ============================================================
-        # SHIFT ALL FEATURES BY 1 DAY
-        # ============================================================
-        feature_columns = df.columns.difference(["Open", "High", "Low", "Close", "Volume", "Dividends", "Stock Splits"])
-        df[feature_columns] = df[feature_columns].shift(1)
+    def add_all_technical_indicators(self):
+        if self.__calculated:
+            return
+        # Calculate technical indicators
+        self._add_moving_averages()
+        self._add_safe_price_ratios()
+        self._add_macd()
+        self._add_rsi()
+        self._add_stochastic_oscillator()
+        self._add_bollinger_bands()
+        self._add_price_changes()
+        self._add_volume_indicators()
+        self._add_volatility_indicators()
+        self._add_high_low_range()
+        self._add_atr()
+        self._add_lagged_returns()
+        self._add_momentum()
+        self._add_rate_of_change()
+        self._add_directional_indicators()
 
-        # ============================================================
-        # FINAL CLEANUP
-        # Replace inf with NaN, then fill or drop
-        # ============================================================
-        df.replace([np.inf, -np.inf], np.nan, inplace=True)
-        df.fillna(method="ffill", inplace=True)
-        df.fillna(method="bfill", inplace=True)
+        # Shift all features by 1 day
+        feature_columns = self.df.columns.difference(_all_cols)
+        self.df[feature_columns] = self.df[feature_columns].shift(1)
 
-        return df
+        # Cleanup - Replace inf with NaN, then fill or drop
+        self.df.replace([np.inf, -np.inf], np.nan, inplace=True)
+        self.df.fillna(method="ffill", inplace=True)
+        self.df.fillna(method="bfill", inplace=True)
 
-    @staticmethod
-    def create_target(df, target_days=1):
-        df = df.copy()
-        df["Target"] = df["Close"].pct_change(target_days).shift(-target_days)
-        return df
+        self.__calculated = True
 
-    @staticmethod
-    def prepare_features(df, scale=True):
-        feature_columns = df.columns.difference(
-            ["Open", "High", "Low", "Close", "Volume", "Target", "Dividends", "Stock Splits"]
-        )
+    def _create_target(self, target_days: int):
+        self.df["Target"] = self.df["Close"].pct_change(target_days).shift(-target_days)
+        return self.df
 
+    def prepare_features(self, scale: bool = True):
+        if self.__df_prepared is not None:
+            return self.__df_prepared
+        df = self.df.copy()
+        feature_columns = df.columns.difference(_all_cols_with_targets)
         # Fill missing values instead of dropping all
         df[feature_columns] = df[feature_columns].fillna(0)
 
@@ -213,17 +226,14 @@ class FeatureEngineering:
         dates = df_clean.index
         prices = df_clean["Close"]
 
-        # ============================================================
-        # SCALE FEATURES IF REQUESTED
-        # ============================================================
+        # Scale features if requested
         if scale:
             scaler = StandardScaler()
-            x_scaled = pd.DataFrame(scaler.fit_transform(x), columns=x.columns, index=x.index)
-            x = x_scaled
+            x = pd.DataFrame(scaler.fit_transform(x), columns=x.columns, index=x.index)
 
-        return x, y, dates, prices, feature_columns.tolist()
+        self.__df_prepared = x, y, dates, prices, feature_columns.tolist()
+        return self.__df_prepared
 
-
-def create_target_features(df, target_days=10):
-    df_features = FeatureEngineering.add_technical_indicators(df)
-    return FeatureEngineering.create_target(df_features, target_days=target_days)
+    def create_target_features(self, target_days: int = 10):
+        self.add_all_technical_indicators()
+        return self._create_target(target_days=target_days)

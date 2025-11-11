@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 from src.data import StockDataDownloader
-from src.feature import create_target_features, FeatureEngineering
+from src.feature import FeatureEngineering
 from src.writer import save_trained_model, persist_results, output_best_strategy
 from src.xbg import XGBoostStockPredictor
 from src.visualisation import generate_plots, Visualizer
@@ -124,12 +124,15 @@ def train_model(symbols=None, period: str = "5y", interval: str = "1d", visualiz
             print("=" * 60)
 
             # Daily features
-            df_daily = create_target_features(stock_data_daily[symbol])
-            x_daily, y_daily, dates_daily, prices_daily, _ = FeatureEngineering.prepare_features(df_daily)
+            features_daily = FeatureEngineering(stock_data_daily[symbol])
+            df_daily = features_daily.create_target_features()
+            x_daily, y_daily, dates_daily, prices_daily, _ = features_daily.prepare_features()
 
             # Hourly features
-            df_hourly = create_target_features(stock_data_hourly[symbol])
-            x_hourly, _, _, _, _ = FeatureEngineering.prepare_features(df_hourly)
+            features_hourly = FeatureEngineering(stock_data_hourly[symbol])
+            features_hourly.create_target_features()
+            x_hourly, _, _, _, _ = features_hourly.prepare_features()
+
             # Align hourly target with daily (optional: forward-fill or aggregate)
             # Here we just slice to daily index for stacking
             x_hourly = x_hourly.loc[x_daily.index]
