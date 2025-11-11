@@ -21,7 +21,7 @@ class FeatureEngineering:
         # ============================================================
         # SIMPLE AND EXPONENTIAL MOVING AVERAGES
         # ============================================================
-        ma_windows = [5, 10, 20, 50, 100, 200]
+        ma_windows = [5, 10, 12, 20, 26, 50, 100]
         for w in ma_windows:
             if n_rows >= w:
                 df[f"SMA_{w}"] = df["Close"].rolling(window=w).mean()
@@ -175,7 +175,7 @@ class FeatureEngineering:
         # ============================================================
         # SHIFT ALL FEATURES BY 1 DAY
         # ============================================================
-        feature_columns = df.columns.difference(["Open", "High", "Low", "Close", "Volume"])
+        feature_columns = df.columns.difference(["Open", "High", "Low", "Close", "Volume", "Dividends", "Stock Splits"])
         df[feature_columns] = df[feature_columns].shift(1)
 
         # ============================================================
@@ -196,7 +196,7 @@ class FeatureEngineering:
 
     @staticmethod
     def prepare_features(df, scale=True):
-        feature_columns = df.columns.difference(["Open", "High", "Low", "Close", "Volume", "Target"])
+        feature_columns = df.columns.difference(["Open", "High", "Low", "Close", "Volume", "Target", "Dividends", "Stock Splits"])
 
         # Fill missing values instead of dropping all
         df[feature_columns] = df[feature_columns].fillna(0)

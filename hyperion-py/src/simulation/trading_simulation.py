@@ -4,11 +4,11 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import yfinance as yf
-from pandas import DataFrame, Series
 
 from src.feature import FeatureEngineering
 from src.visualisation import Visualizer
 from src.xbg.xgb_predictor import XGBoostStockPredictor
+from src.stacker import StackedStockPredictor
 
 
 class TradingSimulator:
@@ -318,57 +318,64 @@ def predict_today(symbol, model_path="models", visualisation: bool = False):
 
         # Feature columns must match those used during training
         feature_columns = [
-            "SMA_5",
-            "SMA_10",
-            "SMA_20",
-            "SMA_50",
-            "EMA_12",
-            "EMA_26",
-            "MACD",
-            "MACD_Signal",
-            "MACD_Hist",
-            "MACD_Momentum",
-            "RSI",
-            "Stochastic",
-            "BB_Width",
-            "Price_Change_1d",
-            "Price_Change_5d",
-            "Price_Change_10d",
-            "Volume_Change",
-            "Volume_Ratio",
-            "Volume_SMA_Ratio",
-            "Volatility_10d",
-            "Volatility_20d",
-            "Volatility_Ratio",
-            "HL_Range",
-            "ATR",
-            "Return_Lag_1",
-            "Return_Lag_2",
-            "Return_Lag_3",
-            "Return_Lag_5",
-            "Return_Lag_10",
-            "Momentum_5",
-            "Momentum_10",
-            "Momentum_20",
+            # SIMPLE AND EXPONENTIAL MOVING AVERAGES
+            "SMA_5", "SMA_10", "SMA_12", "SMA_20", "SMA_26", "SMA_50", "SMA_100",
+            "EMA_5", "EMA_10", "EMA_12", "EMA_20", "EMA_26", "EMA_50", "EMA_100",
+            # SAFE PRICE RATIOS
             "Price_to_SMA20",
             "Price_to_SMA50",
-            "ROC_5",
-            "ROC_10",
+            "Price_to_EMA12", "Price_to_EMA26",
+            "EMA_12_26_Ratio",
+            "SMA_5_20_Ratio", "SMA_10_50_Ratio",
+            # MACD
+            "MACD", "MACD_Signal", "MACD_Hist", "MACD_Momentum", "MACD_Cross",
+            # RSI
+            "RSI", "RSI_Overbought", "RSI_Oversold",
+            # STOCHASTIC OSCILLATOR
+            "Stochastic",
+            # BOLLINGER BANDS
+            "BB_Middle", "BB_Upper", "BB_Lower", "BB_Width", "BB_Width_Ratio", "Price_BB_Position",
+            # PRICE CHANGES
+            "Price_Change_1d", "Price_Change_5d", "Price_Change_10d", "Price_Change_20d", "Price_Change_50d",
+            "Price_Change_100d",
+            # VOLUME INDICATORS
+            "Volume_Change",
+            "Volume_MA_5", "Volume_MA_10", "Volume_MA_20", "Volume_MA_50",
+            "Volume_Ratio",
+            "Volume_SMA_Ratio",
+            "Volume_MA_Ratio_10_20",
+            # VOLATILITY
+            "Volatility_5d", "Volatility_10d", "Volatility_20d", "Volatility_50d",
+            "Volatility_Ratio_10_20",
+            # HIGH-LOW RANGE
+            "HL_Range",
+            "HL_Range_MA_5",
+            "HL_Range_MA_20",
+            "HL_Range_Ratio_5_20",
+            # ATR
+            "ATR",
+            # LAGGED RETURNS
+            "Return_Lag_1", "Return_Lag_2", "Return_Lag_3", "Return_Lag_5", "Return_Lag_10", "Return_Lag_20",
+            # MOMENTUM
+            "Momentum_5", "Momentum_10", "Momentum_20", "Momentum_50",
+            "Momentum_Ratio_5_10", "Momentum_Ratio_10_20",
+            # RATE OF CHANGE
+            "ROC_5", "ROC_10", "ROC_20", "ROC_50",
+            # ADX / DIRECTIONAL INDICATORS
+            "Plus_DI", "Minus_DI", "ADX",
         ]
+        feature_columns.sort()
 
-        # Get the latest complete row (has all indicators)
-        df_clean = df_features.dropna()
+        # Align hourly features with daily features
+        df_hourly_aligned = df_hourly_features.resample('1D').last().ffill()
+        df_hourly_aligned = df_hourly_aligned.loc[df_daily_features.index]
 
-        if len(df_clean) == 0:
-            print("  ✗ Not enough data to calculate indicators")
-            return None
+        # Fill missing values
+        df_daily_features = df_daily_features.ffill().bfill()
+        df_hourly_aligned = df_hourly_aligned.ffill().bfill()
 
-        # Get features for the most recent day
-        X_today = df_clean[feature_columns].iloc[[-1]]  # Keep as DataFrame
-        latest_date = df_clean.index[-1]
-        latest_price = df_clean["Close"].iloc[-1]
-
-        print(f"  ✓ Using data from: {latest_date.date()}")
+        x_daily = df_daily_features[feature_columns].iloc[[-1]]
+        x_hourly = df_hourly_aligned[feature_columns].iloc[[-1]]
 
         # Make prediction
         print("\n4. Making prediction...")
