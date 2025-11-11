@@ -196,7 +196,9 @@ class FeatureEngineering:
 
     @staticmethod
     def prepare_features(df, scale=True):
-        feature_columns = df.columns.difference(["Open", "High", "Low", "Close", "Volume", "Target", "Dividends", "Stock Splits"])
+        feature_columns = df.columns.difference(
+            ["Open", "High", "Low", "Close", "Volume", "Target", "Dividends", "Stock Splits"]
+        )
 
         # Fill missing values instead of dropping all
         df[feature_columns] = df[feature_columns].fillna(0)

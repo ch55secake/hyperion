@@ -18,10 +18,7 @@ def predict_mode(visualisation: bool = False):
         return
 
     # Handle both stacked and normal model naming
-    symbols = [
-        f.replace("_stacked_model.pkl", "").replace("_model.pkl", "")
-        for f in model_files
-    ]
+    symbols = [f.replace("_stacked_model.pkl", "").replace("_model.pkl", "") for f in model_files]
 
     print(f"\nFound trained models for: {', '.join(symbols)}")
     print("\nMaking predictions for all symbols...\n")

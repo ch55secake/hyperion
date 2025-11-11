@@ -303,13 +303,10 @@ class StackedStockPredictor:
         # Store feature column order for each base model
         feature_columns_per_model = {}
         for name, model in self.models.items():
-            if hasattr(model, 'feature_columns') and model.feature_columns is not None:
+            if hasattr(model, "feature_columns") and model.feature_columns is not None:
                 feature_columns_per_model[name] = model.feature_columns
 
-        model_data = {
-            'stacked_predictor': self,
-            'feature_columns_per_model': feature_columns_per_model
-        }
+        model_data = {"stacked_predictor": self, "feature_columns_per_model": feature_columns_per_model}
 
         with open(filename, "wb") as f:
             pickle.dump(model_data, f)
@@ -324,9 +321,9 @@ class StackedStockPredictor:
             model_data = pickle.load(f)
 
         # Handle both old format (just predictor) and new format (dict with metadata)
-        if isinstance(model_data, dict) and 'stacked_predictor' in model_data:
-            predictor = model_data['stacked_predictor']
-            feature_columns_per_model = model_data.get('feature_columns_per_model', {})
+        if isinstance(model_data, dict) and "stacked_predictor" in model_data:
+            predictor = model_data["stacked_predictor"]
+            feature_columns_per_model = model_data.get("feature_columns_per_model", {})
             print(f"✓ Loaded stacked model from {filename}")
             for name, cols in feature_columns_per_model.items():
                 print(f"✓ Model '{name}' expects {len(cols)} features in specific order")
