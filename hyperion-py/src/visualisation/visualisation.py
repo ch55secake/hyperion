@@ -43,7 +43,7 @@ class Visualizer:
         plt.close()
 
     @staticmethod
-    def plot_feature_importance(feature_importance, symbol, top_n=15, save_path="plots"):
+    def plot_feature_importance(feature_importance, symbol, top_n=30, save_path="plots"):
         """Plot feature importance"""
         plt.figure(figsize=(10, 8))
 

@@ -299,16 +299,42 @@ class StackedStockPredictor:
     def save_model(self, symbol, save_path="models"):
         os.makedirs(save_path, exist_ok=True)
         filename = f"{save_path}/{symbol}_stacked_model.pkl"
+
+        # Store feature column order for each base model
+        feature_columns_per_model = {}
+        for name, model in self.models.items():
+            if hasattr(model, 'feature_columns') and model.feature_columns is not None:
+                feature_columns_per_model[name] = model.feature_columns
+
+        model_data = {
+            'stacked_predictor': self,
+            'feature_columns_per_model': feature_columns_per_model
+        }
+
         with open(filename, "wb") as f:
-            pickle.dump(self, f)
+            pickle.dump(model_data, f)
         print(f"✓ Saved full stacked model to {filename}")
+        for name, cols in feature_columns_per_model.items():
+            print(f"✓ Saved {len(cols)} feature columns for '{name}' model")
 
     @staticmethod
     def load_model(symbol, save_path="models"):
         filename = f"{save_path}/{symbol}_stacked_model.pkl"
         with open(filename, "rb") as f:
-            predictor = pickle.load(f)
-        print(f"✓ Loaded stacked model from {filename}")
+            model_data = pickle.load(f)
+
+        # Handle both old format (just predictor) and new format (dict with metadata)
+        if isinstance(model_data, dict) and 'stacked_predictor' in model_data:
+            predictor = model_data['stacked_predictor']
+            feature_columns_per_model = model_data.get('feature_columns_per_model', {})
+            print(f"✓ Loaded stacked model from {filename}")
+            for name, cols in feature_columns_per_model.items():
+                print(f"✓ Model '{name}' expects {len(cols)} features in specific order")
+        else:
+            # Old format - just the predictor object
+            predictor = model_data
+            print(f"✓ Loaded stacked model from {filename} (old format)")
+
         return predictor
 
     def compute_feature_importance(self):

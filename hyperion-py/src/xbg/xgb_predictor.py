@@ -69,6 +69,7 @@ class XGBoostStockPredictor:
         self.params = params
         self.model = None
         self.feature_importance = None
+        self.feature_columns = None
         self.scaler = StandardScaler()
 
     def train(self, x_train, y_train, x_val=None, y_val=None):
@@ -76,6 +77,11 @@ class XGBoostStockPredictor:
         print("\n" + "=" * 60)
         print("Training XGBoost Model")
         print("=" * 60)
+
+        # Store feature columns for later use during prediction
+        if isinstance(x_train, pd.DataFrame):
+            self.feature_columns = list(x_train.columns)
+            print(f"Stored {len(self.feature_columns)} feature columns")
 
         # Scale features
         print("Scaling features...")
@@ -111,6 +117,10 @@ class XGBoostStockPredictor:
         if self.model is None:
             raise ValueError("Model not trained yet")
 
+        # Ensure features are in the correct order
+        if self.feature_columns is not None and isinstance(x, pd.DataFrame):
+            x = x[self.feature_columns]
+
         # Scale features before prediction
         x_scaled = self.scaler.transform(x)
         x_scaled = pd.DataFrame(x_scaled, columns=x.columns, index=x.index)
@@ -125,6 +135,10 @@ class XGBoostStockPredictor:
         rmse = np.sqrt(mse)
         mae = mean_absolute_error(y, predictions)
         r2 = r2_score(y, predictions)
+
+        # Ensure features are in the correct order
+        if self.feature_columns is not None and isinstance(x, pd.DataFrame):
+            x = x[self.feature_columns]
 
         print(f"\n{dataset_name} Set Performance:")
         print(f"  MSE:  {mse:.8f}")
@@ -144,6 +158,7 @@ class XGBoostStockPredictor:
             "scaler": self.scaler,
             "params": self.params,
             "feature_importance": self.feature_importance,
+            "feature_columns": self.feature_columns,
             "trained_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
 
@@ -152,6 +167,8 @@ class XGBoostStockPredictor:
             pickle.dump(model_data, f)
 
         print(f"\n✓ Model saved to: {filename}")
+        if self.feature_columns:
+            print(f"✓ Saved {len(self.feature_columns)} feature columns")
         return filename
 
     @classmethod
@@ -170,8 +187,11 @@ class XGBoostStockPredictor:
         instance.model = model_data["model"]
         instance.scaler = model_data["scaler"]
         instance.feature_importance = model_data["feature_importance"]
+        instance.feature_columns = model_data.get("feature_columns")
 
         print(f"\n✓ Model loaded from: {filename}")
         print(f"  Trained on: {model_data['trained_date']}")
+        if instance.feature_columns:
+            print(f"  Features: {len(instance.feature_columns)} columns stored")
 
         return instance

@@ -276,28 +276,47 @@ def predict_today(symbol, model_path="models", visualisation: bool = False):
     try:
         # Load the trained model
         print("\n1. Loading trained model...")
-        # todo fix
-        predictor = XGBoostStockPredictor.load_model(symbol, model_path)
+        predictor = StackedStockPredictor.load_model(symbol, model_path)
+
+        # Try to get feature names from model if available
+        saved_feature_names = None
+        # if hasattr(predictor, 'feature_importance') and predictor.feature_importance is not None:
+        #     saved_feature_names = list(predictor.feature_importance['feature'].values)
+        #     print(f"  ✓ Model expects {len(saved_feature_names)} features")
 
         # Download recent data (need enough history for indicators)
         print(f"\n2. Downloading recent data for {symbol}...")
         ticker = yf.Ticker(symbol)
         # Get last 100 days to calculate indicators
-        df = ticker.history(period="100d", interval="1d")
-
-        if df.empty:
+        df_daily = ticker.history(period="120d", interval="1d")
+        if df_daily.empty:
+            print(f"  ✗ No data available for {symbol}")
+            return None
+        df_hourly = ticker.history(period="120d", interval="1h")
+        if df_hourly.empty:
             print(f"  ✗ No data available for {symbol}")
             return None
 
-        print(f"  ✓ Downloaded {len(df)} days of data")
-        print(f"  ✓ Latest date: {df.index[-1].date()}")
-        print(f"  ✓ Latest close: ${df['Close'].iloc[-1]:.2f}")
+        print(f"  ✓ Daily records: {len(df_daily)}, Hourly records: {len(df_hourly)}")
+        # print(f"  ✓ Latest date: {df.index[-1].date()}")
+        # print(f"  ✓ Latest close: ${df['Close'].iloc[-1]:.2f}")
 
         # Add technical indicators
         print("\n3. Calculating technical indicators...")
-        df_features = FeatureEngineering.add_technical_indicators(df)
+        df_daily_features = FeatureEngineering.add_technical_indicators(df_daily)
+        df_hourly_features = FeatureEngineering.add_technical_indicators(df_hourly)
 
-        # We don't need target for prediction
+        # Add Dividends and Stock Splits columns if they don't exist (yfinance sometimes doesn't include them)
+        if 'Dividends' not in df_daily_features.columns:
+            df_daily_features['Dividends'] = 0.0
+        if 'Dividends' not in df_hourly_features.columns:
+            df_hourly_features['Dividends'] = 0.0
+        if 'Stock Splits' not in df_daily_features.columns:
+            df_daily_features['Stock Splits'] = 0.0
+        if 'Stock Splits' not in df_hourly_features.columns:
+            df_hourly_features['Stock Splits'] = 0.0
+
+        # Feature columns must match those used during training
         feature_columns = [
             "SMA_5",
             "SMA_10",
@@ -353,7 +372,16 @@ def predict_today(symbol, model_path="models", visualisation: bool = False):
 
         # Make prediction
         print("\n4. Making prediction...")
-        prediction = predictor.predict(X_today)[0]
+        # prediction = predictor.predict(X_today)[0]
+        x_dict = {
+            "daily": x_daily,
+            "hourly": x_hourly,
+        }
+        prediction = predictor.predict(x_dict)[0]
+
+
+        latest_price = df_daily["Close"].iloc[-1]
+        latest_date = df_daily.index[-1]
 
         # Display results
         print("\n" + "=" * 80)
@@ -407,70 +435,71 @@ def predict_today(symbol, model_path="models", visualisation: bool = False):
         print("\n" + "-" * 80)
         print("KEY INDICATORS (Latest)")
         print("-" * 80)
-        print(f"RSI:                 {df_clean['RSI'].iloc[-1]:.2f}")
-        print(f"MACD:                {df_clean['MACD'].iloc[-1]:.4f}")
-        print(f"Price vs SMA20:      {df_clean['Price_to_SMA20'].iloc[-1]:.4f}x")
-        print(f"Price vs SMA50:      {df_clean['Price_to_SMA50'].iloc[-1]:.4f}x")
-        print(f"Volatility (10d):    {df_clean['Volatility_10d'].iloc[-1]:.2f}")
+        print(f"RSI:                 {x_daily['RSI'].iloc[-1]:.2f}")
+        if 'MACD' in x_daily.columns:
+            print(f"MACD:                {x_daily['MACD'].iloc[-1]:.4f}")
+        print(f"Price vs SMA20:      {x_daily['Price_to_SMA20'].iloc[-1]:.4f}x")
+        print(f"Price vs SMA50:      {x_daily['Price_to_SMA50'].iloc[-1]:.4f}x")
+        print(f"Volatility (10d):    {x_daily['Volatility_10d'].iloc[-1]:.2f}")
 
         print("\n" + "=" * 80)
 
-        # Generate 180-day forecast
-        print("\n5. Generating 180-day forecast...")
-        forecast_days = 180
-        forecast_data = generate_forecast(predictor, df_clean, feature_columns, latest_price, forecast_days)
+        # # Generate 180-day forecast
+        # print("\n5. Generating 180-day forecast...")
+        # forecast_days = 180
+        # forecast_data = generate_forecast(predictor, x_daily, feature_columns, latest_price, forecast_days)
 
         # Display forecast summary
-        print(f"\n180-DAY FORECAST SUMMARY:")
-        print(f"  Starting Price:      ${latest_price:.2f}")
-        print(f"  Forecasted Price:    ${forecast_data['prices'][-1]:.2f}")
-        print(f"  Expected Change:     ${forecast_data['prices'][-1] - latest_price:+.2f}")
-        print(f"  Expected Return:     {(forecast_data['prices'][-1] / latest_price - 1) * 100:+.2f}%")
-        print(
-            f"  Confidence Range:    ${forecast_data['lower_bound'][-1]:.2f} - ${forecast_data['upper_bound'][-1]:.2f}"
-        )
-
-        # Generate forecast plot
-        if visualisation:
-            print("\n6. Creating forecast visualization...")
-            Visualizer.plot_forecast(df, forecast_data, symbol)
+        # print(f"\n180-DAY FORECAST SUMMARY:")
+        # print(f"  Starting Price:      ${latest_price:.2f}")
+        # print(f"  Forecasted Price:    ${forecast_data['prices'][-1]:.2f}")
+        # print(f"  Expected Change:     ${forecast_data['prices'][-1] - latest_price:+.2f}")
+        # print(f"  Expected Return:     {(forecast_data['prices'][-1] / latest_price - 1) * 100:+.2f}%")
+        # print(
+        #     f"  Confidence Range:    ${forecast_data['lower_bound'][-1]:.2f} - ${forecast_data['upper_bound'][-1]:.2f}"
+        # )
+        #
+        # # Generate forecast plot
+        # if visualisation:
+        #     print("\n6. Creating forecast visualization...")
+        #     Visualizer.plot_forecast(df, forecast_data, symbol)
 
         # Save prediction to file (use UTF-8 encoding and text-only signals)
-        pred_file = f"results/{symbol}_latest_prediction.txt"
-        with open(pred_file, "w", encoding="utf-8") as f:
-            f.write(f"Latest Prediction for {symbol}\n")
-            f.write("=" * 60 + "\n")
-            f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-            f.write(f"Data Date: {latest_date.date()}\n\n")
-            f.write(f"Current Price:    ${latest_price:.2f}\n")
-            f.write(f"Predicted Return: {prediction * 100:+.3f}%\n")
-            f.write(f"Predicted Price:  ${latest_price * (1 + prediction):.2f}\n\n")
-            f.write(f"Signal:           {signal_text}\n")
-            f.write(f"Confidence:       {confidence:.1f}%\n")
-            f.write(f"Recommendation:   {action}\n\n")
-
-            # Add 180-day forecast
-            f.write("=" * 60 + "\n")
-            f.write("180-DAY FORECAST\n")
-            f.write("=" * 60 + "\n\n")
-            f.write(f"Starting Price:    ${latest_price:.2f}\n")
-            f.write(f"180-Day Forecast:   ${forecast_data['prices'][-1]:.2f}\n")
-            f.write(f"Expected Change:   ${forecast_data['prices'][-1] - latest_price:+.2f}\n")
-            f.write(f"Expected Return:   {(forecast_data['prices'][-1] / latest_price - 1) * 100:+.2f}%\n")
-            f.write(
-                f"Confidence Range:  ${forecast_data['lower_bound'][-1]:.2f} - "
-                f"${forecast_data['upper_bound'][-1]:.2f}\n\n"
-            )
-
-            f.write("Weekly Milestones:\n")
-            for week in [0, 6, 13, 20, 29]:
-                if week < len(forecast_data["prices"]):
-                    f.write(
-                        f"  Day {week + 1:2d}: ${forecast_data['prices'][week]:.2f} "
-                        f"({(forecast_data['prices'][week] / latest_price - 1) * 100:+.2f}%)\n"
-                    )
-
-        print(f"✓ Prediction saved to: {pred_file}\n")
+        # pred_file = f"results/{symbol}_latest_prediction.txt"
+        # with open(pred_file, "w", encoding="utf-8") as f:
+        #     f.write(f"Latest Prediction for {symbol}\n")
+        #     f.write("=" * 60 + "\n")
+        #     f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        #     f.write(f"Data Date: {latest_date.date()}\n\n")
+        #     f.write(f"Current Price:    ${latest_price:.2f}\n")
+        #     f.write(f"Predicted Return: {prediction * 100:+.3f}%\n")
+        #     f.write(f"Predicted Price:  ${latest_price * (1 + prediction):.2f}\n\n")
+        #     f.write(f"Signal:           {signal_text}\n")
+        #     f.write(f"Confidence:       {confidence:.1f}%\n")
+        #     f.write(f"Recommendation:   {action}\n\n")
+        #
+        #     # Add 180-day forecast
+        #     f.write("=" * 60 + "\n")
+        #     f.write("180-DAY FORECAST\n")
+        #     f.write("=" * 60 + "\n\n")
+        #     f.write(f"Starting Price:    ${latest_price:.2f}\n")
+        #     f.write(f"180-Day Forecast:   ${forecast_data['prices'][-1]:.2f}\n")
+        #     f.write(f"Expected Change:   ${forecast_data['prices'][-1] - latest_price:+.2f}\n")
+        #     f.write(f"Expected Return:   {(forecast_data['prices'][-1] / latest_price - 1) * 100:+.2f}%\n")
+        #     f.write(
+        #         f"Confidence Range:  ${forecast_data['lower_bound'][-1]:.2f} - "
+        #         f"${forecast_data['upper_bound'][-1]:.2f}\n\n"
+        #     )
+        #
+        #     f.write("Weekly Milestones:\n")
+        #     for week in [0, 6, 13, 20, 29]:
+        #         if week < len(forecast_data["prices"]):
+        #             f.write(
+        #                 f"  Day {week + 1:2d}: ${forecast_data['prices'][week]:.2f} "
+        #                 f"({(forecast_data['prices'][week] / latest_price - 1) * 100:+.2f}%)\n"
+        #             )
+        #
+        # print(f"✓ Prediction saved to: {pred_file}\n")
 
         return {
             "symbol": symbol,
