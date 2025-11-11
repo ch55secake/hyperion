@@ -3,12 +3,13 @@ from dateutil.relativedelta import relativedelta
 import pandas as pd
 from gdeltdoc import GdeltDoc, Filters
 
-def marketwatch_gdelt(ticker: str, years_back: int = 10, extra_terms=None,
-                      window_months: int = 1, per_call_max: int = 250) -> pd.DataFrame:
+def pull_marketwatch(ticker: str, years_back: int = 10, extra_terms=None,
+                     window_months: int = 1, per_call_max: int = 250) -> pd.DataFrame:
     """
     Pull MarketWatch headlines mentioning `ticker` via GDELT DOC 2.0 using gdeltdoc.
     Sweeps backwards in monthly windows to cover long ranges.
     """
+    print("Pulling MarketWatch articles for", ticker, "going back", years_back, "years")
     terms = [ticker]
     if extra_terms:
         terms.extend(extra_terms)
@@ -65,23 +66,3 @@ def marketwatch_gdelt(ticker: str, years_back: int = 10, extra_terms=None,
         return out[[c for c in cols if c in out.columns]]
     else:
         return pd.DataFrame(columns=["date", "title", "url", "domain", "language", "sourcecountry"])
-
-def print_articles(df: pd.DataFrame):
-    for _, r in df.iterrows():
-        d = pd.to_datetime(r['date']).strftime('%Y-%m-%d %H:%M:%S %Z') if pd.notna(r['date']) else ''
-        print(f"[{d}]")
-        print(r.get('title', ''))
-        print(r.get('url', ''))
-        print(f"{r.get('language','')} | {r.get('sourcecountry','')} | {r.get('domain','')}")
-        print("-" * 80)
-
-#df = marketwatch_gdelt("AAPL", years_back=1, extra_terms=["Apple", "Apple Inc"])
-#print_articles(df)
-
-# Example
-if __name__ == "__main__":
-    # Add company name variants to cut noise for tickers that are dictionary words
-    df = marketwatch_gdelt("AAPL", years_back=1, extra_terms=["Apple", "Apple Inc"])
-    #print(df.to_string(index=False))
-    print_articles(df)
-    # df.to_csv("marketwatch_AAPL_gdelt.csv", index=False)
