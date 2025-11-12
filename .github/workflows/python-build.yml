@@ -4,6 +4,9 @@ on:
   pull_request:
     branches:
       - main
+    paths:
+      - hyperion-py/src/**
+      - hyperion-py/tests/**
   push:
     paths:
       - hyperion-py/src/**

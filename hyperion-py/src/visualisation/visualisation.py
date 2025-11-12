@@ -2,10 +2,12 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+import seaborn as sns
+import matplotlib
+
+matplotlib.use("Agg")
 from matplotlib import pyplot as plt
 from pandas import Series
-
-from src.xbg import XGBoostStockPredictor
 
 
 class Visualizer:
@@ -35,12 +37,12 @@ class Visualizer:
         plt.grid(True, alpha=0.3)
 
         plt.tight_layout()
-        plt.savefig(f"{save_path}/{symbol}_predictions.png", dpi=300, bbox_inches="tight")
+        plt.savefig(f"{save_path}/{symbol}/predictions.png", dpi=300, bbox_inches="tight")
         print(f"  ✓ Saved predictions plot: {save_path}/{symbol}_predictions.png")
         plt.close()
 
     @staticmethod
-    def plot_feature_importance(feature_importance, symbol, top_n=15, save_path="plots"):
+    def plot_feature_importance(feature_importance, symbol, top_n=30, save_path="plots"):
         """Plot feature importance"""
         plt.figure(figsize=(10, 8))
 
@@ -53,8 +55,18 @@ class Visualizer:
         plt.grid(True, alpha=0.3, axis="x")
 
         plt.tight_layout()
-        plt.savefig(f"{save_path}/{symbol}_feature_importance.png", dpi=300, bbox_inches="tight")
-        print(f"  ✓ Saved feature importance plot: {save_path}/{symbol}_feature_importance.png")
+        if len(symbol.split("_")) > 1:
+            plt.savefig(
+                f"{save_path}/{symbol.split("_")[0]}/{symbol.split("_")[1]}_feature_importance.png",
+                dpi=300,
+                bbox_inches="tight",
+            )
+            print(
+                f"  ✓ Saved feature importance plot: {save_path}/{symbol.split("_")[0]}/{symbol.split("_")[1]}_feature_importance.png"
+            )
+        else:
+            plt.savefig(f"{save_path}/{symbol}/feature_importance.png", dpi=300, bbox_inches="tight")
+            print(f"  ✓ Saved feature importance plot: {save_path}/{symbol}/feature_importance.png")
         plt.close()
 
     @staticmethod
@@ -209,7 +221,7 @@ class Visualizer:
         ax3.tick_params(axis="x", rotation=45)
 
         plt.tight_layout()
-        plt.savefig(f"{save_path}/{symbol}_trading_simulation.png", dpi=300, bbox_inches="tight")
+        plt.savefig(f"{save_path}/{symbol}/trading_simulation.png", dpi=300, bbox_inches="tight")
         print(f"  ✓ Saved trading simulation plot: {save_path}/{symbol}_trading_simulation.png")
         plt.close()
 
@@ -297,7 +309,7 @@ class Visualizer:
         ax3.tick_params(axis="x", rotation=45)
 
         plt.tight_layout()
-        plt.savefig(f"{save_path}/{symbol}_walk_forward.png", dpi=300, bbox_inches="tight")
+        plt.savefig(f"{save_path}/{symbol}/walk_forward.png", dpi=300, bbox_inches="tight")
         print(f"  ✓ Saved walk-forward plot: {save_path}/{symbol}_walk_forward.png")
         plt.close()
 
@@ -413,7 +425,7 @@ class Visualizer:
         ax3.legend(loc="upper left", fontsize=10)
 
         plt.tight_layout()
-        filename = f"{save_path}/{symbol}_180day_forecast.png"
+        filename = f"{save_path}/{symbol}/180day_forecast.png"
         plt.savefig(filename, dpi=300, bbox_inches="tight")
         print(f"  ✓ Saved forecast plot: {filename}")
         plt.close()
@@ -456,13 +468,147 @@ class Visualizer:
             ax.tick_params(axis="x", rotation=45)
 
         plt.tight_layout()
-        plt.savefig(f"{save_path}/{symbol}_technical_indicators.png", dpi=300, bbox_inches="tight")
+        plt.savefig(f"{save_path}/{symbol}/technical_indicators.png", dpi=300, bbox_inches="tight")
         print(f"  ✓ Saved technical indicators plot: {save_path}/{symbol}_technical_indicators.png")
         plt.close()
 
+    @staticmethod
+    def plot_correlation_heatmap(df, symbol, save_path="plots"):
+        # Compute correlation matrix
+        corr = df.corr()
+        n_features = corr.shape[0]
+
+        # Adjust figure size based on number of features
+        fig_width = max(12, n_features * 0.5)  # width scales with number of features
+        fig_height = max(10, n_features * 0.5)  # height scales with number of features
+        plt.figure(figsize=(fig_width, fig_height))
+
+        # Plot heatmap
+        sns.heatmap(
+            corr,
+            annot=True,
+            fmt=".2f",
+            cmap="coolwarm",
+            cbar=True,
+            square=False,
+            linewidths=0.5,
+            annot_kws={"size": 8},  # smaller font for many features
+        )
+
+        plt.title(f"{symbol} - Feature Correlation Heatmap", fontsize=14, fontweight="bold")
+        plt.xticks(rotation=45, ha="right")
+        plt.yticks(rotation=0)
+
+        plt.tight_layout()
+        plt.savefig(f"{save_path}/{symbol}/do_not_open_in_ide_correlation_heatmap.png", dpi=300)
+        plt.close()
+
+    @staticmethod
+    def plot_rolling_portfolio_metrics(portfolio_df, symbol, window=20, save_path="plots"):
+        """Plot rolling mean and std of portfolio value"""
+        rolling_mean = portfolio_df["portfolio_value"].rolling(window).mean()
+        rolling_std = portfolio_df["portfolio_value"].rolling(window).std()
+
+        plt.figure(figsize=(14, 6))
+        plt.plot(portfolio_df["date"], portfolio_df["portfolio_value"], label="Portfolio Value")
+        plt.plot(portfolio_df["date"], rolling_mean, label=f"{window}-day Rolling Mean", linewidth=2)
+        plt.fill_between(
+            portfolio_df["date"],
+            rolling_mean - rolling_std,
+            rolling_mean + rolling_std,
+            alpha=0.2,
+            label=f"{window}-day Rolling Std",
+        )
+        plt.title(f"{symbol} - Rolling Portfolio Metrics")
+        plt.xlabel("Date")
+        plt.ylabel("Portfolio Value ($)")
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        plt.savefig(f"{save_path}/{symbol}/rolling_portfolio_metrics.png", dpi=300)
+        print(f"  ✓ Saved rolling portfolio metrics plot: {save_path}/{symbol}/rolling_portfolio_metrics.png")
+        plt.close()
+
+    @staticmethod
+    def plot_drawdowns(portfolio_df, symbol, save_path="plots"):
+        portfolio_df = portfolio_df.copy()
+        portfolio_df["cum_max"] = portfolio_df["portfolio_value"].cummax()
+        portfolio_df["drawdown"] = portfolio_df["portfolio_value"] - portfolio_df["cum_max"]  # negative values
+
+        plt.figure(figsize=(14, 6))
+
+        # Plot portfolio value
+        plt.plot(
+            portfolio_df["date"], portfolio_df["portfolio_value"], label="Portfolio Value", color="blue", linewidth=2
+        )
+
+        # Plot drawdown shading below peak
+        plt.fill_between(
+            portfolio_df["date"],
+            portfolio_df["portfolio_value"],
+            portfolio_df["cum_max"],
+            color="red",
+            alpha=0.3,
+            label="Drawdown",
+        )
+
+        plt.title(f"{symbol} - Portfolio Drawdowns")
+        plt.xlabel("Date")
+        plt.ylabel("Portfolio Value ($)")
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        plt.savefig(f"{save_path}/{symbol}/drawdowns.png", dpi=300)
+        plt.close()
+
+    @staticmethod
+    def plot_win_loss_over_time(trades_df, symbol, save_path="plots"):
+        if trades_df.empty:
+            print(f"⚠️ No trades to plot win/loss ratio for {symbol}")
+            return
+        trades_df["win"] = trades_df["profit"] > 0
+        trades_df["cumulative_wins"] = trades_df["win"].cumsum()
+        trades_df["cumulative_losses"] = (~trades_df["win"]).cumsum()
+
+        plt.figure(figsize=(14, 6))
+        plt.plot(trades_df["date"], trades_df["cumulative_wins"], label="Cumulative Wins", color="green")
+        plt.plot(trades_df["date"], trades_df["cumulative_losses"], label="Cumulative Losses", color="red")
+        plt.title(f"{symbol} - Cumulative Wins vs Losses")
+        plt.xlabel("Date")
+        plt.ylabel("Number of Trades")
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        plt.savefig(f"{save_path}/{symbol}/cumulative_wins_losses.png", dpi=300)
+        plt.close()
+
+
+def combined_feature_importance(stacked_predictor):
+    combined = None
+    for name, model in stacked_predictor.models.items():
+        if hasattr(model, "feature_importance") and model.feature_importance is not None:
+            fi = model.feature_importance.copy()
+            # Apply weight if desired
+            weight = stacked_predictor.weights.get(name, 1.0)
+            fi["importance"] *= weight
+            fi.rename(columns={"importance": f"importance_{name}"}, inplace=True)
+            if combined is None:
+                combined = fi
+            else:
+                combined = combined.merge(fi, on="feature", how="outer")
+    if combined is not None:
+        # Sum weighted importances across models
+        importance_cols = [c for c in combined.columns if c.startswith("importance_")]
+        combined["importance"] = combined[importance_cols].sum(axis=1)
+        return combined[["feature", "importance"]].sort_values("importance", ascending=False)
+    return None
+
 
 def generate_plots(
-    dates_test: XGBoostStockPredictor | Any,
+    dates_test: Any,
     df_features,
     predictor: dict[str, np.ndarray[Any, np.dtype[Any]] | list[Any] | dict[str, float | Any] | float | Any] | Any,
     symbol,
@@ -471,8 +617,20 @@ def generate_plots(
 ):
     # Step 7: Generate plots
     print("\nGenerating visualizations...")
+    for name, model in predictor.models.items():
+        if hasattr(model, "feature_importance") and model.feature_importance is not None:
+            Visualizer.plot_feature_importance(model.feature_importance, f"{symbol}_{name}")
+    fi_combined = combined_feature_importance(predictor)
+    if fi_combined is not None:
+        Visualizer.plot_feature_importance(fi_combined, symbol)
+    # Plot predictions
     Visualizer.plot_predictions(dates_test, y_test, test_results["predictions"], symbol)
-    Visualizer.plot_feature_importance(predictor.feature_importance, symbol)
+
+    # Plot feature importance (combined from stacked models)
+    if predictor.feature_importance is not None:
+        Visualizer.plot_feature_importance(predictor.feature_importance, symbol)
+
+    # Plot price + indicators
     Visualizer.plot_price_with_indicators(df_features, symbol)
 
 

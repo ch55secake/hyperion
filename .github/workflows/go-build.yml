@@ -9,6 +9,8 @@ on:
   pull_request:
     branches:
       - main
+    paths:
+      - hyperion-go/**
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

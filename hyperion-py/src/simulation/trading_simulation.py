@@ -1,14 +1,41 @@
-from datetime import datetime, timedelta
-from typing import Any
+from dataclasses import dataclass
+from datetime import timedelta
+from enum import Enum
 
 import numpy as np
 import pandas as pd
 import yfinance as yf
-from pandas import DataFrame, Series
 
 from src.feature import FeatureEngineering
 from src.visualisation import Visualizer
 from src.xbg.xgb_predictor import XGBoostStockPredictor
+from src.stacker import StackedStockPredictor
+
+
+class TradeAction(Enum):
+    BUY = "BUY"
+    SELL = "SELL"
+    SELL_FINAL = "SELL (Final)"
+    # HOLD = "HOLD"
+
+
+@dataclass
+class Trade:
+    date: str
+    action: str  # TradeAction
+    predicted_return: float | None
+    profit: float | None
+    pnl_pct: float | None
+    price: float
+
+
+@dataclass
+class PortfolioHistory:
+    date: str
+    portfolio_value: float
+    position: str
+    prediction: float
+    price: float
 
 
 class TradingSimulator:
@@ -82,7 +109,14 @@ class TradingSimulator:
                         capital = 0
                     position = "long"
                     self.trades.append(
-                        {"date": date, "action": "BUY", "predicted_return": pred_return, "price": current_price}
+                        Trade(
+                            date=date,
+                            action=TradeAction.BUY.value,
+                            predicted_return=pred_return,
+                            price=current_price,
+                            pnl_pct=None,
+                            profit=None,
+                        )
                     )
 
                 elif position == "long" and pred_return <= 0:
@@ -94,14 +128,14 @@ class TradingSimulator:
                     profit = capital - self.initial_capital
                     pnl = actual_return * 100 if use_returns else ((current_price - entry_price) / entry_price) * 100
                     self.trades.append(
-                        {
-                            "date": date,
-                            "action": "SELL",
-                            "predicted_return": pred_return,
-                            "profit": profit,
-                            "pnl_pct": pnl,
-                            "price": current_price,
-                        }
+                        Trade(
+                            date=date,
+                            action=TradeAction.SELL.value,
+                            predicted_return=pred_return,
+                            profit=profit,
+                            pnl_pct=pnl,
+                            price=current_price,
+                        )
                     )
                     shares = 0
                     position = None
@@ -118,7 +152,14 @@ class TradingSimulator:
                             capital = 0
                         position = "long"
                         self.trades.append(
-                            {"date": date, "action": "BUY", "predicted_return": pred_return, "price": current_price}
+                            Trade(
+                                date=date,
+                                action=TradeAction.BUY.value,
+                                predicted_return=pred_return,
+                                price=current_price,
+                                pnl_pct=None,
+                                profit=None,
+                            )
                         )
                 else:
                     if pred_return < -threshold:
@@ -131,14 +172,14 @@ class TradingSimulator:
                             actual_return * 100 if use_returns else ((current_price - entry_price) / entry_price) * 100
                         )
                         self.trades.append(
-                            {
-                                "date": date,
-                                "action": "SELL",
-                                "predicted_return": pred_return,
-                                "profit": profit,
-                                "pnl_pct": pnl,
-                                "price": current_price,
-                            }
+                            Trade(
+                                date=date,
+                                action=TradeAction.SELL.value,
+                                predicted_return=pred_return,
+                                profit=profit,
+                                pnl_pct=pnl,
+                                price=current_price,
+                            )
                         )
                         shares = 0
                         position = None
@@ -155,7 +196,14 @@ class TradingSimulator:
                     position = "long"
                     hold_counter = 0
                     self.trades.append(
-                        {"date": date, "action": "BUY", "predicted_return": pred_return, "price": current_price}
+                        Trade(
+                            date=date,
+                            action=TradeAction.BUY.value,
+                            predicted_return=pred_return,
+                            price=current_price,
+                            pnl_pct=None,
+                            profit=None,
+                        )
                     )
                 elif position == "long":
                     hold_counter += 1
@@ -169,14 +217,14 @@ class TradingSimulator:
                             actual_return * 100 if use_returns else ((current_price - entry_price) / entry_price) * 100
                         )
                         self.trades.append(
-                            {
-                                "date": date,
-                                "action": "SELL",
-                                "predicted_return": pred_return,
-                                "profit": profit,
-                                "pnl_pct": pnl,
-                                "price": current_price,
-                            }
+                            Trade(
+                                date=date,
+                                action=TradeAction.SELL.value,
+                                predicted_return=pred_return,
+                                profit=profit,
+                                pnl_pct=pnl,
+                                price=current_price,
+                            )
                         )
                         shares = 0
                         position = None
@@ -186,15 +234,14 @@ class TradingSimulator:
                 portfolio_value = capital + (shares if position == "long" else 0)
             else:
                 portfolio_value = shares * current_price if position == "long" else capital
-
             self.portfolio_history.append(
-                {
-                    "date": date,
-                    "portfolio_value": portfolio_value,
-                    "position": position if position else "cash",
-                    "prediction": pred_return,
-                    "price": current_price,  # ✓ Fixed: Add price
-                }
+                PortfolioHistory(
+                    date=date,
+                    portfolio_value=portfolio_value,
+                    position=position if position else "cash",
+                    prediction=pred_return,
+                    price=current_price,
+                )
             )
 
         # --- Close remaining position ---
@@ -202,7 +249,7 @@ class TradingSimulator:
             if use_returns:
                 final_return = actual_returns.iloc[-1] if hasattr(actual_returns, "iloc") else actual_returns[-1]
                 capital = shares * (1 + final_return)
-                final_price = current_price * (1 + final_return)
+                final_price = (prices.iloc[-1] if hasattr(prices, "iloc") else prices[-1]) * (1 + final_return)
             else:
                 final_price = prices.iloc[-1] if hasattr(prices, "iloc") else prices[-1]
                 capital = shares * final_price * (1 - self.transaction_cost)
@@ -218,13 +265,14 @@ class TradingSimulator:
                 final_date = None
 
             self.trades.append(
-                {
-                    "date": final_date,
-                    "action": "SELL (Final)",
-                    "profit": profit,
-                    "pnl_pct": pnl,
-                    "price": final_price,  # ✓ Fixed: Add price
-                }
+                Trade(
+                    date=final_date,
+                    action=TradeAction.SELL_FINAL.value,
+                    profit=profit,
+                    pnl_pct=pnl,
+                    price=final_price,
+                    predicted_return=None,
+                )
             )
 
             shares = 0
@@ -276,83 +324,190 @@ def predict_today(symbol, model_path="models", visualisation: bool = False):
     try:
         # Load the trained model
         print("\n1. Loading trained model...")
-        predictor = XGBoostStockPredictor.load_model(symbol, model_path)
+        predictor = StackedStockPredictor.load_model(symbol, model_path)
+
+        # Try to get feature names from model if available
+        saved_feature_names = None
+        # if hasattr(predictor, 'feature_importance') and predictor.feature_importance is not None:
+        #     saved_feature_names = list(predictor.feature_importance['feature'].values)
+        #     print(f"  ✓ Model expects {len(saved_feature_names)} features")
 
         # Download recent data (need enough history for indicators)
         print(f"\n2. Downloading recent data for {symbol}...")
         ticker = yf.Ticker(symbol)
         # Get last 100 days to calculate indicators
-        df = ticker.history(period="100d", interval="1d")
-
-        if df.empty:
+        df_daily = ticker.history(period="120d", interval="1d")
+        if df_daily.empty:
+            print(f"  ✗ No data available for {symbol}")
+            return None
+        df_hourly = ticker.history(period="120d", interval="1h")
+        if df_hourly.empty:
             print(f"  ✗ No data available for {symbol}")
             return None
 
-        print(f"  ✓ Downloaded {len(df)} days of data")
-        print(f"  ✓ Latest date: {df.index[-1].date()}")
-        print(f"  ✓ Latest close: ${df['Close'].iloc[-1]:.2f}")
+        print(f"  ✓ Daily records: {len(df_daily)}, Hourly records: {len(df_hourly)}")
+        # print(f"  ✓ Latest date: {df.index[-1].date()}")
+        # print(f"  ✓ Latest close: ${df['Close'].iloc[-1]:.2f}")
 
         # Add technical indicators
         print("\n3. Calculating technical indicators...")
-        df_features = FeatureEngineering.add_technical_indicators(df)
+        daily_features = FeatureEngineering(df_daily)
+        daily_features.add_all_technical_indicators()
+        df_daily_features = daily_features.get_df()
 
-        # We don't need target for prediction
+        hourly_features = FeatureEngineering(df_hourly)
+        hourly_features.add_all_technical_indicators()
+        df_hourly_features = hourly_features.get_df()
+
+        # Add Dividends and Stock Splits columns if they don't exist (yfinance sometimes doesn't include them)
+        if "Dividends" not in df_daily_features.columns:
+            df_daily_features["Dividends"] = 0.0
+        if "Dividends" not in df_hourly_features.columns:
+            df_hourly_features["Dividends"] = 0.0
+        if "Stock Splits" not in df_daily_features.columns:
+            df_daily_features["Stock Splits"] = 0.0
+        if "Stock Splits" not in df_hourly_features.columns:
+            df_hourly_features["Stock Splits"] = 0.0
+
+        # Feature columns must match those used during training
         feature_columns = [
+            # SIMPLE AND EXPONENTIAL MOVING AVERAGES
             "SMA_5",
             "SMA_10",
+            "SMA_12",
             "SMA_20",
+            "SMA_26",
             "SMA_50",
+            "SMA_100",
+            "EMA_5",
+            "EMA_10",
             "EMA_12",
+            "EMA_20",
             "EMA_26",
+            "EMA_50",
+            "EMA_100",
+            # SAFE PRICE RATIOS
+            "Price_to_SMA20",
+            "Price_to_SMA50",
+            "Price_to_EMA12",
+            "Price_to_EMA26",
+            "EMA_12_26_Ratio",
+            "SMA_5_20_Ratio",
+            "SMA_10_50_Ratio",
+            # MACD
             "MACD",
             "MACD_Signal",
             "MACD_Hist",
             "MACD_Momentum",
+            "MACD_Cross",
+            # CCI
+            "CCI",
+            # RSI
             "RSI",
+            "RSI_Overbought",
+            "RSI_Oversold",
+            # STOCHASTIC OSCILLATOR
             "Stochastic",
+            # BOLLINGER BANDS
+            "BB_Middle",
+            "BB_Upper",
+            "BB_Lower",
             "BB_Width",
+            "BB_Width_Ratio",
+            "Price_BB_Position",
+            "BB_B",
+            # PRICE CHANGES
             "Price_Change_1d",
             "Price_Change_5d",
             "Price_Change_10d",
+            "Price_Change_20d",
+            "Price_Change_50d",
+            "Price_Change_100d",
+            # VOLUME INDICATORS
             "Volume_Change",
+            "Volume_MA_5",
+            "Volume_MA_10",
+            "Volume_MA_20",
+            "Volume_MA_50",
             "Volume_Ratio",
             "Volume_SMA_Ratio",
+            "Volume_MA_Ratio_10_20",
+            # VOLATILITY
+            "Volatility_5d",
             "Volatility_10d",
             "Volatility_20d",
-            "Volatility_Ratio",
+            "Volatility_50d",
+            "Volatility_Ratio_10_20",
+            # HIGH-LOW RANGE
             "HL_Range",
+            "HL_Range_MA_5",
+            "HL_Range_MA_20",
+            "HL_Range_Ratio_5_20",
+            # ATR
             "ATR",
+            # LAGGED RETURNS
             "Return_Lag_1",
             "Return_Lag_2",
             "Return_Lag_3",
             "Return_Lag_5",
             "Return_Lag_10",
+            "Return_Lag_20",
+            # MOMENTUM
+            "Momentum_1",
             "Momentum_5",
             "Momentum_10",
             "Momentum_20",
-            "Price_to_SMA20",
-            "Price_to_SMA50",
+            "Momentum_50",
+            "Momentum_Ratio_5_10",
+            "Momentum_Ratio_10_20",
+            # RATE OF CHANGE
             "ROC_5",
             "ROC_10",
+            "ROC_20",
+            "ROC_50",
+            # ADX / DIRECTIONAL INDICATORS
+            "Plus_DI",
+            "Minus_DI",
+            "ADX",
+            # CANDLESTICK
+            "Bull_Engulfing",
+            "Doji",
+            # 'HMA_10', 'HMA_100', 'HMA_12', 'HMA_20', 'HMA_26', 'HMA_5', 'HMA_50',
+            # 'WMA_10', 'WMA_100', 'WMA_12', 'WMA_20', 'WMA_26', 'WMA_5', 'WMA_50',
+            # WILLIAMS R
+            "WilliamsR",
+            # SHARPE RATIO
+            "Sharpe_5",
+            "Sharpe_10",
+            "Sharpe_20",
+            "Sharpe_50",
+            "Sharpe_100",
+            # RETURN
+            "Return_1d",
         ]
+        feature_columns.sort()
 
-        # Get the latest complete row (has all indicators)
-        df_clean = df_features.dropna()
+        # Align hourly features with daily features
+        df_hourly_aligned = df_hourly_features.resample("1D").last().ffill()
+        df_hourly_aligned = df_hourly_aligned.loc[df_daily_features.index]
 
-        if len(df_clean) == 0:
-            print("  ✗ Not enough data to calculate indicators")
-            return None
+        # Fill missing values
+        df_daily_features = df_daily_features.ffill().bfill()
+        df_hourly_aligned = df_hourly_aligned.ffill().bfill()
 
-        # Get features for the most recent day
-        X_today = df_clean[feature_columns].iloc[[-1]]  # Keep as DataFrame
-        latest_date = df_clean.index[-1]
-        latest_price = df_clean["Close"].iloc[-1]
-
-        print(f"  ✓ Using data from: {latest_date.date()}")
+        x_daily = df_daily_features[feature_columns].iloc[[-1]]
+        x_hourly = df_hourly_aligned[feature_columns].iloc[[-1]]
 
         # Make prediction
         print("\n4. Making prediction...")
-        prediction = predictor.predict(X_today)[0]
+        x_dict = {
+            "daily": x_daily,
+            "hourly": x_hourly,
+        }
+        prediction = predictor.predict(x_dict)[0]
+
+        latest_price = df_daily["Close"].iloc[-1]
+        latest_date = df_daily.index[-1]
 
         # Display results
         print("\n" + "=" * 80)
@@ -406,70 +561,71 @@ def predict_today(symbol, model_path="models", visualisation: bool = False):
         print("\n" + "-" * 80)
         print("KEY INDICATORS (Latest)")
         print("-" * 80)
-        print(f"RSI:                 {df_clean['RSI'].iloc[-1]:.2f}")
-        print(f"MACD:                {df_clean['MACD'].iloc[-1]:.4f}")
-        print(f"Price vs SMA20:      {df_clean['Price_to_SMA20'].iloc[-1]:.4f}x")
-        print(f"Price vs SMA50:      {df_clean['Price_to_SMA50'].iloc[-1]:.4f}x")
-        print(f"Volatility (10d):    {df_clean['Volatility_10d'].iloc[-1]:.2f}")
+        print(f"RSI:                 {x_daily['RSI'].iloc[-1]:.2f}")
+        if "MACD" in x_daily.columns:
+            print(f"MACD:                {x_daily['MACD'].iloc[-1]:.4f}")
+        print(f"Price vs SMA20:      {x_daily['Price_to_SMA20'].iloc[-1]:.4f}x")
+        print(f"Price vs SMA50:      {x_daily['Price_to_SMA50'].iloc[-1]:.4f}x")
+        print(f"Volatility (10d):    {x_daily['Volatility_10d'].iloc[-1]:.2f}")
 
         print("\n" + "=" * 80)
 
-        # Generate 180-day forecast
-        print("\n5. Generating 180-day forecast...")
-        forecast_days = 180
-        forecast_data = generate_forecast(predictor, df_clean, feature_columns, latest_price, forecast_days)
+        # # Generate 180-day forecast
+        # print("\n5. Generating 180-day forecast...")
+        # forecast_days = 180
+        # forecast_data = generate_forecast(predictor, x_daily, feature_columns, latest_price, forecast_days)
 
         # Display forecast summary
-        print(f"\n180-DAY FORECAST SUMMARY:")
-        print(f"  Starting Price:      ${latest_price:.2f}")
-        print(f"  Forecasted Price:    ${forecast_data['prices'][-1]:.2f}")
-        print(f"  Expected Change:     ${forecast_data['prices'][-1] - latest_price:+.2f}")
-        print(f"  Expected Return:     {(forecast_data['prices'][-1] / latest_price - 1) * 100:+.2f}%")
-        print(
-            f"  Confidence Range:    ${forecast_data['lower_bound'][-1]:.2f} - ${forecast_data['upper_bound'][-1]:.2f}"
-        )
-
-        # Generate forecast plot
-        if visualisation:
-            print("\n6. Creating forecast visualization...")
-            Visualizer.plot_forecast(df, forecast_data, symbol)
+        # print(f"\n180-DAY FORECAST SUMMARY:")
+        # print(f"  Starting Price:      ${latest_price:.2f}")
+        # print(f"  Forecasted Price:    ${forecast_data['prices'][-1]:.2f}")
+        # print(f"  Expected Change:     ${forecast_data['prices'][-1] - latest_price:+.2f}")
+        # print(f"  Expected Return:     {(forecast_data['prices'][-1] / latest_price - 1) * 100:+.2f}%")
+        # print(
+        #     f"  Confidence Range:    ${forecast_data['lower_bound'][-1]:.2f} - ${forecast_data['upper_bound'][-1]:.2f}"
+        # )
+        #
+        # # Generate forecast plot
+        # if visualisation:
+        #     print("\n6. Creating forecast visualization...")
+        #     Visualizer.plot_forecast(df, forecast_data, symbol)
 
         # Save prediction to file (use UTF-8 encoding and text-only signals)
-        pred_file = f"results/{symbol}_latest_prediction.txt"
-        with open(pred_file, "w", encoding="utf-8") as f:
-            f.write(f"Latest Prediction for {symbol}\n")
-            f.write("=" * 60 + "\n")
-            f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-            f.write(f"Data Date: {latest_date.date()}\n\n")
-            f.write(f"Current Price:    ${latest_price:.2f}\n")
-            f.write(f"Predicted Return: {prediction * 100:+.3f}%\n")
-            f.write(f"Predicted Price:  ${latest_price * (1 + prediction):.2f}\n\n")
-            f.write(f"Signal:           {signal_text}\n")
-            f.write(f"Confidence:       {confidence:.1f}%\n")
-            f.write(f"Recommendation:   {action}\n\n")
-
-            # Add 180-day forecast
-            f.write("=" * 60 + "\n")
-            f.write("180-DAY FORECAST\n")
-            f.write("=" * 60 + "\n\n")
-            f.write(f"Starting Price:    ${latest_price:.2f}\n")
-            f.write(f"180-Day Forecast:   ${forecast_data['prices'][-1]:.2f}\n")
-            f.write(f"Expected Change:   ${forecast_data['prices'][-1] - latest_price:+.2f}\n")
-            f.write(f"Expected Return:   {(forecast_data['prices'][-1] / latest_price - 1) * 100:+.2f}%\n")
-            f.write(
-                f"Confidence Range:  ${forecast_data['lower_bound'][-1]:.2f} - "
-                f"${forecast_data['upper_bound'][-1]:.2f}\n\n"
-            )
-
-            f.write("Weekly Milestones:\n")
-            for week in [0, 6, 13, 20, 29]:
-                if week < len(forecast_data["prices"]):
-                    f.write(
-                        f"  Day {week + 1:2d}: ${forecast_data['prices'][week]:.2f} "
-                        f"({(forecast_data['prices'][week] / latest_price - 1) * 100:+.2f}%)\n"
-                    )
-
-        print(f"✓ Prediction saved to: {pred_file}\n")
+        # pred_file = f"results/{symbol}_latest_prediction.txt"
+        # with open(pred_file, "w", encoding="utf-8") as f:
+        #     f.write(f"Latest Prediction for {symbol}\n")
+        #     f.write("=" * 60 + "\n")
+        #     f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        #     f.write(f"Data Date: {latest_date.date()}\n\n")
+        #     f.write(f"Current Price:    ${latest_price:.2f}\n")
+        #     f.write(f"Predicted Return: {prediction * 100:+.3f}%\n")
+        #     f.write(f"Predicted Price:  ${latest_price * (1 + prediction):.2f}\n\n")
+        #     f.write(f"Signal:           {signal_text}\n")
+        #     f.write(f"Confidence:       {confidence:.1f}%\n")
+        #     f.write(f"Recommendation:   {action}\n\n")
+        #
+        #     # Add 180-day forecast
+        #     f.write("=" * 60 + "\n")
+        #     f.write("180-DAY FORECAST\n")
+        #     f.write("=" * 60 + "\n\n")
+        #     f.write(f"Starting Price:    ${latest_price:.2f}\n")
+        #     f.write(f"180-Day Forecast:   ${forecast_data['prices'][-1]:.2f}\n")
+        #     f.write(f"Expected Change:   ${forecast_data['prices'][-1] - latest_price:+.2f}\n")
+        #     f.write(f"Expected Return:   {(forecast_data['prices'][-1] / latest_price - 1) * 100:+.2f}%\n")
+        #     f.write(
+        #         f"Confidence Range:  ${forecast_data['lower_bound'][-1]:.2f} - "
+        #         f"${forecast_data['upper_bound'][-1]:.2f}\n\n"
+        #     )
+        #
+        #     f.write("Weekly Milestones:\n")
+        #     for week in [0, 6, 13, 20, 29]:
+        #         if week < len(forecast_data["prices"]):
+        #             f.write(
+        #                 f"  Day {week + 1:2d}: ${forecast_data['prices'][week]:.2f} "
+        #                 f"({(forecast_data['prices'][week] / latest_price - 1) * 100:+.2f}%)\n"
+        #             )
+        #
+        # print(f"✓ Prediction saved to: {pred_file}\n")
 
         return {
             "symbol": symbol,
@@ -580,53 +736,50 @@ def generate_forecast(predictor, df_features, feature_columns, start_price, num_
 
 
 def simulate_directional_trading_strategy(
-    dates_test: XGBoostStockPredictor | Any,
-    prices_test: np.ndarray[Any, np.dtype[Any]] | list[Any] | dict[str, float | Any] | Any,
-    test_results: Series | Any,
-    y_test: Series | Any,
-) -> tuple[dict[str, DataFrame | float | int | Any], TradingSimulator]:
-    # Strategy 1: Directional (most trades - buys on any positive prediction)
+    dates_test,
+    prices_test,
+    predictions,  # ✅ Changed from test_results
+    y_test,
+) -> tuple[dict, TradingSimulator]:
     print("\n--- Strategy 1: Directional Trading ---")
     print("Buys when prediction > 0, sells when prediction <= 0")
     simulator = TradingSimulator(initial_capital=10000)
     sim_results = simulator.simulate(
-        test_results["predictions"],
+        predictions,  # ✅ Use predictions directly
         y_test,
         prices_test,
         dates_test,
-        threshold=0,  # Not used in directional
+        threshold=0,
         strategy="directional",
     )
     return sim_results, simulator
 
 
 def simulate_adaptive_threshold_strategy(
-    dates_test: XGBoostStockPredictor | Any,
-    prices_test: np.ndarray[Any, np.dtype[Any]] | list[Any] | dict[str, float | Any] | Any,
-    test_results: Series | Any,
-    y_test: Series | Any,
-) -> tuple[dict[str, DataFrame | float | int | Any], TradingSimulator]:
-    # Strategy 2: Adaptive threshold
+    dates_test,
+    prices_test,
+    predictions,  # ✅ Changed from test_results
+    y_test,
+) -> tuple[dict, TradingSimulator]:
     print("\n--- Strategy 2: Adaptive Threshold ---")
     print("Uses statistical threshold based on prediction distribution")
     simulator = TradingSimulator(initial_capital=10000)
     adaptive_results = simulator.simulate(
-        test_results["predictions"], y_test, prices_test, dates_test, threshold="adaptive", strategy="threshold"
+        predictions, y_test, prices_test, dates_test, threshold="adaptive", strategy="threshold"
     )
     return adaptive_results, simulator
 
 
 def simulate_hold_days_strategy(
-    dates_test: XGBoostStockPredictor | Any,
-    prices_test: np.ndarray[Any, np.dtype[Any]] | list[Any] | dict[str, float | Any] | Any,
-    test_results: Series | Any,
-    y_test: Series | Any,
-) -> tuple[dict[str, DataFrame | float | int | Any], TradingSimulator]:
-    # Strategy 3: Hold days
+    dates_test,
+    prices_test,
+    predictions,  # ✅ Changed from test_results
+    y_test,
+) -> tuple[dict, TradingSimulator]:
     print("\n--- Strategy 3: Hold Days Strategy ---")
     print("Holds positions for multiple days")
     simulator = TradingSimulator(initial_capital=10000)
     hold_days_results = simulator.simulate(
-        test_results["predictions"], y_test, prices_test, dates_test, threshold="adaptive", strategy="hold_days"
+        predictions, y_test, prices_test, dates_test, threshold="adaptive", strategy="hold_days"
     )
     return hold_days_results, simulator
