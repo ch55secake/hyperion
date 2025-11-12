@@ -29,7 +29,7 @@ class TradingSimulator:
         dates=None,
         threshold="auto",
         strategy="directional",
-        use_returns=True,
+        use_returns=False,
     ):
         """
         Simulate trading strategy and evaluate predictive performance.
@@ -417,6 +417,8 @@ def predict_today(symbol, model_path="models", visualisation: bool = False):
             "Plus_DI",
             "Minus_DI",
             "ADX",
+            # CANDLESTICK
+            'Bull_Engulfing', 'Doji'
         ]
         feature_columns.sort()
 
