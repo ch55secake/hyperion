@@ -36,31 +36,31 @@ class XGBoostStockPredictor:
             # }
 
             # THIS PRODUCES 4 SUCCESSFUL MODELS
-            tuned_params = {
-                "objective": "reg:squarederror",
-                "learning_rate": 0.05,  # <-- lower LR for smoother learning
-                "max_depth": 5,  # slightly deeper to capture nonlinearity
-                "min_child_weight": 4,
-                "subsample": 0.9,
-                "colsample_bytree": 0.8,
-                "lambda": 1.2,
-                "alpha": 0.6,
-                "gamma": 0.1,
-                "n_estimators": 1500,  # <-- more trees with smaller steps
-                "tree_method": "exact",
-                "seed": 42,
-            }
+            # tuned_params = {
+            #     "objective": "reg:squarederror",
+            #     "learning_rate": 0.05,  # <-- lower LR for smoother learning
+            #     "max_depth": 5,  # slightly deeper to capture nonlinearity
+            #     "min_child_weight": 4,
+            #     "subsample": 0.9,
+            #     "colsample_bytree": 0.8,
+            #     "lambda": 1.2,
+            #     "alpha": 0.6,
+            #     "gamma": 0.1,
+            #     "n_estimators": 1500,  # <-- more trees with smaller steps
+            #     "tree_method": "exact",
+            #     "seed": 42,
+            # }
 
             params = {
                 "objective": "reg:squarederror",
                 "learning_rate": 0.04,  # <-- lower LR for smoother learning
-                "max_depth": 5,  # slightly deeper to capture nonlinearity
-                "min_child_weight": 4,
-                "subsample": 0.9,
-                "colsample_bytree": 0.8,
-                "lambda": 1.2,
-                "alpha": 0.6,
-                "gamma": 0.1,
+                "max_depth": 4,  # slightly deeper to capture nonlinearity
+                "min_child_weight": 1,
+                "subsample": 0.7,
+                "colsample_bytree": 0.7,
+                "lambda": 0.6,
+                "alpha": 0.3,
+                "gamma": 0.0,
                 "n_estimators": 1500,  # <-- more trees with smaller steps
                 "tree_method": "exact",
                 "seed": 42,
