@@ -43,7 +43,7 @@ class LightGBMStockPredictor:
                 "feature_fraction": 0.8,
                 "bagging_fraction": 0.8,
                 "bagging_freq": 1,
-                "n_estimators": 1500,
+                "n_estimators": 500,
                 "seed": 42,
             }
 
