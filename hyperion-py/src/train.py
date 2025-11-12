@@ -244,4 +244,3 @@ def run_trade_simulation(
         Visualizer.plot_rolling_portfolio_metrics(sim_results["portfolio_history"], symbol)
         Visualizer.plot_drawdowns(sim_results["portfolio_history"], symbol)
         Visualizer.plot_win_loss_over_time(sim_results["trades"], symbol)
-

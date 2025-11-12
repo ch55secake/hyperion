@@ -24,7 +24,7 @@ class FeatureEngineering:
     def __init__(self, df: DataFrame):
         self.df: DataFrame = self._ensure_required_columns(df)
         self.__n_rows: int = len(self.df)
-        self.__calculated: bool= False
+        self.__calculated: bool = False
         self.__df_prepared: DataFrame | None = None
 
     @staticmethod
@@ -50,6 +50,7 @@ class FeatureEngineering:
             diff = 2 * wma_half - wma_full
             hma = wma(diff, sqrt_length)
             return hma
+
         for w in _ma_windows:
             if self.__n_rows >= w:
                 # SMA_n: Simple Moving Average over n days. Measures the mean closing price over a period, smoothing short-term fluctuations.
@@ -115,32 +116,32 @@ class FeatureEngineering:
 
     def _add_cci(self) -> FeatureEngineering:
         config_cci_window = 20
-        tp = (self.df['High'] + self.df['Low'] + self.df['Close']) / 3
+        tp = (self.df["High"] + self.df["Low"] + self.df["Close"]) / 3
         sma_tp = tp.rolling(config_cci_window).mean()
         mean_dev = tp.rolling(config_cci_window).apply(lambda x: np.mean(np.abs(x - x.mean())), raw=True)
         # CCI: Measures the deviation of the typical price ((High + Low + Close)/3) from its moving average over a given window (default 20 days).
-        self.df['CCI'] = (tp - sma_tp) / (0.015 * mean_dev)
+        self.df["CCI"] = (tp - sma_tp) / (0.015 * mean_dev)
 
         return self
 
     def _add_williams_r(self) -> FeatureEngineering:
         config_williams_r_window = 14
-        highest_high = self.df['High'].rolling(config_williams_r_window).max()
-        lowest_low = self.df['Low'].rolling(config_williams_r_window).min()
+        highest_high = self.df["High"].rolling(config_williams_r_window).max()
+        lowest_low = self.df["Low"].rolling(config_williams_r_window).min()
         # WilliamsR: Momentum indicator that measures the current closing price relative to the highest high and the lowest low over a given period (default 14 days).
-        self.df['WilliamsR'] = -100 * (highest_high - self.df['Close']) / (highest_high - lowest_low).replace(0, np.nan)
+        self.df["WilliamsR"] = -100 * (highest_high - self.df["Close"]) / (highest_high - lowest_low).replace(0, np.nan)
 
         return self
 
     def _add_tsi(self) -> FeatureEngineering:
-        delta = self.df['Close'].diff()
+        delta = self.df["Close"].diff()
         abs_delta = delta.abs()
         ema1 = delta.ewm(span=25, adjust=False).mean()
         ema2 = ema1.ewm(span=13, adjust=False).mean()
         abs_ema1 = abs_delta.ewm(span=25, adjust=False).mean()
         abs_ema2 = abs_ema1.ewm(span=13, adjust=False).mean()
         # TSI: Momentum oscillator that measures the trend and strength of price movements while smoothing noise using double exponential moving averages.
-        self.df['TSI'] = 100 * (ema2 / abs_ema2)
+        self.df["TSI"] = 100 * (ema2 / abs_ema2)
         return self
 
     def _add_stochastic_oscillator(self) -> FeatureEngineering:
@@ -173,7 +174,7 @@ class FeatureEngineering:
         std = self.df["Close"].rolling(20).std()
         upper = sma + 2 * std
         lower = sma - 2 * std
-        self.df['BB_B'] = (self.df["Close"] - lower) / (upper - lower).replace(0, np.nan)
+        self.df["BB_B"] = (self.df["Close"] - lower) / (upper - lower).replace(0, np.nan)
 
         return self
 
@@ -304,41 +305,45 @@ class FeatureEngineering:
     def _add_sharpe(self) -> FeatureEngineering:
         # Sharpe Ratio in Windows
         for w in _sharpe_windows:
-            self.df[f'Sharpe_{w}'] = self.df['Return_1d'].rolling(w).mean() / self.df['Return_1d'].rolling(w).std()
-
+            self.df[f"Sharpe_{w}"] = self.df["Return_1d"].rolling(w).mean() / self.df["Return_1d"].rolling(w).std()
 
         return self
 
     def _add_candlestick_patterns(self) -> FeatureEngineering:
-        self.df['Bull_Engulfing'] = ((self.df['Close'] > self.df['Open'].shift(1)) & (self.df['Open'] < self.df['Close'].shift(1))).astype(int)
-        self.df['Doji'] = (abs(self.df['Close'] - self.df['Open']) / (self.df['High'] - self.df['Low']) < 0.1).astype(int)
+        self.df["Bull_Engulfing"] = (
+            (self.df["Close"] > self.df["Open"].shift(1)) & (self.df["Open"] < self.df["Close"].shift(1))
+        ).astype(int)
+        self.df["Doji"] = (abs(self.df["Close"] - self.df["Open"]) / (self.df["High"] - self.df["Low"]) < 0.1).astype(
+            int
+        )
 
         return self
-
 
     def add_all_technical_indicators(self):
         if self.__calculated:
             return
         # Calculate technical indicators
-        (self._add_moving_averages()
-         ._add_safe_price_ratios()
-         ._add_macd()
-         ._add_rsi()
-         ._add_cci()
-         ._add_williams_r()
-         ._add_stochastic_oscillator()
-         ._add_bollinger_bands()
-         ._add_price_changes()
-         ._add_volume_indicators()
-         ._add_volatility_indicators()
-         ._add_high_low_range()
-         ._add_atr()
-         ._add_lagged_returns()
-         ._add_momentum()
-         ._add_rate_of_change()
-         ._add_directional_indicators()
-         ._add_sharpe()
-         ._add_candlestick_patterns())
+        (
+            self._add_moving_averages()
+            ._add_safe_price_ratios()
+            ._add_macd()
+            ._add_rsi()
+            ._add_cci()
+            ._add_williams_r()
+            ._add_stochastic_oscillator()
+            ._add_bollinger_bands()
+            ._add_price_changes()
+            ._add_volume_indicators()
+            ._add_volatility_indicators()
+            ._add_high_low_range()
+            ._add_atr()
+            ._add_lagged_returns()
+            ._add_momentum()
+            ._add_rate_of_change()
+            ._add_directional_indicators()
+            ._add_sharpe()
+            ._add_candlestick_patterns()
+        )
 
         # Shift all features by 1 day
         feature_columns = self.df.columns.difference(_all_cols)

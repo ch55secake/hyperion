@@ -18,14 +18,16 @@ class TradeAction(Enum):
     SELL_FINAL = "SELL (Final)"
     # HOLD = "HOLD"
 
+
 @dataclass
 class Trade:
     date: str
-    action: str # TradeAction
+    action: str  # TradeAction
     predicted_return: float | None
     profit: float | None
     pnl_pct: float | None
     price: float
+
 
 @dataclass
 class PortfolioHistory:
@@ -106,12 +108,16 @@ class TradingSimulator:
                         entry_price = current_price
                         capital = 0
                     position = "long"
-                    self.trades.append(Trade(date=date,
-                                             action=TradeAction.BUY.value,
-                                             predicted_return=pred_return,
-                                             price=current_price,
-                                             pnl_pct=None,
-                                             profit=None))
+                    self.trades.append(
+                        Trade(
+                            date=date,
+                            action=TradeAction.BUY.value,
+                            predicted_return=pred_return,
+                            price=current_price,
+                            pnl_pct=None,
+                            profit=None,
+                        )
+                    )
 
                 elif position == "long" and pred_return <= 0:
                     # Sell
@@ -122,12 +128,15 @@ class TradingSimulator:
                     profit = capital - self.initial_capital
                     pnl = actual_return * 100 if use_returns else ((current_price - entry_price) / entry_price) * 100
                     self.trades.append(
-                        Trade(date=date,
-                              action=TradeAction.SELL.value,
-                              predicted_return=pred_return,
-                              profit=profit,
-                              pnl_pct=pnl,
-                              price=current_price))
+                        Trade(
+                            date=date,
+                            action=TradeAction.SELL.value,
+                            predicted_return=pred_return,
+                            profit=profit,
+                            pnl_pct=pnl,
+                            price=current_price,
+                        )
+                    )
                     shares = 0
                     position = None
 
@@ -142,12 +151,16 @@ class TradingSimulator:
                             entry_price = current_price
                             capital = 0
                         position = "long"
-                        self.trades.append(Trade(date=date,
-                                                 action=TradeAction.BUY.value,
-                                                 predicted_return=pred_return,
-                                                 price=current_price,
-                                                 pnl_pct=None,
-                                                 profit=None))
+                        self.trades.append(
+                            Trade(
+                                date=date,
+                                action=TradeAction.BUY.value,
+                                predicted_return=pred_return,
+                                price=current_price,
+                                pnl_pct=None,
+                                profit=None,
+                            )
+                        )
                 else:
                     if pred_return < -threshold:
                         if use_returns:
@@ -158,12 +171,16 @@ class TradingSimulator:
                         pnl = (
                             actual_return * 100 if use_returns else ((current_price - entry_price) / entry_price) * 100
                         )
-                        self.trades.append(Trade(date=date,
-                                                 action=TradeAction.SELL.value,
-                                                 predicted_return=pred_return,
-                                                 profit=profit,
-                                                 pnl_pct=pnl,
-                                                 price=current_price))
+                        self.trades.append(
+                            Trade(
+                                date=date,
+                                action=TradeAction.SELL.value,
+                                predicted_return=pred_return,
+                                profit=profit,
+                                pnl_pct=pnl,
+                                price=current_price,
+                            )
+                        )
                         shares = 0
                         position = None
 
@@ -178,12 +195,16 @@ class TradingSimulator:
                         capital = 0
                     position = "long"
                     hold_counter = 0
-                    self.trades.append(Trade(date=date,
-                                             action=TradeAction.BUY.value,
-                                             predicted_return=pred_return,
-                                             price=current_price,
-                                             pnl_pct=None,
-                                             profit=None))
+                    self.trades.append(
+                        Trade(
+                            date=date,
+                            action=TradeAction.BUY.value,
+                            predicted_return=pred_return,
+                            price=current_price,
+                            pnl_pct=None,
+                            profit=None,
+                        )
+                    )
                 elif position == "long":
                     hold_counter += 1
                     if hold_counter >= 5 or pred_return < -threshold:
@@ -195,12 +216,16 @@ class TradingSimulator:
                         pnl = (
                             actual_return * 100 if use_returns else ((current_price - entry_price) / entry_price) * 100
                         )
-                        self.trades.append(Trade(date=date,
-                                                 action=TradeAction.SELL.value,
-                                                 predicted_return=pred_return,
-                                                 profit=profit,
-                                                 pnl_pct=pnl,
-                                                 price=current_price))
+                        self.trades.append(
+                            Trade(
+                                date=date,
+                                action=TradeAction.SELL.value,
+                                predicted_return=pred_return,
+                                profit=profit,
+                                pnl_pct=pnl,
+                                price=current_price,
+                            )
+                        )
                         shares = 0
                         position = None
 
@@ -209,11 +234,15 @@ class TradingSimulator:
                 portfolio_value = capital + (shares if position == "long" else 0)
             else:
                 portfolio_value = shares * current_price if position == "long" else capital
-            self.portfolio_history.append(PortfolioHistory(date=date,
-                                                           portfolio_value=portfolio_value,
-                                                           position=position if position else "cash",
-                                                           prediction=pred_return,
-                                                           price=current_price))
+            self.portfolio_history.append(
+                PortfolioHistory(
+                    date=date,
+                    portfolio_value=portfolio_value,
+                    position=position if position else "cash",
+                    prediction=pred_return,
+                    price=current_price,
+                )
+            )
 
         # --- Close remaining position ---
         if position is not None:
@@ -235,12 +264,16 @@ class TradingSimulator:
             else:
                 final_date = None
 
-            self.trades.append(Trade(date=final_date,
-                                     action=TradeAction.SELL_FINAL.value,
-                                     profit=profit,
-                                     pnl_pct=pnl,
-                                     price=final_price,
-                                     predicted_return=None))
+            self.trades.append(
+                Trade(
+                    date=final_date,
+                    action=TradeAction.SELL_FINAL.value,
+                    profit=profit,
+                    pnl_pct=pnl,
+                    price=final_price,
+                    predicted_return=None,
+                )
+            )
 
             shares = 0
 
@@ -368,7 +401,7 @@ def predict_today(symbol, model_path="models", visualisation: bool = False):
             "MACD_Momentum",
             "MACD_Cross",
             # CCI
-            'CCI',
+            "CCI",
             # RSI
             "RSI",
             "RSI_Overbought",
@@ -382,7 +415,7 @@ def predict_today(symbol, model_path="models", visualisation: bool = False):
             "BB_Width",
             "BB_Width_Ratio",
             "Price_BB_Position",
-            'BB_B',
+            "BB_B",
             # PRICE CHANGES
             "Price_Change_1d",
             "Price_Change_5d",
@@ -437,20 +470,20 @@ def predict_today(symbol, model_path="models", visualisation: bool = False):
             "Minus_DI",
             "ADX",
             # CANDLESTICK
-            'Bull_Engulfing',
-            'Doji',
+            "Bull_Engulfing",
+            "Doji",
             # 'HMA_10', 'HMA_100', 'HMA_12', 'HMA_20', 'HMA_26', 'HMA_5', 'HMA_50',
             # 'WMA_10', 'WMA_100', 'WMA_12', 'WMA_20', 'WMA_26', 'WMA_5', 'WMA_50',
             # WILLIAMS R
-            'WilliamsR',
+            "WilliamsR",
             # SHARPE RATIO
-            'Sharpe_5',
-            'Sharpe_10',
-            'Sharpe_20',
-            'Sharpe_50',
-            'Sharpe_100',
+            "Sharpe_5",
+            "Sharpe_10",
+            "Sharpe_20",
+            "Sharpe_50",
+            "Sharpe_100",
             # RETURN
-            'Return_1d',
+            "Return_1d",
         ]
         feature_columns.sort()
 

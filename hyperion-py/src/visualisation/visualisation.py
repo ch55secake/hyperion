@@ -9,6 +9,7 @@ matplotlib.use("Agg")
 from matplotlib import pyplot as plt
 from pandas import Series
 
+
 class Visualizer:
     """Creates visualizations for predictions and trading results"""
 
@@ -400,7 +401,7 @@ class Visualizer:
             marker="o",
             markersize=4,
             label="Cumulative Return",
-            )
+        )
 
         total_return = cumulative_return[-1] * 100
         ax2.text(
@@ -478,7 +479,7 @@ class Visualizer:
         n_features = corr.shape[0]
 
         # Adjust figure size based on number of features
-        fig_width = max(12, n_features * 0.5)   # width scales with number of features
+        fig_width = max(12, n_features * 0.5)  # width scales with number of features
         fig_height = max(10, n_features * 0.5)  # height scales with number of features
         plt.figure(figsize=(fig_width, fig_height))
 
@@ -502,18 +503,22 @@ class Visualizer:
         plt.savefig(f"{save_path}/{symbol}/do_not_open_in_ide_correlation_heatmap.png", dpi=300)
         plt.close()
 
-
     @staticmethod
     def plot_rolling_portfolio_metrics(portfolio_df, symbol, window=20, save_path="plots"):
         """Plot rolling mean and std of portfolio value"""
         rolling_mean = portfolio_df["portfolio_value"].rolling(window).mean()
         rolling_std = portfolio_df["portfolio_value"].rolling(window).std()
 
-        plt.figure(figsize=(14,6))
+        plt.figure(figsize=(14, 6))
         plt.plot(portfolio_df["date"], portfolio_df["portfolio_value"], label="Portfolio Value")
         plt.plot(portfolio_df["date"], rolling_mean, label=f"{window}-day Rolling Mean", linewidth=2)
-        plt.fill_between(portfolio_df["date"], rolling_mean - rolling_std, rolling_mean + rolling_std,
-                         alpha=0.2, label=f"{window}-day Rolling Std")
+        plt.fill_between(
+            portfolio_df["date"],
+            rolling_mean - rolling_std,
+            rolling_mean + rolling_std,
+            alpha=0.2,
+            label=f"{window}-day Rolling Std",
+        )
         plt.title(f"{symbol} - Rolling Portfolio Metrics")
         plt.xlabel("Date")
         plt.ylabel("Portfolio Value ($)")
@@ -531,10 +536,12 @@ class Visualizer:
         portfolio_df["cum_max"] = portfolio_df["portfolio_value"].cummax()
         portfolio_df["drawdown"] = portfolio_df["portfolio_value"] - portfolio_df["cum_max"]  # negative values
 
-        plt.figure(figsize=(14,6))
+        plt.figure(figsize=(14, 6))
 
         # Plot portfolio value
-        plt.plot(portfolio_df["date"], portfolio_df["portfolio_value"], label="Portfolio Value", color="blue", linewidth=2)
+        plt.plot(
+            portfolio_df["date"], portfolio_df["portfolio_value"], label="Portfolio Value", color="blue", linewidth=2
+        )
 
         # Plot drawdown shading below peak
         plt.fill_between(
@@ -543,7 +550,7 @@ class Visualizer:
             portfolio_df["cum_max"],
             color="red",
             alpha=0.3,
-            label="Drawdown"
+            label="Drawdown",
         )
 
         plt.title(f"{symbol} - Portfolio Drawdowns")
@@ -565,7 +572,7 @@ class Visualizer:
         trades_df["cumulative_wins"] = trades_df["win"].cumsum()
         trades_df["cumulative_losses"] = (~trades_df["win"]).cumsum()
 
-        plt.figure(figsize=(14,6))
+        plt.figure(figsize=(14, 6))
         plt.plot(trades_df["date"], trades_df["cumulative_wins"], label="Cumulative Wins", color="green")
         plt.plot(trades_df["date"], trades_df["cumulative_losses"], label="Cumulative Losses", color="red")
         plt.title(f"{symbol} - Cumulative Wins vs Losses")
@@ -577,6 +584,7 @@ class Visualizer:
         plt.tight_layout()
         plt.savefig(f"{save_path}/{symbol}/cumulative_wins_losses.png", dpi=300)
         plt.close()
+
 
 def combined_feature_importance(stacked_predictor):
     combined = None
@@ -600,12 +608,12 @@ def combined_feature_importance(stacked_predictor):
 
 
 def generate_plots(
-        dates_test: Any,
-        df_features,
-        predictor: dict[str, np.ndarray[Any, np.dtype[Any]] | list[Any] | dict[str, float | Any] | float | Any] | Any,
-        symbol,
-        test_results: Series | Any,
-        y_test: Series | Any,
+    dates_test: Any,
+    df_features,
+    predictor: dict[str, np.ndarray[Any, np.dtype[Any]] | list[Any] | dict[str, float | Any] | float | Any] | Any,
+    symbol,
+    test_results: Series | Any,
+    y_test: Series | Any,
 ):
     # Step 7: Generate plots
     print("\nGenerating visualizations...")
