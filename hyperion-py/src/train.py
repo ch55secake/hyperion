@@ -105,8 +105,8 @@ def train_model(symbols=None, period: str = "5y", interval: str = "1d", visualiz
     print("=" * 60)
 
     # Download data (daily) + hourly (interval='1h')
-    downloader_daily = StockDataDownloader(symbols, period=period, interval="1d")
-    downloader_hourly = StockDataDownloader(symbols, period=period, interval="1h")
+    downloader_daily = StockDataDownloader(symbols, period="2y", interval="1d")
+    downloader_hourly = StockDataDownloader(symbols, period="2y", interval="1h")
 
     stock_data_daily = downloader_daily.download_data()
     stock_data_hourly = downloader_hourly.download_data()

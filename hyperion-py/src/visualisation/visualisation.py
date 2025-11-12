@@ -2,14 +2,12 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+import seaborn as sns
 import matplotlib
 
 matplotlib.use("Agg")
 from matplotlib import pyplot as plt
 from pandas import Series
-
-from src.xbg import XGBoostStockPredictor
-
 
 class Visualizer:
     """Creates visualizations for predictions and trading results"""
@@ -473,6 +471,112 @@ class Visualizer:
         print(f"  ✓ Saved technical indicators plot: {save_path}/{symbol}_technical_indicators.png")
         plt.close()
 
+    @staticmethod
+    def plot_correlation_heatmap(df, symbol, save_path="plots"):
+        # Compute correlation matrix
+        corr = df.corr()
+        n_features = corr.shape[0]
+
+        # Adjust figure size based on number of features
+        fig_width = max(12, n_features * 0.5)   # width scales with number of features
+        fig_height = max(10, n_features * 0.5)  # height scales with number of features
+        plt.figure(figsize=(fig_width, fig_height))
+
+        # Plot heatmap
+        sns.heatmap(
+            corr,
+            annot=True,
+            fmt=".2f",
+            cmap="coolwarm",
+            cbar=True,
+            square=False,
+            linewidths=0.5,
+            annot_kws={"size": 8},  # smaller font for many features
+        )
+
+        plt.title(f"{symbol} - Feature Correlation Heatmap", fontsize=14, fontweight="bold")
+        plt.xticks(rotation=45, ha="right")
+        plt.yticks(rotation=0)
+
+        plt.tight_layout()
+        plt.savefig(f"{save_path}/{symbol}/do_not_open_in_ide_correlation_heatmap.png", dpi=300)
+        plt.close()
+
+
+    @staticmethod
+    def plot_rolling_portfolio_metrics(portfolio_df, symbol, window=20, save_path="plots"):
+        """Plot rolling mean and std of portfolio value"""
+        rolling_mean = portfolio_df["portfolio_value"].rolling(window).mean()
+        rolling_std = portfolio_df["portfolio_value"].rolling(window).std()
+
+        plt.figure(figsize=(14,6))
+        plt.plot(portfolio_df["date"], portfolio_df["portfolio_value"], label="Portfolio Value")
+        plt.plot(portfolio_df["date"], rolling_mean, label=f"{window}-day Rolling Mean", linewidth=2)
+        plt.fill_between(portfolio_df["date"], rolling_mean - rolling_std, rolling_mean + rolling_std,
+                         alpha=0.2, label=f"{window}-day Rolling Std")
+        plt.title(f"{symbol} - Rolling Portfolio Metrics")
+        plt.xlabel("Date")
+        plt.ylabel("Portfolio Value ($)")
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        plt.savefig(f"{save_path}/{symbol}/rolling_portfolio_metrics.png", dpi=300)
+        print(f"  ✓ Saved rolling portfolio metrics plot: {save_path}/{symbol}/rolling_portfolio_metrics.png")
+        plt.close()
+
+    @staticmethod
+    def plot_drawdowns(portfolio_df, symbol, save_path="plots"):
+        portfolio_df = portfolio_df.copy()
+        portfolio_df["cum_max"] = portfolio_df["portfolio_value"].cummax()
+        portfolio_df["drawdown"] = portfolio_df["portfolio_value"] - portfolio_df["cum_max"]  # negative values
+
+        plt.figure(figsize=(14,6))
+
+        # Plot portfolio value
+        plt.plot(portfolio_df["date"], portfolio_df["portfolio_value"], label="Portfolio Value", color="blue", linewidth=2)
+
+        # Plot drawdown shading below peak
+        plt.fill_between(
+            portfolio_df["date"],
+            portfolio_df["portfolio_value"],
+            portfolio_df["cum_max"],
+            color="red",
+            alpha=0.3,
+            label="Drawdown"
+        )
+
+        plt.title(f"{symbol} - Portfolio Drawdowns")
+        plt.xlabel("Date")
+        plt.ylabel("Portfolio Value ($)")
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        plt.savefig(f"{save_path}/{symbol}/drawdowns.png", dpi=300)
+        plt.close()
+
+    @staticmethod
+    def plot_win_loss_over_time(trades_df, symbol, save_path="plots"):
+        if trades_df.empty:
+            print(f"⚠️ No trades to plot win/loss ratio for {symbol}")
+            return
+        trades_df["win"] = trades_df["profit"] > 0
+        trades_df["cumulative_wins"] = trades_df["win"].cumsum()
+        trades_df["cumulative_losses"] = (~trades_df["win"]).cumsum()
+
+        plt.figure(figsize=(14,6))
+        plt.plot(trades_df["date"], trades_df["cumulative_wins"], label="Cumulative Wins", color="green")
+        plt.plot(trades_df["date"], trades_df["cumulative_losses"], label="Cumulative Losses", color="red")
+        plt.title(f"{symbol} - Cumulative Wins vs Losses")
+        plt.xlabel("Date")
+        plt.ylabel("Number of Trades")
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        plt.savefig(f"{save_path}/{symbol}/cumulative_wins_losses.png", dpi=300)
+        plt.close()
 
 def combined_feature_importance(stacked_predictor):
     combined = None
