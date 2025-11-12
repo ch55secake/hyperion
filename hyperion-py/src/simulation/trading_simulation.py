@@ -351,6 +351,8 @@ def predict_today(symbol, model_path="models", visualisation: bool = False):
             "MACD_Hist",
             "MACD_Momentum",
             "MACD_Cross",
+            # CCI
+            'CCI',
             # RSI
             "RSI",
             "RSI_Overbought",
@@ -364,6 +366,7 @@ def predict_today(symbol, model_path="models", visualisation: bool = False):
             "BB_Width",
             "BB_Width_Ratio",
             "Price_BB_Position",
+            'BB_B',
             # PRICE CHANGES
             "Price_Change_1d",
             "Price_Change_5d",
@@ -418,7 +421,20 @@ def predict_today(symbol, model_path="models", visualisation: bool = False):
             "Minus_DI",
             "ADX",
             # CANDLESTICK
-            'Bull_Engulfing', 'Doji'
+            'Bull_Engulfing',
+            'Doji',
+            # 'HMA_10', 'HMA_100', 'HMA_12', 'HMA_20', 'HMA_26', 'HMA_5', 'HMA_50',
+            # 'WMA_10', 'WMA_100', 'WMA_12', 'WMA_20', 'WMA_26', 'WMA_5', 'WMA_50',
+            # WILLIAMS R
+            'WilliamsR',
+            # SHARPE RATIO
+            'Sharpe_5',
+            'Sharpe_10',
+            'Sharpe_20',
+            'Sharpe_50',
+            'Sharpe_100',
+            # RETURN
+            'Return_1d',
         ]
         feature_columns.sort()
 
@@ -435,7 +451,6 @@ def predict_today(symbol, model_path="models", visualisation: bool = False):
 
         # Make prediction
         print("\n4. Making prediction...")
-        # prediction = predictor.predict(X_today)[0]
         x_dict = {
             "daily": x_daily,
             "hourly": x_hourly,
