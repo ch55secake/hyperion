@@ -249,9 +249,26 @@ class StackedStockPredictor:
         Train each base model.
         :param train_data: dict of (x_train, y_train, x_val, y_val) tuples per model
         """
+        model_r2_scores = {}
+
         for name, model in self.models.items():
             x_train, y_train, x_val, y_val = train_data[name]
             model.train(x_train, y_train, x_val, y_val)
+
+            y_pred = model.predict(x_val)
+            r2 = r2_score(y_val, y_pred)
+            model_r2_scores[name] = r2
+            print(f"✓ {name} model trained | R² (val): {r2:.4f}")
+
+        # --- Softmax weighting for stability ---
+        exp_scores = {k: np.exp(v) for k, v in model_r2_scores.items()}
+        total = sum(exp_scores.values())
+        self.weights = {k: v / total for k, v in exp_scores.items()}
+
+        print("\nFinal model weights (softmax of R²):")
+        for k, w in self.weights.items():
+            print(f"  {k}: {w:.3f}")
+
         self.feature_importance = self.compute_feature_importance()
 
     def predict(self, x_dict: dict) -> np.ndarray:
@@ -289,7 +306,7 @@ class StackedStockPredictor:
         print(f"  R²  : {r2:.8f}")
 
         return {
-            "predictions": preds,  # ✅ 1D array
+            "predictions": preds,
             "mse": mse,
             "rmse": rmse,
             "mae": mae,
