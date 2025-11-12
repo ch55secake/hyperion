@@ -44,6 +44,7 @@ class LightGBMStockPredictor:
                 "bagging_fraction": 0.8,
                 "bagging_freq": 1,
                 "n_estimators": 1500,
+                "seed": 42,
             }
 
         self.params = params
