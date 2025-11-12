@@ -1,4 +1,6 @@
+from dataclasses import dataclass
 from datetime import timedelta
+from enum import Enum
 
 import numpy as np
 import pandas as pd
@@ -53,7 +55,7 @@ class TradingSimulator:
         dates=None,
         threshold="auto",
         strategy="directional",
-        use_returns=False,
+        use_returns=True,
     ):
         """
         Simulate trading strategy and evaluate predictive performance.
@@ -218,7 +220,7 @@ class TradingSimulator:
             if use_returns:
                 final_return = actual_returns.iloc[-1] if hasattr(actual_returns, "iloc") else actual_returns[-1]
                 capital = shares * (1 + final_return)
-                final_price = current_price * (1 + final_return)
+                final_price = (prices.iloc[-1] if hasattr(prices, "iloc") else prices[-1]) * (1 + final_return)
             else:
                 final_price = prices.iloc[-1] if hasattr(prices, "iloc") else prices[-1]
                 capital = shares * final_price * (1 - self.transaction_cost)

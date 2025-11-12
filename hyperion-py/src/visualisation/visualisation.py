@@ -400,7 +400,7 @@ class Visualizer:
             marker="o",
             markersize=4,
             label="Cumulative Return",
-        )
+            )
 
         total_return = cumulative_return[-1] * 100
         ax2.text(
@@ -600,12 +600,12 @@ def combined_feature_importance(stacked_predictor):
 
 
 def generate_plots(
-    dates_test: Any,
-    df_features,
-    predictor: dict[str, np.ndarray[Any, np.dtype[Any]] | list[Any] | dict[str, float | Any] | float | Any] | Any,
-    symbol,
-    test_results: Series | Any,
-    y_test: Series | Any,
+        dates_test: Any,
+        df_features,
+        predictor: dict[str, np.ndarray[Any, np.dtype[Any]] | list[Any] | dict[str, float | Any] | float | Any] | Any,
+        symbol,
+        test_results: Series | Any,
+        y_test: Series | Any,
 ):
     # Step 7: Generate plots
     print("\nGenerating visualizations...")
