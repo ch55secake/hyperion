@@ -236,3 +236,12 @@ def run_trade_simulation(
 
     if visualization:
         Visualizer.plot_trading_simulation(sim_results, symbol)
+
+        df_features_numeric = x.select_dtypes(include=[np.number])
+        if not df_features_numeric.empty:
+            Visualizer.plot_correlation_heatmap(df_features_numeric, symbol)
+
+        Visualizer.plot_rolling_portfolio_metrics(sim_results["portfolio_history"], symbol)
+        Visualizer.plot_drawdowns(sim_results["portfolio_history"], symbol)
+        Visualizer.plot_win_loss_over_time(sim_results["trades"], symbol)
+
