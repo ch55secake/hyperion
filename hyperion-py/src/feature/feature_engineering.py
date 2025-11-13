@@ -59,10 +59,10 @@ class FeatureEngineering:
                 self.df[f"EMA_{w}"] = self.df["Close"].ewm(span=w, adjust=False).mean()
 
                 # # WMA_n: Weighted Moving Average over n days. Similar to EMA but weights increase linearly; less sensitive to extreme spikes.
-                # self.df[f"WMA_{w}"] = wma(self.df["Close"], w)
+                self.df[f"WMA_{w}"] = wma(self.df["Close"], w)
                 #
                 # # HMA_n: Hull Moving Average over n days. Faster and less noisy than WMA; responds more quickly to trend changes.
-                # self.df[f"HMA_{w}"] = hma(self.df["Close"], w)
+                self.df[f"HMA_{w}"] = hma(self.df["Close"], w)
 
         return self
 
