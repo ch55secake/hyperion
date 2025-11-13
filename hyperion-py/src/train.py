@@ -1,3 +1,4 @@
+import json
 import os
 from typing import Dict, Tuple
 import traceback
@@ -7,6 +8,7 @@ import pandas as pd
 
 from src.data import StockDataDownloader
 from src.feature import FeatureEngineering
+from src.optimise import StockModelOptimizer
 from src.writer import save_trained_model, persist_results, output_best_strategy
 from src.xbg import XGBoostStockPredictor
 from src.visualisation import generate_plots, Visualizer
@@ -22,8 +24,14 @@ TEST_SIZE = 0.3  # Train/test split ratio
 USE_WALK_FORWARD = False  # Set to False for a simple train / test split
 
 
+def load_best_params_file(symbol: str, model_type: str):
+    with open(f"params/{symbol}_best_params.json", "r") as f:
+        params = json.load(f)
+        return params[model_type]["best_params"]
+
+
 def simple_train_test_split(
-    x_daily: pd.DataFrame, x_hourly: pd.DataFrame, dates: pd.Series, prices: pd.Series, y: pd.Series
+    x_daily: pd.DataFrame, x_hourly: pd.DataFrame, dates: pd.Series, prices: pd.Series, y: pd.Series, symbol: str = ""
 ) -> Tuple[
     Dict[str, pd.DataFrame], Dict[str, pd.DataFrame], pd.Series, StackedStockPredictor, pd.Series, dict, pd.Series
 ]:
@@ -37,14 +45,24 @@ def simple_train_test_split(
     dates_test = dates[split_idx:]
     prices_test = prices.iloc[split_idx:]
 
+    optimizer = StockModelOptimizer(x_train_daily, y_train, x_test_daily, y_test)
+
+    optimizer.optimize_both()
+
+    # Visualize
+    optimizer.visualize_studies(save_path="plots/optuna")
+
+    # Save results
+    optimizer.save_results(f"params/{symbol}_best_params.json")
+
     x_train_dict = {"daily": x_train_daily, "hourly": x_train_hourly}
     x_test_dict = {"daily": x_test_daily, "hourly": x_test_hourly}
 
     # Create stacked predictor
     stacked = StackedStockPredictor(
         {
-            "daily": XGBoostStockPredictor(),
-            "hourly": LightGBMStockPredictor(),
+            "daily": XGBoostStockPredictor(load_best_params_file(symbol, "xgboost")),
+            "hourly": LightGBMStockPredictor(load_best_params_file(symbol, "lightgbm")),
         }
     )
 
@@ -66,39 +84,10 @@ def train_model(symbols=None, period: str = "5y", interval: str = "1d", visualiz
     Train stacked model for each ticker, using daily + hourly features.
     """
     if symbols is None:
-        symbols = [
-            "AAPL",
-            "NFLX",
-            "TSLA",
-            "MSFT",
-            "GOOG",
-            "AMZN",
-            "META",
-            "SPY",
-            "VOO",
-            "VTI",
-            "VOOG",
-            # "VOOD",
-            # "VOOX",
-            "EXC",
-            "DELL",
-            "AMD",
-            "AMGN",
-            "PEP",
-            "PLTR",
-            "CNM",
-            "BMNR",
-            "COIN",
-            "MARA",
-            "HUT",
-            "IBM",
-            "BA",
-            "FDX",
-            "LMT",
-            "NET",
-            "FMAO",
-            "ORCL",
-        ]
+        symbols: list[str] = []
+        with open("resources/tickers.txt", "r") as f:
+            for line in f:
+                symbols.append(line.strip())
         # symbols = ["AAPL"]
     print("\n" + "=" * 60)
     print("Stacked Stock Price Prediction (Daily + Hourly)")
@@ -138,7 +127,7 @@ def train_model(symbols=None, period: str = "5y", interval: str = "1d", visualiz
             x_hourly = x_hourly.loc[x_daily.index]
 
             x_test_dict, x_train_dict, dates_test, predictor, prices_test, test_results, y_test = (
-                simple_train_test_split(x_daily, x_hourly, dates_daily, prices_daily, y_daily)
+                simple_train_test_split(x_daily, x_hourly, dates_daily, prices_daily, y_daily, symbol)
             )
 
             save_trained_model(predictor, symbol, test_results)
