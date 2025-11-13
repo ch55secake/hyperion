@@ -24,10 +24,11 @@ TEST_SIZE = 0.3  # Train/test split ratio
 USE_WALK_FORWARD = False  # Set to False for a simple train / test split
 
 
-def load_best_params_file(symbol:str, model_type: str):
-    with open(f'params/{symbol}_best_params.json', 'r') as f:
+def load_best_params_file(symbol: str, model_type: str):
+    with open(f"params/{symbol}_best_params.json", "r") as f:
         params = json.load(f)
         return params[model_type]["best_params"]
+
 
 def simple_train_test_split(
     x_daily: pd.DataFrame, x_hourly: pd.DataFrame, dates: pd.Series, prices: pd.Series, y: pd.Series, symbol: str = ""
@@ -44,19 +45,15 @@ def simple_train_test_split(
     dates_test = dates[split_idx:]
     prices_test = prices.iloc[split_idx:]
 
-    optimizer = StockModelOptimizer(x_train_daily,
-                                    y_train,
-                                    x_test_daily,
-                                    y_test)
+    optimizer = StockModelOptimizer(x_train_daily, y_train, x_test_daily, y_test)
 
     optimizer.optimize_both()
 
-        # Visualize
-    optimizer.visualize_studies(save_path='plots/optuna')
+    # Visualize
+    optimizer.visualize_studies(save_path="plots/optuna")
 
     # Save results
-    optimizer.save_results(f'params/{symbol}_best_params.json')
-
+    optimizer.save_results(f"params/{symbol}_best_params.json")
 
     x_train_dict = {"daily": x_train_daily, "hourly": x_train_hourly}
     x_test_dict = {"daily": x_test_daily, "hourly": x_test_hourly}
@@ -159,6 +156,8 @@ def train_model(symbols=None, period: str = "5y", interval: str = "1d", visualiz
     print("\n" + "=" * 60)
     print("✓ All processing complete!")
     return True
+
+
 def run_trade_simulation(
     dates_test,
     period: str,
