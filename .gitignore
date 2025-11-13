@@ -27,9 +27,6 @@ hyperion-go/go.work.sum
 # env file
 .env
 
-# resources dir
-resources
-
 # Editor/IDE
 .idea/
 
@@ -39,6 +36,7 @@ hyperion-py/models
 hyperion-py/invalid_models
 hyperion-py/plots
 hyperion-py/results
+hyperion-py/params
 
 # Pycaches
 hyperion-py/**/__pycache__/
