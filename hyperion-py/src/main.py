@@ -2,7 +2,6 @@ import os
 import warnings
 
 from src.server import ModelServer
-from src.simulation import predict_mode
 from src.train import train_model
 
 warnings.filterwarnings("ignore")
@@ -17,6 +16,7 @@ os.makedirs("./params", exist_ok=True)
 
 if __name__ == "__main__":
     train_model(visualization=True)
+    # from src.simulation import predict_mode
     # predict_mode(visualisation=True)
     # ModelServer(port=8080).run()
     # # Check for command line argument

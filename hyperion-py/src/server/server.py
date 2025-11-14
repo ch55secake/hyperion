@@ -3,9 +3,6 @@ from typing import Dict, Any
 
 from flask import Flask, request, jsonify
 
-from src.simulation import predict_today
-from src.train import train_model
-
 
 class ModelServer:
     """
@@ -50,6 +47,7 @@ class ModelServer:
                 if not isinstance(ticker, str) or not ticker:
                     return jsonify({"error": "ticker must be a non-empty string"}), 400
 
+                from src.simulation import predict_today
                 result = predict_today(ticker)
 
                 if result is None:
@@ -105,6 +103,7 @@ class ModelServer:
                 if not isinstance(period, str):
                     return jsonify({"error": "period must be a string"}), 400
 
+                from src.train import train_model
                 result = train_model(symbols=ticker, period=period, interval=interval, visualization=False)
 
                 if result is None:

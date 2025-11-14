@@ -1,24 +1,19 @@
 import json
 import os
-from typing import Dict, Tuple
 import traceback
+from typing import Dict, Tuple
 
 import numpy as np
 import pandas as pd
 
 from src.data import StockDataDownloader
 from src.feature import FeatureEngineering
+from src.lgb import LightGBMStockPredictor
 from src.optimise import StockModelOptimizer
+from src.stacker import StackedStockPredictor
+from src.visualisation import generate_plots, Visualizer
 from src.writer import save_trained_model, persist_results, output_best_strategy
 from src.xbg import XGBoostStockPredictor
-from src.visualisation import generate_plots, Visualizer
-from src.simulation import (
-    simulate_directional_trading_strategy,
-    simulate_adaptive_threshold_strategy,
-    simulate_hold_days_strategy,
-)
-from src.lgb import LightGBMStockPredictor
-from src.stacker import StackedStockPredictor
 
 TEST_SIZE = 0.3  # Train/test split ratio
 USE_WALK_FORWARD = False  # Set to False for a simple train / test split
@@ -185,14 +180,17 @@ def run_trade_simulation(
     test_results["predictions"] = preds
 
     # Directional trading
+    from src.simulation.strategy.directional import simulate_directional_trading_strategy
     directional_trading_results, directional_simulator = simulate_directional_trading_strategy(
         dates_test, prices_test, preds, y_test
     )
 
+    from src.simulation.strategy.threshold import simulate_adaptive_threshold_strategy
     adaptive_threshold_results, adaptive_simulator = simulate_adaptive_threshold_strategy(
         dates_test, prices_test, preds, y_test
     )
 
+    from src.simulation.strategy.hold_days import simulate_hold_days_strategy
     hold_days_results, hold_days_simulator = simulate_hold_days_strategy(dates_test, prices_test, preds, y_test)
 
     # Compare strategies and persist
@@ -209,6 +207,7 @@ def run_trade_simulation(
         if best_strategy:
             persist_results(
                 x,
+                # TODO: This is why the number of samples are coming out wrong when we save the results
                 x_test_dict,
                 x_train_dict,
                 best_strategy,

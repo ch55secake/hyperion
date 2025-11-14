@@ -1,27 +1,29 @@
 from typing import Any
+from typing import TYPE_CHECKING
 
 from pandas import DataFrame, Series
 
-from src.simulation import TradingSimulator
 from src.xbg import XGBoostStockPredictor
+
+if TYPE_CHECKING:
+    from src.simulation import TradingSimulator
 
 
 def persist_results(
-    x,
-    x_test: XGBoostStockPredictor,
-    x_train: dict[str, float | Any],
-    best_strategy: dict[str, DataFrame | float | int | Any],
-    period: str,
-    sim_results: (
-        tuple[str, dict[str, DataFrame | float | int | Any], TradingSimulator]
-        | dict[str, DataFrame | float | int | Any]
-    ),
-    strategies: list[tuple[str, dict[str, DataFrame | float | int | Any], TradingSimulator]],
-    symbol,
-    test_results: Series | Any,
-    valid_strategies: list[tuple[str, dict[str, DataFrame | float | int | Any], TradingSimulator]],
+        x,
+        x_test: XGBoostStockPredictor,
+        x_train: dict[str, float | Any],
+        best_strategy: dict[str, DataFrame | float | int | Any],
+        period: str,
+        sim_results: (
+                tuple[str, dict[str, DataFrame | float | int | Any], "TradingSimulator"]
+                | dict[str, DataFrame | float | int | Any]
+        ),
+        strategies: list[tuple[str, dict[str, DataFrame | float | int | Any], "TradingSimulator"]],
+        symbol,
+        test_results: Series | Any,
+        valid_strategies: list[tuple[str, dict[str, DataFrame | float | int | Any], "TradingSimulator"]],
 ):
-
     # Step 10: Save detailed results
     results_file = f"results/{symbol}_results.txt"
     with open(results_file, "w", encoding="UTF-8") as f:
@@ -66,9 +68,9 @@ def persist_results(
 
 
 def output_best_strategy(
-    valid_strategies: list[tuple[str, dict[str, DataFrame | float | int | Any], TradingSimulator]],
+        valid_strategies: list[tuple[str, dict[str, DataFrame | float | int | Any], "TradingSimulator"]],
 ) -> tuple[
-    dict[str, DataFrame | float | int | Any], tuple[str, dict[str, DataFrame | float | int | Any], TradingSimulator]
+    dict[str, DataFrame | float | int | Any], tuple[str, dict[str, DataFrame | float | int | Any], "TradingSimulator"]
 ]:
     best_strategy = max(valid_strategies, key=lambda x: (x[1]["total_return"], x[1]["num_trades"]))
     print(f"\n{'=' * 60}")

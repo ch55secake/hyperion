@@ -10,27 +10,11 @@ from sklearn.preprocessing import StandardScaler
 
 
 class LightGBMStockPredictor:
-    """LightGBM model for stock price prediction"""
-
+    """
+    LightGBM model for stock price prediction
+    """
     def __init__(self, params=None):
         if params is None:
-            # tuned_params_v2 = {
-            #     "objective": "regression",
-            #     "metric": "rmse",
-            #     "learning_rate": 0.04,
-            #     "num_leaves": 64,
-            #     "max_depth": 7,
-            #     "min_data_in_leaf": 20,
-            #     "feature_fraction": 0.8,   # equivalent to colsample_bytree
-            #     "bagging_fraction": 0.9,   # equivalent to subsample
-            #     "bagging_freq": 1,
-            #     "lambda_l1": 0.8,          # equivalent to alpha
-            #     "lambda_l2": 1.5,          # equivalent to lambda
-            #     "n_estimators": 1500,
-            #     # "verbosity": -1,
-            #     # "random_state": 42,
-            #     "device_type": "cpu",      # set to "cpu" if no GPU
-            # }
             # params = tuned_params_v2
             params = {
                 "objective": "regression",
