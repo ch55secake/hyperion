@@ -180,18 +180,61 @@ def run_trade_simulation(
     test_results["predictions"] = preds
 
     # Directional trading
-    from src.simulation.strategy.directional import simulate_directional_trading_strategy
-    directional_trading_results, directional_simulator = simulate_directional_trading_strategy(
-        dates_test, prices_test, preds, y_test
+    # from src.simulation.strategy.directional import simulate_directional_trading_strategy
+    # directional_trading_results, directional_simulator = simulate_directional_trading_strategy(
+    #     dates_test, prices_test, preds, y_test
+    # )
+    #
+    # from src.simulation.strategy.threshold import simulate_adaptive_threshold_strategy
+    # adaptive_threshold_results, adaptive_simulator = simulate_adaptive_threshold_strategy(
+    #     dates_test, prices_test, preds, y_test
+    # )
+    #
+    # from src.simulation.strategy.hold_days import simulate_hold_days_strategy
+    # hold_days_results, hold_days_simulator = simulate_hold_days_strategy(dates_test, prices_test, preds, y_test)
+    # Compare strategies and persist
+    # strategies = [
+    #     ("Directional", directional_trading_results, directional_simulator),
+    #     ("Adaptive Threshold", adaptive_threshold_results, adaptive_simulator),
+    #     ("Hold Days", hold_days_results, hold_days_simulator),
+    # ]
+
+    # Import strategy classes
+    from src.simulation import TradingSimulator
+    from src.simulation.strategy.directional import DirectionalTradingStrategy
+    from src.simulation.strategy.threshold import AdaptiveThresholdStrategy
+    from src.simulation.strategy.hold_days import HoldDaysStrategy
+    from src.simulation.strategy.strategy import Strategy
+
+    # Initialize capital for all strategies
+    initial_capital = 10000
+
+    # Run directional strategy
+    print("\n--- Strategy 1: Directional Trading ---")
+    print("Buys when prediction > 0, sells when prediction <= 0")
+    directional_simulator = TradingSimulator(initial_capital=initial_capital)
+    directional_strategy = DirectionalTradingStrategy(directional_simulator, initial_capital, use_returns=True)
+    directional_trading_results, directional_simulator = Strategy.simulate(
+        directional_strategy, dates_test, prices_test, preds, y_test
     )
 
-    from src.simulation.strategy.threshold import simulate_adaptive_threshold_strategy
-    adaptive_threshold_results, adaptive_simulator = simulate_adaptive_threshold_strategy(
-        dates_test, prices_test, preds, y_test
+    # Run adaptive threshold strategy
+    print("\n--- Strategy 2: Adaptive Threshold ---")
+    print("Uses statistical threshold based on prediction distribution")
+    adaptive_simulator = TradingSimulator(initial_capital=initial_capital)
+    adaptive_strategy = AdaptiveThresholdStrategy(adaptive_simulator, initial_capital, threshold=0.02)
+    adaptive_threshold_results, adaptive_simulator = Strategy.simulate(
+        adaptive_strategy, dates_test, prices_test, preds, y_test
     )
 
-    from src.simulation.strategy.hold_days import simulate_hold_days_strategy
-    hold_days_results, hold_days_simulator = simulate_hold_days_strategy(dates_test, prices_test, preds, y_test)
+    # Run hold days strategy
+    print("\n--- Strategy 3: Hold Days Strategy ---")
+    print("Holds positions for multiple days")
+    hold_days_simulator = TradingSimulator(initial_capital=initial_capital)
+    hold_days_strategy = HoldDaysStrategy(hold_days_simulator, initial_capital, hold_days=5, threshold=0.02)
+    hold_days_results, hold_days_simulator = Strategy.simulate(
+        hold_days_strategy, dates_test, prices_test, preds, y_test
+    )
 
     # Compare strategies and persist
     strategies = [
@@ -199,6 +242,7 @@ def run_trade_simulation(
         ("Adaptive Threshold", adaptive_threshold_results, adaptive_simulator),
         ("Hold Days", hold_days_results, hold_days_simulator),
     ]
+
 
     valid_strategies = [(name, res, sim) for name, res, sim in strategies if res["num_trades"] > 0]
 
