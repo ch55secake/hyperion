@@ -1,7 +1,7 @@
 from typing import Any, LiteralString
 
 from src.simulation import TradingSimulator
-from src.simulation.types import Threshold, Trade, TradeAction
+from src.simulation.types import Trade, TradeAction
 
 
 def execute_hold_days_trades(simulator: TradingSimulator, actual_return,
@@ -9,7 +9,7 @@ def execute_hold_days_trades(simulator: TradingSimulator, actual_return,
                              current_price: int | Any, date: int | Any, entry_price: int | Any, hold_counter: int,
                              position: None | str | int | float | Any, pred_return,
                              shares: int | float | LiteralString | str | Any,
-                             threshold: Threshold, use_returns: bool) -> tuple[
+                             threshold, use_returns: bool) -> tuple[
     int | float | LiteralString | Any, int | Any, Any, int]:
     if position is None and pred_return > threshold:
         if use_returns:

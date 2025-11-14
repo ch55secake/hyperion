@@ -5,12 +5,6 @@ from typing import Any
 import numpy as np
 from numpy._typing import NDArray
 
-Numeric = np.floating[Any] | np.complexfloating[Any, Any] | float
-Date = np.timedelta64 | np.datetime64
-Array = NDArray[Any]
-
-Threshold = Numeric | Date | Array | Any
-
 class TradeAction(Enum):
     BUY = "BUY"
     SELL = "SELL"
