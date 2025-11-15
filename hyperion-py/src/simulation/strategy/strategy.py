@@ -21,22 +21,22 @@ class Strategy(ABC):
         pass
 
     def buy(self, date: int | Any, price: int | Any) -> None:
-            self.shares = (self.capital * (1 - self.simulator.transaction_cost)) / price
-            self.entry_price = price
-            self.capital = 0
+        self.shares = (self.capital * (1 - self.simulator.transaction_cost)) / price
+        self.entry_price = price
+        self.capital = 0
 
-            self.position = "long"
+        self.position = "long"
 
-            self.simulator.trades.append(
-                Trade(
-                    date=date,
-                    action=TradeAction.BUY.value,
-                    predicted_return=None,
-                    price=price,
-                    pnl_pct=None,
-                    profit=None,
-                )
+        self.simulator.trades.append(
+            Trade(
+                date=date,
+                action=TradeAction.BUY.value,
+                predicted_return=None,
+                price=price,
+                pnl_pct=None,
+                profit=None,
             )
+        )
 
     def sell(self, date: int | Any, price: int | Any, pred_return: Any) -> None:
         self.capital = self.shares * price * (1 - self.simulator.transaction_cost)

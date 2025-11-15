@@ -80,7 +80,7 @@ class TradingSimulator:
             strategy.capital = strategy.shares * final_price * (1 - self.transaction_cost)
 
             profit = strategy.capital - self.initial_capital
-            pnl = (((final_price - strategy.entry_price) / strategy.entry_price) * 100)
+            pnl = ((final_price - strategy.entry_price) / strategy.entry_price) * 100
 
             if hasattr(dates, "__getitem__"):
                 final_date = dates[-1]
