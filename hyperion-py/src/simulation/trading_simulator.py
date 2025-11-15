@@ -64,54 +64,12 @@ class TradingSimulator:
 
             # Execute strategy and let it manage its own state
             strategy.execute(date=date,
-                            price=current_price,
-                            pred_return=pred_return,
-                            actual_return=actual_return)
-
-            # if strategy == "directional":
-            #     capital, entry_price, position, shares = (DirectionalTradingStrategy(self, use_returns=use_returns)
-            #                                               .execute(date=date,
-            #                                                        price=current_price,
-            #                                                        pred_return=pred_return,
-            #                                                        actual_return=actual_return))
-            #
-            #     # capital, entry_price, position, shares = self.execute_directional_trades(
-            #     #                                                                 actual_return=actual_return,
-            #     #                                                                 capital=capital,
-            #     #                                                                 current_price=current_price,
-            #     #                                                                 date=date,
-            #     #                                                                 entry_price=entry_price,
-            #     #                                                                 position=position,
-            #     #                                                                 pred_return=pred_return,
-            #     #                                                                 shares=shares,
-            #     #                                                                 use_returns=use_returns)
-            # elif strategy == "threshold":
-            #     capital, entry_price, position, shares = self.execute_threshold_trades(
-            #                                                                   actual_return=actual_return,
-            #                                                                   capital=capital,
-            #                                                                   current_price=current_price,
-            #                                                                   date=date,
-            #                                                                   entry_price=entry_price,
-            #                                                                   position=position,
-            #                                                                   pred_return=pred_return,
-            #                                                                   shares=shares,
-            #                                                                   threshold=threshold,
-            #                                                                   use_returns=use_returns)
-            # elif strategy == "hold_days":
-            #     capital, entry_price, position, shares = self.execute_hold_days_trades(actual_return=actual_return,
-            #                                                                   capital=capital,
-            #                                                                   current_price=current_price,
-            #                                                                   date=date,
-            #                                                                   entry_price=entry_price,
-            #                                                                   position=position,
-            #                                                                   pred_return=pred_return,
-            #                                                                   threshold=threshold,
-            #                                                                   hold_counter=hold_counter,
-            #                                                                   shares=shares,
-            #                                                                   use_returns=use_returns)
+                             price=current_price,
+                             pred_return=pred_return,
+                             actual_return=actual_return)
 
             # --- Portfolio Tracking ---
-            if use_returns:
+            if strategy.use_returns:
                 portfolio_value = strategy.capital + (strategy.shares if strategy.position == "long" else 0)
             else:
                 portfolio_value = strategy.shares * current_price if strategy.position == "long" else strategy.capital
@@ -127,7 +85,7 @@ class TradingSimulator:
 
         # --- Close remaining position ---
         if strategy.position is not None:
-            if use_returns:
+            if strategy.use_returns:
                 final_return = actual_returns.iloc[-1] if hasattr(actual_returns, "iloc") else actual_returns[-1]
                 strategy.capital = strategy.shares * (1 + final_return)
                 final_price = (prices.iloc[-1] if hasattr(prices, "iloc") else prices[-1]) * (1 + final_return)
@@ -163,7 +121,7 @@ class TradingSimulator:
         final_value = strategy.capital
         total_return = (final_value - self.initial_capital) / self.initial_capital
         buy_hold_return = None
-        if not use_returns and prices is not None:
+        if not strategy.use_returns and prices is not None:
             first_price, last_price = prices.iloc[0], prices.iloc[-1]
             buy_hold_return = (last_price - first_price) / first_price
 

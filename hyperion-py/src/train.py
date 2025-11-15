@@ -40,15 +40,15 @@ def simple_train_test_split(
     dates_test = dates[split_idx:]
     prices_test = prices.iloc[split_idx:]
 
-    optimizer = StockModelOptimizer(x_train_daily, y_train, x_test_daily, y_test)
-
-    optimizer.optimize_both()
-
-    # Visualize
-    optimizer.visualize_studies(save_path="plots/optuna")
-
-    # Save results
-    optimizer.save_results(f"params/{symbol}_best_params.json")
+    # optimizer = StockModelOptimizer(x_train_daily, y_train, x_test_daily, y_test)
+    #
+    # optimizer.optimize_both()
+    #
+    # # Visualize
+    # optimizer.visualize_studies(save_path="plots/optuna")
+    #
+    # # Save results
+    # optimizer.save_results(f"params/{symbol}_best_params.json")
 
     x_train_dict = {"daily": x_train_daily, "hourly": x_train_hourly}
     x_test_dict = {"daily": x_test_daily, "hourly": x_test_hourly}
@@ -56,10 +56,11 @@ def simple_train_test_split(
     # Create stacked predictor
     stacked = StackedStockPredictor(
         {
-            "daily": XGBoostStockPredictor(load_best_params_file(symbol, "xgboost")),
-            "hourly": LightGBMStockPredictor(load_best_params_file(symbol, "lightgbm")),
+            "daily": XGBoostStockPredictor(),
+            "hourly": LightGBMStockPredictor(),
         }
     )
+
 
     # Train base models
     train_data = {
@@ -178,26 +179,6 @@ def run_trade_simulation(
     # Ensure 1D
     preds = np.asarray(preds).ravel()
     test_results["predictions"] = preds
-
-    # Directional trading
-    # from src.simulation.strategy.directional import simulate_directional_trading_strategy
-    # directional_trading_results, directional_simulator = simulate_directional_trading_strategy(
-    #     dates_test, prices_test, preds, y_test
-    # )
-    #
-    # from src.simulation.strategy.threshold import simulate_adaptive_threshold_strategy
-    # adaptive_threshold_results, adaptive_simulator = simulate_adaptive_threshold_strategy(
-    #     dates_test, prices_test, preds, y_test
-    # )
-    #
-    # from src.simulation.strategy.hold_days import simulate_hold_days_strategy
-    # hold_days_results, hold_days_simulator = simulate_hold_days_strategy(dates_test, prices_test, preds, y_test)
-    # Compare strategies and persist
-    # strategies = [
-    #     ("Directional", directional_trading_results, directional_simulator),
-    #     ("Adaptive Threshold", adaptive_threshold_results, adaptive_simulator),
-    #     ("Hold Days", hold_days_results, hold_days_simulator),
-    # ]
 
     # Import strategy classes
     from src.simulation import TradingSimulator

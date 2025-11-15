@@ -10,10 +10,10 @@ class Strategy(ABC):
         self.simulator = simulator
         self.capital = capital
         self.position = None
-        self.entry_price: Optional[int | Any] = None
+        self.entry_price: int | Any = 0
         self.shares: int | float = 0
         self.hold_counter: int = 0
-        self.use_returns: bool = use_returns
+        self.use_returns: bool = False
 
     @abstractmethod
     def execute(self,
@@ -55,7 +55,6 @@ class Strategy(ABC):
             self.capital = self.shares * price * (1 - self.simulator.transaction_cost)
         profit = self.capital - self.simulator.initial_capital
         pnl = (actual_return * 100 if self.use_returns else ((price - self.entry_price) / self.entry_price) * 100)
-
 
         self.simulator.trades.append(Trade(
             date=date,
