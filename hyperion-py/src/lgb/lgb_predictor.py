@@ -20,6 +20,7 @@ class LightGBMStockPredictor:
             params = {
                 "objective": "regression",
                 "metric": "rmse",
+                "verbosity": -1,
                 "max_depth": -1,
                 "min_data_in_leaf": 5,
                 "min_gain_to_split": 0.0,
