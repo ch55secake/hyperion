@@ -9,7 +9,6 @@ import pandas as pd
 from src.data import StockDataDownloader
 from src.feature import FeatureEngineering
 from src.lgb import LightGBMStockPredictor
-from src.optimise import StockModelOptimizer
 from src.stacker import StackedStockPredictor
 from src.visualisation import generate_plots, Visualizer
 from src.writer import save_trained_model, persist_results, output_best_strategy
@@ -74,7 +73,7 @@ def simple_train_test_split(
     return x_test_dict, x_train_dict, dates_test, stacked, prices_test, test_results, y_test
 
 
-def train_model(symbols=None, period: str = "5y", interval: str = "1d", visualization: bool = False):
+def train_model(symbols=None, period: str = "5y", interval: str = "1h", visualization: bool = False):
     """
     Train stacked model for each ticker, using daily + hourly features.
     """
@@ -88,14 +87,12 @@ def train_model(symbols=None, period: str = "5y", interval: str = "1d", visualiz
     print("Stacked Stock Price Prediction (Daily + Hourly)")
     print("=" * 60)
 
-    # Download data (daily) + hourly (interval='1h')
-    downloader_daily = StockDataDownloader(symbols, period="2y", interval="1h")
-    downloader_hourly = StockDataDownloader(symbols, period="2y", interval="1h")
+    # Download data hourly (interval='1h')
+    hourly_downloader = StockDataDownloader(symbols, period="2y", interval=interval)
 
-    stock_data_daily = downloader_daily.download_data()
-    stock_data_hourly = downloader_hourly.download_data()
+    stock_data_hourly = hourly_downloader.download_data()
 
-    if not stock_data_daily or not stock_data_hourly:
+    if not stock_data_hourly:
         print("⚠️  No data downloaded. Exiting.")
         return False
 
@@ -108,7 +105,7 @@ def train_model(symbols=None, period: str = "5y", interval: str = "1d", visualiz
             print("=" * 60)
 
             # Daily features
-            features_daily = FeatureEngineering(stock_data_daily[symbol])
+            features_daily = FeatureEngineering(stock_data_hourly[symbol])
             df_daily = features_daily.create_target_features()
             x_daily, y_daily, dates_daily, prices_daily, _ = features_daily.prepare_features()
 
@@ -193,7 +190,7 @@ def run_trade_simulation(
     print("\n--- Strategy 1: Directional Trading ---")
     print("Buys when prediction > 0, sells when prediction <= 0")
     directional_simulator = TradingSimulator(initial_capital=initial_capital)
-    directional_strategy = DirectionalTradingStrategy(directional_simulator, initial_capital, use_returns=True)
+    directional_strategy = DirectionalTradingStrategy(directional_simulator, initial_capital)
     directional_trading_results, directional_simulator = Strategy.simulate(
         directional_strategy, dates_test, prices_test, preds, y_test
     )

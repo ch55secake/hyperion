@@ -6,14 +6,13 @@ from src.simulation.types import TradeAction, Trade
 
 
 class Strategy(ABC):
-    def __init__(self, simulator: Any, capital: float | Any, use_returns: bool = True):
+    def __init__(self, simulator: Any, capital: float | Any):
         self.simulator = simulator
         self.capital = capital
         self.position = None
         self.entry_price: int | Any = 0
         self.shares: int | float = 0
         self.hold_counter: int = 0
-        self.use_returns: bool = False
 
     @abstractmethod
     def execute(
@@ -21,14 +20,10 @@ class Strategy(ABC):
     ) -> tuple[int | float | Any, int | Any, Any, int | Any]:
         pass
 
-    def buy(self, date: int | Any, price: int | Any, pred_return: Any) -> None:
-        if self.use_returns:
-            self.shares = self.capital
-            self.capital = 0
-        else:
-            self.shares = (self.capital * (1 - self.simulator.transaction_cost)) / price
-            self.entry_price = price
-            self.capital = 0
+    def buy(self, date: int | Any, price: int | Any) -> None:
+        self.shares = (self.capital * (1 - self.simulator.transaction_cost)) / price
+        self.entry_price = price
+        self.capital = 0
 
         self.position = "long"
 
@@ -36,20 +31,17 @@ class Strategy(ABC):
             Trade(
                 date=date,
                 action=TradeAction.BUY.value,
-                predicted_return=pred_return,
+                predicted_return=None,
                 price=price,
                 pnl_pct=None,
                 profit=None,
             )
         )
 
-    def sell(self, date: int | Any, price: int | Any, pred_return: Any, actual_return: Any) -> None:
-        if self.use_returns:
-            self.capital = self.shares * (1 + actual_return)
-        else:
-            self.capital = self.shares * price * (1 - self.simulator.transaction_cost)
+    def sell(self, date: int | Any, price: int | Any, pred_return: Any) -> None:
+        self.capital = self.shares * price * (1 - self.simulator.transaction_cost)
         profit = self.capital - self.simulator.initial_capital
-        pnl = actual_return * 100 if self.use_returns else ((price - self.entry_price) / self.entry_price) * 100
+        pnl = ((price - self.entry_price) / self.entry_price) * 100
 
         self.simulator.trades.append(
             Trade(

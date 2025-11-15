@@ -27,10 +27,9 @@ class TradingSimulator:
         dates=None,
         threshold="auto",
         strategy=None,
-        use_returns=True,
     ):
         if strategy is None:
-            strategy = DirectionalTradingStrategy(self, self.initial_capital, use_returns=use_returns)
+            strategy = DirectionalTradingStrategy(self, self.initial_capital)
 
         """
         Simulate trading strategy and evaluate predictive performance.
@@ -58,19 +57,13 @@ class TradingSimulator:
             date = dates.iloc[i] if hasattr(dates, "iloc") else (dates[i] if dates is not None else i)
 
             # Determine current price
-            if use_returns:
-                current_price = prices.iloc[i] * (1 + actual_return)
-            else:
-                current_price = prices.iloc[i] if hasattr(prices, "iloc") else prices[i]
+            current_price = prices.iloc[i] if hasattr(prices, "iloc") else prices[i]
 
             # Execute strategy and let it manage its own state
             strategy.execute(date=date, price=current_price, pred_return=pred_return, actual_return=actual_return)
 
             # --- Portfolio Tracking ---
-            if strategy.use_returns:
-                portfolio_value = strategy.capital + (strategy.shares if strategy.position == "long" else 0)
-            else:
-                portfolio_value = strategy.shares * current_price if strategy.position == "long" else strategy.capital
+            portfolio_value = strategy.shares * current_price if strategy.position == "long" else strategy.capital
             self.portfolio_history.append(
                 PortfolioHistory(
                     date=date,
@@ -83,20 +76,11 @@ class TradingSimulator:
 
         # --- Close remaining position ---
         if strategy.position is not None:
-            if strategy.use_returns:
-                final_return = actual_returns.iloc[-1] if hasattr(actual_returns, "iloc") else actual_returns[-1]
-                strategy.capital = strategy.shares * (1 + final_return)
-                final_price = (prices.iloc[-1] if hasattr(prices, "iloc") else prices[-1]) * (1 + final_return)
-            else:
-                final_price = prices.iloc[-1] if hasattr(prices, "iloc") else prices[-1]
-                strategy.capital = strategy.shares * final_price * (1 - self.transaction_cost)
+            final_price = prices.iloc[-1] if hasattr(prices, "iloc") else prices[-1]
+            strategy.capital = strategy.shares * final_price * (1 - self.transaction_cost)
 
             profit = strategy.capital - self.initial_capital
-            pnl = (
-                np.mean(actual_returns[-5:]) * 100
-                if use_returns
-                else ((final_price - strategy.entry_price) / strategy.entry_price) * 100
-            )
+            pnl = ((final_price - strategy.entry_price) / strategy.entry_price) * 100
 
             if hasattr(dates, "__getitem__"):
                 final_date = dates[-1]
@@ -121,7 +105,7 @@ class TradingSimulator:
         final_value = strategy.capital
         total_return = (final_value - self.initial_capital) / self.initial_capital
         buy_hold_return = None
-        if not strategy.use_returns and prices is not None:
+        if prices is not None:
             first_price, last_price = prices.iloc[0], prices.iloc[-1]
             buy_hold_return = (last_price - first_price) / first_price
 
