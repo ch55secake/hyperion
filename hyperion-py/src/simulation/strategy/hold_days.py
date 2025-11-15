@@ -15,12 +15,12 @@ class HoldDaysStrategy(Strategy):
         self, date: int | Any, price: int | Any, pred_return: Any, actual_return: Any
     ) -> tuple[int | float | Any, int | Any, Any, int | Any]:
         if self.position is None and pred_return > self.threshold:
-            self.buy(date, price, pred_return)
+            self.buy(date, price)
 
         elif self.position == "long":
             self.hold_counter += 1
 
             if self.hold_counter >= self.hold_days or pred_return < -self.threshold:
-                self.sell(date, price, pred_return, actual_return)
+                self.sell(date, price, pred_return)
 
         return self.capital, self.entry_price, self.position, self.shares

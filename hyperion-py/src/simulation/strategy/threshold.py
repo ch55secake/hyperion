@@ -13,9 +13,9 @@ class AdaptiveThresholdStrategy(Strategy):
     ) -> tuple[int | float | Any, int | Any, Any, int | Any]:
 
         if self.position is None and pred_return > self.threshold:
-            self.buy(date, price, pred_return)
+            self.buy(date, price)
 
         elif pred_return < -self.threshold:
-            self.sell(date, price, pred_return, actual_return)
+            self.sell(date, price, pred_return)
 
         return self.capital, self.entry_price, self.position, self.shares

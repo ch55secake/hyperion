@@ -15,7 +15,7 @@ class TradeAction(Enum):
 
 @dataclass
 class Trade:
-    date: str
+    date: str | None
     action: str  # TradeAction
     predicted_return: float | None
     profit: float | None
