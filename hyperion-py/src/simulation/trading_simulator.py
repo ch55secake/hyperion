@@ -19,15 +19,16 @@ class TradingSimulator:
         self.portfolio_history = []
         self.trades = []
 
-    def simulate(self,
-                predictions,
-                actual_returns,
-                prices=None,
-                dates=None,
-                threshold="auto",
-                strategy=None,
-                use_returns=True,
-        ):
+    def simulate(
+        self,
+        predictions,
+        actual_returns,
+        prices=None,
+        dates=None,
+        threshold="auto",
+        strategy=None,
+        use_returns=True,
+    ):
         if strategy is None:
             strategy = DirectionalTradingStrategy(self, self.initial_capital, use_returns=use_returns)
 
@@ -63,10 +64,7 @@ class TradingSimulator:
                 current_price = prices.iloc[i] if hasattr(prices, "iloc") else prices[i]
 
             # Execute strategy and let it manage its own state
-            strategy.execute(date=date,
-                             price=current_price,
-                             pred_return=pred_return,
-                             actual_return=actual_return)
+            strategy.execute(date=date, price=current_price, pred_return=pred_return, actual_return=actual_return)
 
             # --- Portfolio Tracking ---
             if strategy.use_returns:
@@ -95,7 +93,9 @@ class TradingSimulator:
 
             profit = strategy.capital - self.initial_capital
             pnl = (
-                np.mean(actual_returns[-5:]) * 100 if use_returns else ((final_price - strategy.entry_price) / strategy.entry_price) * 100
+                np.mean(actual_returns[-5:]) * 100
+                if use_returns
+                else ((final_price - strategy.entry_price) / strategy.entry_price) * 100
             )
 
             if hasattr(dates, "__getitem__"):

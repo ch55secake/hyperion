@@ -13,6 +13,7 @@ class LightGBMStockPredictor:
     """
     LightGBM model for stock price prediction
     """
+
     def __init__(self, params=None):
         if params is None:
             # params = tuned_params_v2

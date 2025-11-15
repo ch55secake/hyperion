@@ -3,19 +3,19 @@ from pandas import DataFrame, Series
 
 
 def persist_results(
-        x: DataFrame,
-        x_test: Dict[str, DataFrame],
-        x_train: Dict[str, DataFrame],
-        best_strategy: dict[str, DataFrame | float | int | Any],
-        period: str,
-        sim_results: (
-                tuple[str, dict[str, DataFrame | float | int | Any], "TradingSimulator"]
-                | dict[str, DataFrame | float | int | Any]
-        ),
-        strategies: list[tuple[str, dict[str, DataFrame | float | int | Any], "TradingSimulator"]],
-        symbol: str,
-        test_results: Series | Any,
-        valid_strategies: list[tuple[str, dict[str, DataFrame | float | int | Any], "TradingSimulator"]],
+    x: DataFrame,
+    x_test: Dict[str, DataFrame],
+    x_train: Dict[str, DataFrame],
+    best_strategy: dict[str, DataFrame | float | int | Any],
+    period: str,
+    sim_results: (
+        tuple[str, dict[str, DataFrame | float | int | Any], "TradingSimulator"]
+        | dict[str, DataFrame | float | int | Any]
+    ),
+    strategies: list[tuple[str, dict[str, DataFrame | float | int | Any], "TradingSimulator"]],
+    symbol: str,
+    test_results: Series | Any,
+    valid_strategies: list[tuple[str, dict[str, DataFrame | float | int | Any], "TradingSimulator"]],
 ):
     # Step 10: Save detailed results
     results_file = f"results/{symbol}_results.txt"
@@ -24,8 +24,16 @@ def persist_results(
         f.write("=" * 60 + "\n\n")
         f.write(f"Data Period: {period}\n")
         f.write(f"Total Samples: {len(x)}\n")
-        train_samples = len(x_train.get('daily', next(iter(x_train.values())))) if isinstance(x_train, dict) and x_train else len(x_train)
-        test_samples = len(x_test.get('daily', next(iter(x_test.values())))) if isinstance(x_test, dict) and x_test else len(x_test)
+        train_samples = (
+            len(x_train.get("daily", next(iter(x_train.values()))))
+            if isinstance(x_train, dict) and x_train
+            else len(x_train)
+        )
+        test_samples = (
+            len(x_test.get("daily", next(iter(x_test.values()))))
+            if isinstance(x_test, dict) and x_test
+            else len(x_test)
+        )
         f.write(f"Train Samples: {train_samples}\n")
         f.write(f"Test Samples: {test_samples}\n\n")
         f.write("Model Performance:\n")
@@ -63,7 +71,7 @@ def persist_results(
 
 
 def output_best_strategy(
-        valid_strategies: list[tuple[str, dict[str, DataFrame | float | int | Any], "TradingSimulator"]],
+    valid_strategies: list[tuple[str, dict[str, DataFrame | float | int | Any], "TradingSimulator"]],
 ) -> tuple[
     dict[str, DataFrame | float | int | Any], tuple[str, dict[str, DataFrame | float | int | Any], "TradingSimulator"]
 ]:

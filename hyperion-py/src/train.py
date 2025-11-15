@@ -61,7 +61,6 @@ def simple_train_test_split(
         }
     )
 
-
     # Train base models
     train_data = {
         "daily": (x_train_daily, y_train, x_test_daily, y_test),
@@ -223,7 +222,6 @@ def run_trade_simulation(
         ("Adaptive Threshold", adaptive_threshold_results, adaptive_simulator),
         ("Hold Days", hold_days_results, hold_days_simulator),
     ]
-
 
     valid_strategies = [(name, res, sim) for name, res, sim in strategies if res["num_trades"] > 0]
 

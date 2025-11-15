@@ -5,6 +5,7 @@ from typing import Any
 import numpy as np
 from numpy._typing import NDArray
 
+
 class TradeAction(Enum):
     BUY = "BUY"
     SELL = "SELL"
@@ -29,4 +30,3 @@ class PortfolioHistory:
     position: str
     prediction: float
     price: float
-
