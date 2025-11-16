@@ -11,12 +11,11 @@ from sklearn.preprocessing import StandardScaler
 
 class LightGBMStockPredictor:
     """
-    LightGBM model for stock price prediction
+    LightGBM model for stock price prediction with categorical feature support
     """
 
     def __init__(self, params=None):
         if params is None:
-            # params = tuned_params_v2
             params = {
                 "objective": "regression",
                 "metric": "rmse",
@@ -36,7 +35,10 @@ class LightGBMStockPredictor:
         self.params = params
         self.model = None
         self.feature_importance = None
+        self.feature_columns = None
         self.scaler = StandardScaler()
+        self.numeric_columns = None
+        self.categorical_columns = None
 
     def train(self, x_train, y_train, x_val=None, y_val=None):
         """Train the LightGBM model"""
@@ -44,21 +46,70 @@ class LightGBMStockPredictor:
         print("Training LightGBM Model")
         print("=" * 60)
 
-        # Scale features
-        print("Scaling features...")
-        x_train_scaled = self.scaler.fit_transform(x_train)
-        x_train_scaled = pd.DataFrame(x_train_scaled, columns=x_train.columns, index=x_train.index)
+        # Store feature columns
+        if isinstance(x_train, pd.DataFrame):
+            self.feature_columns = list(x_train.columns)
+            print(f"Stored {len(self.feature_columns)} feature columns")
 
-        # Create dataset for LightGBM
-        train_data = lgb.Dataset(x_train_scaled, label=y_train)
+        # Identify numeric and categorical columns
+        self.categorical_columns = x_train.select_dtypes(include=["category"]).columns.tolist()
+        self.numeric_columns = x_train.select_dtypes(include=["number"]).columns.tolist()
+
+        print(f"Numeric columns: {len(self.numeric_columns)}")
+        print(f"Categorical columns: {len(self.categorical_columns)}")
+        if self.categorical_columns:
+            print(f"  Categories: {self.categorical_columns}")
+
+        # Check for object columns that should be categorical
+        object_cols = x_train.select_dtypes(include=["object"]).columns.tolist()
+        if object_cols:
+            print(f"⚠️ Warning: Found {len(object_cols)} object columns that should be categorical: {object_cols}")
+            print("Converting them to category dtype...")
+            x_train = x_train.copy()
+            for col in object_cols:
+                x_train[col] = x_train[col].astype("category")
+            # Re-identify columns after conversion
+            self.categorical_columns = x_train.select_dtypes(include=["category"]).columns.tolist()
+            print(f"  Updated categorical columns: {self.categorical_columns}")
+
+        # Scale only numeric features while preserving categorical columns
+        print("Scaling numeric features...")
+        x_train_processed = x_train.copy()
+
+        if self.numeric_columns:
+            x_train_scaled = self.scaler.fit_transform(x_train[self.numeric_columns])
+            # Replace only the numeric columns, preserving categorical ones
+            for i, col in enumerate(self.numeric_columns):
+                x_train_processed[col] = x_train_scaled[:, i]
+
+        # Create dataset for LightGBM with categorical features
+        train_data = lgb.Dataset(
+            x_train_processed,
+            label=y_train,
+            categorical_feature=self.categorical_columns if self.categorical_columns else "auto",
+        )
 
         valid_sets = [train_data]
         valid_names = ["train"]
 
         if x_val is not None and y_val is not None:
-            x_val_scaled = self.scaler.transform(x_val)
-            x_val_scaled = pd.DataFrame(x_val_scaled, columns=x_val.columns, index=x_val.index)
-            val_data = lgb.Dataset(x_val_scaled, label=y_val)
+            x_val_processed = x_val.copy()
+
+            # Convert object columns in validation set too
+            for col in object_cols if object_cols else []:
+                if col in x_val_processed.columns:
+                    x_val_processed[col] = x_val_processed[col].astype("category")
+
+            if self.numeric_columns:
+                x_val_scaled = self.scaler.transform(x_val[self.numeric_columns])
+                for i, col in enumerate(self.numeric_columns):
+                    x_val_processed[col] = x_val_scaled[:, i]
+
+            val_data = lgb.Dataset(
+                x_val_processed,
+                label=y_val,
+                categorical_feature=self.categorical_columns if self.categorical_columns else "auto",
+            )
             valid_sets.append(val_data)
             valid_names.append("valid")
 
@@ -69,15 +120,23 @@ class LightGBMStockPredictor:
             valid_sets=valid_sets,
             valid_names=valid_names,
             num_boost_round=self.params.get("n_estimators", 1500),
-            # early_stopping_rounds=50 if len(valid_sets) > 1 else None,
-            # verbose_eval=False,
         )
 
         # Store feature importance
+        feature_names = x_train_processed.columns.tolist()
+        feature_importances = self.model.feature_importance()
+
+        # Ensure lengths match
+        if len(feature_names) != len(feature_importances):
+            print(
+                f"⚠️ Warning: Feature name count ({len(feature_names)}) doesn't match importance count ({len(feature_importances)})"
+            )
+            feature_names = [f"feature_{i}" for i in range(len(feature_importances))]
+
         self.feature_importance = pd.DataFrame(
             {
-                "feature": x_train.columns,
-                "importance": self.model.feature_importance(),
+                "feature": feature_names,
+                "importance": feature_importances,
             }
         ).sort_values("importance", ascending=False)
 
@@ -85,16 +144,35 @@ class LightGBMStockPredictor:
         print(f"✓ Number of trees: {self.model.best_iteration or self.params['n_estimators']}")
         print(f"✓ Max depth: {self.params['max_depth']}")
 
+        # Show top features
+        print("\nTop 10 Most Important Features:")
+        print(self.feature_importance.head(10).to_string(index=False))
+
     def predict(self, x):
         """Make predictions"""
         if self.model is None:
             raise ValueError("Model not trained yet")
 
-        # Scale features before prediction
-        x_scaled = self.scaler.transform(x)
-        x_scaled = pd.DataFrame(x_scaled, columns=x.columns, index=x.index)
+        # Ensure features are in the correct order
+        if self.feature_columns is not None and isinstance(x, pd.DataFrame):
+            x = x[self.feature_columns]
 
-        return self.model.predict(x_scaled, num_iteration=self.model.best_iteration)
+        # Convert object columns to category (same as in training)
+        object_cols = x.select_dtypes(include=["object"]).columns.tolist()
+        if object_cols:
+            x = x.copy()
+            for col in object_cols:
+                x[col] = x[col].astype("category")
+
+        # Process features (scale numeric only, preserve categorical)
+        x_processed = x.copy()
+        if self.numeric_columns:
+            x_scaled = self.scaler.transform(x[self.numeric_columns])
+            # Replace only the numeric columns, preserving categorical ones
+            for i, col in enumerate(self.numeric_columns):
+                x_processed[col] = x_scaled[:, i]
+
+        return self.model.predict(x_processed, num_iteration=self.model.best_iteration)
 
     def evaluate(self, x, y, dataset_name="Test"):
         """Evaluate model performance"""
@@ -123,9 +201,13 @@ class LightGBMStockPredictor:
             "scaler": self.scaler,
             "params": self.params,
             "feature_importance": self.feature_importance,
+            "feature_columns": self.feature_columns,
+            "numeric_columns": self.numeric_columns,
+            "categorical_columns": self.categorical_columns,
             "trained_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
 
+        os.makedirs(save_path, exist_ok=True)
         filename = f"{save_path}/{symbol}_lightgbm_model.pkl"
         with open(filename, "wb") as f:
             pickle.dump(model_data, f)
@@ -148,8 +230,15 @@ class LightGBMStockPredictor:
         instance.model = model_data["model"]
         instance.scaler = model_data["scaler"]
         instance.feature_importance = model_data["feature_importance"]
+        instance.feature_columns = model_data.get("feature_columns")
+        instance.numeric_columns = model_data.get("numeric_columns")
+        instance.categorical_columns = model_data.get("categorical_columns")
 
         print(f"\n✓ Model loaded from: {filename}")
         print(f"  Trained on: {model_data['trained_date']}")
+        if instance.feature_columns:
+            print(f"  Features: {len(instance.feature_columns)} columns stored")
+        if instance.categorical_columns:
+            print(f"  Categorical features: {instance.categorical_columns}")
 
         return instance

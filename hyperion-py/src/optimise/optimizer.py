@@ -73,6 +73,7 @@ class StockModelOptimizer:
             "eval_metric": "rmse",
             "tree_method": "hist",
             "verbosity": 0,
+            "enable_categorical": True,
             "seed": self.random_state,
             # Learning parameters
             "learning_rate": trial.suggest_float("learning_rate", 0.001, 0.03, log=True),
@@ -132,6 +133,7 @@ class StockModelOptimizer:
             "metric": "rmse",
             "verbosity": -1,
             "seed": self.random_state,
+            "enable_categorical": True,
             "force_col_wise": True,
             # Learning parameters
             "learning_rate": trial.suggest_float("learning_rate", 0.001, 0.03, log=True),

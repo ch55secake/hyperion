@@ -381,7 +381,9 @@ class FeatureEngineering:
         # Scale features if requested
         if scale:
             scaler = StandardScaler()
-            x = pd.DataFrame(scaler.fit_transform(x), columns=x.columns, index=x.index)
+            cat_cols = ["sector", "industry"]
+            num_cols = [c for c in x.columns if c not in cat_cols]
+            x = pd.DataFrame(scaler.fit_transform(x), columns=num_cols, index=x.index)
 
         self.__df_prepared = x, y, dates, prices, feature_columns.tolist()
         return self.__df_prepared

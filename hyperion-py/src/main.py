@@ -2,7 +2,7 @@ import os
 import warnings
 
 from src.server import ModelServer
-from src.train import train_model
+from src.train import train_model, train_single_model_for_all_stocks
 
 warnings.filterwarnings("ignore")
 
@@ -15,7 +15,7 @@ os.makedirs("./invalid_models", exist_ok=True)
 os.makedirs("./params", exist_ok=True)
 
 if __name__ == "__main__":
-    train_model(visualization=True)
+    train_single_model_for_all_stocks(visualization=True)
     # from src.simulation import predict_mode
     # predict_mode(visualisation=True)
     # ModelServer(port=8080).run()

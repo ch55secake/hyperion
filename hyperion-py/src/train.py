@@ -1,7 +1,7 @@
 import json
 import os
 import traceback
-from typing import Dict, Tuple
+from typing import Dict, Tuple, List
 
 import numpy as np
 import pandas as pd
@@ -89,9 +89,9 @@ def train_model(symbols=None, period: str = "5y", interval: str = "1h", visualiz
     print("=" * 60)
 
     # Download data hourly (interval='1h')
-    hourly_downloader = StockDataDownloader(symbols, period="2y", interval=interval)
+    stock_data_downloader = StockDataDownloader(symbols, period="2y", interval=interval)
 
-    stock_data_hourly = hourly_downloader.download_data()
+    stock_data_hourly = stock_data_downloader.download_data()
 
     if not stock_data_hourly:
         print("⚠️  No data downloaded. Exiting.")
@@ -105,15 +105,37 @@ def train_model(symbols=None, period: str = "5y", interval: str = "1h", visualiz
             print(f"Processing {symbol}")
             print("=" * 60)
 
+            # Sector, market cap, industry and avg_volume
+
             # Daily features
             features_daily = FeatureEngineering(stock_data_hourly[symbol])
             df_daily = features_daily.create_target_features()
             x_daily, y_daily, dates_daily, prices_daily, _ = features_daily.prepare_features()
 
+            # Sector, market cap, industry and avg_volume
+            x_daily["sector"] = stock_data_downloader.get_sector(symbol)
+            x_daily["sector"] = x_daily["sector"].astype("category")
+            x_daily["industry"] = stock_data_downloader.get_industry(symbol)
+            x_daily["industry"] = x_daily["industry"].astype("category")
+            x_daily["beta"] = stock_data_downloader.get_beta(symbol)
+            x_daily["avg_volume_log"] = np.log(stock_data_downloader.get_avg_volume(symbol))
+            x_daily["market_cap"] = np.log(stock_data_downloader.get_market_cap(symbol))
+
+            print(x_daily.head())
+
             # Hourly features
             features_hourly = FeatureEngineering(stock_data_hourly[symbol])
             features_hourly.create_target_features()
             x_hourly, _, _, _, _ = features_hourly.prepare_features()
+
+            # Sector, market cap, industry and avg_volume
+            x_hourly["sector"] = stock_data_downloader.get_sector(symbol)
+            x_hourly["sector"] = x_hourly["sector"].astype("category")
+            x_hourly["industry"] = stock_data_downloader.get_industry(symbol)
+            x_hourly["industry"] = x_hourly["industry"].astype("category")
+            x_hourly["beta"] = stock_data_downloader.get_beta(symbol)
+            x_hourly["avg_volume_log"] = np.log(stock_data_downloader.get_avg_volume(symbol))
+            x_hourly["market_cap"] = np.log(stock_data_downloader.get_market_cap(symbol))
 
             # Align hourly target with daily (optional: forward-fill or aggregate)
             # Here we just slice to daily index for stacking
@@ -256,3 +278,249 @@ def run_trade_simulation(
         Visualizer.plot_rolling_portfolio_metrics(sim_results["portfolio_history"], symbol)
         Visualizer.plot_drawdowns(sim_results["portfolio_history"], symbol)
         Visualizer.plot_win_loss_over_time(sim_results["trades"], symbol)
+
+
+def prepare_all_stocks_data(symbols: List[str], period: str = "2y", interval: str = "1h"):
+    """
+    Download and prepare data for all stocks, combining them into single datasets
+
+    Returns:
+        Tuple of (combined_daily_features, combined_hourly_features, combined_targets, combined_metadata)
+    """
+    print("\n" + "=" * 60)
+    print("Downloading and Preparing Data for All Stocks")
+    print("=" * 60)
+
+    stock_data_downloader = StockDataDownloader(symbols, period=period, interval=interval)
+    stock_data = stock_data_downloader.download_data()
+
+    if not stock_data:
+        print("⚠️  No data downloaded. Exiting.")
+        return None
+
+    all_daily_features = []
+    all_hourly_features = []
+    all_targets = []
+    all_dates = []
+    all_prices = []
+    all_symbols = []
+
+    for symbol in symbols:
+        try:
+            print(f"\nProcessing {symbol}...")
+
+            # Daily features
+            features_daily = FeatureEngineering(stock_data[symbol])
+            df_daily = features_daily.create_target_features()
+            x_daily, y_daily, dates_daily, prices_daily, _ = features_daily.prepare_features()
+
+            # Add stock-specific features
+            x_daily["ticker"] = symbol
+            x_daily["ticker"] = x_daily["ticker"].astype("category")
+            x_daily["sector"] = stock_data_downloader.get_sector(symbol)
+            x_daily["sector"] = x_daily["sector"].astype("category")
+            x_daily["industry"] = stock_data_downloader.get_industry(symbol)
+            x_daily["industry"] = x_daily["industry"].astype("category")
+            x_daily["beta"] = stock_data_downloader.get_beta(symbol)
+            x_daily["avg_volume_log"] = np.log(stock_data_downloader.get_avg_volume(symbol) + 1)
+            x_daily["market_cap_log"] = np.log(stock_data_downloader.get_market_cap(symbol) + 1)
+
+            # Hourly features
+            features_hourly = FeatureEngineering(stock_data[symbol])
+            features_hourly.create_target_features()
+            x_hourly, _, _, _, _ = features_hourly.prepare_features()
+
+            # Add stock-specific features to hourly
+            x_hourly["ticker"] = symbol
+            x_hourly["ticker"] = x_hourly["ticker"].astype("category")
+            x_hourly["sector"] = stock_data_downloader.get_sector(symbol)
+            x_hourly["sector"] = x_hourly["sector"].astype("category")
+            x_hourly["industry"] = stock_data_downloader.get_industry(symbol)
+            x_hourly["industry"] = x_hourly["industry"].astype("category")
+            x_hourly["beta"] = stock_data_downloader.get_beta(symbol)
+            x_hourly["avg_volume_log"] = np.log(stock_data_downloader.get_avg_volume(symbol) + 1)
+            x_hourly["market_cap_log"] = np.log(stock_data_downloader.get_market_cap(symbol) + 1)
+
+            # Align hourly with daily
+            x_hourly = x_hourly.loc[x_daily.index]
+
+            # Store data
+            all_daily_features.append(x_daily)
+            all_hourly_features.append(x_hourly)
+            all_targets.append(y_daily)
+            all_dates.append(pd.Series(dates_daily, index=dates_daily))  # Convert DatetimeIndex to Series
+            all_prices.append(prices_daily)
+            all_symbols.extend([symbol] * len(x_daily))
+
+            print(f"  ✓ {symbol}: {len(x_daily)} samples")
+
+        except Exception as e:
+            print(f"  ✗ Error processing {symbol}: {str(e)}")
+            traceback.print_exc()
+            continue
+
+    # Combine all data
+    print("\n" + "=" * 60)
+    print("Combining All Stock Data")
+    print("=" * 60)
+
+    combined_daily = pd.concat(all_daily_features, axis=0, ignore_index=False)
+    combined_hourly = pd.concat(all_hourly_features, axis=0, ignore_index=False)
+    combined_targets = pd.concat(all_targets, axis=0, ignore_index=False)
+    combined_dates = pd.concat(all_dates, axis=0, ignore_index=False)
+    combined_prices = pd.concat(all_prices, axis=0, ignore_index=False)
+
+    # Create a symbol series aligned with the combined data
+    combined_symbols = pd.Series(all_symbols, index=combined_daily.index)
+
+    print(f"✓ Total samples: {len(combined_daily)}")
+    print(f"✓ Number of stocks: {len(symbols)}")
+    print(f"✓ Features per timeframe: {len(combined_daily.columns)}")
+
+    return {
+        "daily": combined_daily,
+        "hourly": combined_hourly,
+        "targets": combined_targets,
+        "dates": combined_dates,
+        "prices": combined_prices,
+        "symbols": combined_symbols,
+    }
+
+
+def train_single_model_for_all_stocks(
+    symbols=None, period: str = "2y", interval: str = "1h", visualization: bool = False
+):
+    """
+    Train a SINGLE stacked model for ALL tickers using combined data
+    """
+    if symbols is None:
+        symbols = []
+        with open("resources/tickers.txt", "r") as f:
+            for line in f:
+                symbols.append(line.strip())
+
+    print("\n" + "=" * 60)
+    print("Single Model Training for All Stocks")
+    print("=" * 60)
+
+    # Prepare combined data for all stocks
+    combined_data = prepare_all_stocks_data(symbols, period, interval)
+
+    if combined_data is None:
+        return False
+
+    # Split data
+    split_idx = int(len(combined_data["daily"]) * (1 - TEST_SIZE))
+
+    x_train_daily = combined_data["daily"].iloc[:split_idx]
+    x_test_daily = combined_data["daily"].iloc[split_idx:]
+
+    x_train_hourly = combined_data["hourly"].iloc[:split_idx]
+    x_test_hourly = combined_data["hourly"].iloc[split_idx:]
+
+    y_train = combined_data["targets"].iloc[:split_idx]
+    y_test = combined_data["targets"].iloc[split_idx:]
+
+    dates_test = combined_data["dates"].iloc[split_idx:]
+    prices_test = combined_data["prices"].iloc[split_idx:]
+    symbols_test = combined_data["symbols"].iloc[split_idx:]
+
+    print("\n" + "=" * 60)
+    print("Training Single Model")
+    print("=" * 60)
+    print(f"Training samples: {len(x_train_daily)}")
+    print(f"Testing samples: {len(x_test_daily)}")
+
+    # Create stacked predictor
+    stacked = StackedStockPredictor(
+        {
+            "daily": XGBoostStockPredictor(),
+            "hourly": LightGBMStockPredictor(),
+        }
+    )
+
+    # Train base models on ALL stock data
+    train_data = {
+        "daily": (x_train_daily, y_train, x_test_daily, y_test),
+        "hourly": (x_train_hourly, y_train, x_test_hourly, y_test),
+    }
+    stacked.train(train_data)
+
+    # Evaluate on test set
+    x_test_dict = {"daily": x_test_daily, "hourly": x_test_hourly}
+    test_results = stacked.evaluate(x_test_dict, y_test)
+
+    # Save the single model (use a generic name like "ALL_STOCKS")
+    model_name = "ALL_STOCKS"
+    save_trained_model(stacked, model_name, test_results)
+
+    print("\n" + "=" * 60)
+    print("✓ Single model training complete!")
+    print(f"✓ Model saved as: {model_name}")
+    print("=" * 60)
+
+    # Optional: Evaluate per-stock performance
+    if visualization:
+        evaluate_per_stock_performance(stacked, x_test_dict, y_test, symbols_test, dates_test, prices_test)
+
+    return True
+
+
+def evaluate_per_stock_performance(model, x_test_dict, y_test, symbols_test, dates_test, prices_test):
+    """
+    Evaluate model performance for each stock individually
+    """
+    print("\n" + "=" * 60)
+    print("Per-Stock Performance Analysis")
+    print("=" * 60)
+
+    predictions = model.predict(x_test_dict)
+
+    # Convert symbols_test to list if it's a Series
+    symbols_list = symbols_test.tolist() if hasattr(symbols_test, "tolist") else list(symbols_test)
+
+    # Group by symbol
+    unique_symbols = list(set(symbols_list))
+
+    results = []
+    for symbol in unique_symbols:
+        # Get indices for this symbol
+        symbol_mask = [s == symbol for s in symbols_list]
+        symbol_indices = [i for i, mask in enumerate(symbol_mask) if mask]
+
+        if len(symbol_indices) == 0:
+            continue
+
+        # Extract data for this symbol
+        y_true_symbol = y_test.iloc[symbol_indices]
+        y_pred_symbol = predictions[symbol_indices]
+
+        # Calculate metrics
+        from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
+
+        mse = mean_squared_error(y_true_symbol, y_pred_symbol)
+        rmse = np.sqrt(mse)
+        mae = mean_absolute_error(y_true_symbol, y_pred_symbol)
+        r2 = r2_score(y_true_symbol, y_pred_symbol)
+
+        results.append({"symbol": symbol, "samples": len(symbol_indices), "rmse": rmse, "mae": mae, "r2": r2})
+
+        print(f"\n{symbol}:")
+        print(f"  Samples: {len(symbol_indices)}")
+        print(f"  RMSE: {rmse:.6f}")
+        print(f"  MAE: {mae:.6f}")
+        print(f"  R²: {r2:.6f}")
+
+    # Summary statistics
+    print("\n" + "=" * 60)
+    print("Summary Statistics Across All Stocks")
+    print("=" * 60)
+
+    results_df = pd.DataFrame(results)
+    print(f"\nAverage RMSE: {results_df['rmse'].mean():.6f}")
+    print(f"Average MAE: {results_df['mae'].mean():.6f}")
+    print(f"Average R²: {results_df['r2'].mean():.6f}")
+
+    # Save results
+    results_df.to_csv("results/per_stock_performance.csv", index=False)
+    print(f"\n✓ Per-stock results saved to: results/per_stock_performance.csv")
