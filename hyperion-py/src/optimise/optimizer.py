@@ -1,4 +1,3 @@
-# optuna_optimizer.py
 import optuna
 from optuna.visualization import (
     plot_optimization_history,
@@ -17,7 +16,6 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
-# Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -55,7 +53,6 @@ class StockModelOptimizer:
         self.n_jobs = n_jobs
         self.random_state = random_state
 
-        # Store best results
         self.best_xgb_params = None
         self.best_lgb_params = None
         self.xgb_study = None
@@ -71,7 +68,6 @@ class StockModelOptimizer:
         Returns:
             Validation RMSE (lower is better)
         """
-        # Suggest hyperparameters
         params = {
             "objective": "reg:squarederror",
             "eval_metric": "rmse",
@@ -94,17 +90,14 @@ class StockModelOptimizer:
             "max_delta_step": trial.suggest_float("max_delta_step", 0, 5),
         }
 
-        # Suggest number of estimators
-        n_estimators = trial.suggest_int("n_estimators", 100, 500)
+        n_estimators = trial.suggest_int("n_estimators", 100, 700)
 
-        # Train model
         model = xgb.XGBRegressor(**params, n_estimators=n_estimators)
 
         model.fit(
             self.X_train, self.y_train, eval_set=[(self.X_val, self.y_val)], early_stopping_rounds=50, verbose=False
         )
 
-        # Predict and evaluate
         y_pred = model.predict(self.X_val)
         rmse = np.sqrt(mean_squared_error(self.y_val, y_pred))
 
@@ -158,14 +151,11 @@ class StockModelOptimizer:
             "max_bin": trial.suggest_int("max_bin", 128, 512),
         }
 
-        # Suggest number of estimators
-        n_estimators = trial.suggest_int("n_estimators", 100, 2000)
+        n_estimators = trial.suggest_int("n_estimators", 100, 700)
 
-        # Create datasets
         train_data = lgb.Dataset(self.X_train, label=self.y_train)
         val_data = lgb.Dataset(self.X_val, label=self.y_val, reference=train_data)
 
-        # Train model
         model = lgb.train(
             params,
             train_data,
@@ -174,16 +164,13 @@ class StockModelOptimizer:
             callbacks=[lgb.early_stopping(stopping_rounds=50, verbose=False), lgb.log_evaluation(period=0)],
         )
 
-        # Predict and evaluate
         y_pred = model.predict(self.X_val, num_iteration=model.best_iteration)
         rmse = np.sqrt(mean_squared_error(self.y_val, y_pred))
 
-        # Calculate additional metrics
         mae = mean_absolute_error(self.y_val, y_pred)
         r2 = r2_score(self.y_val, y_pred)
         dir_acc = (np.sign(y_pred) == np.sign(self.y_val)).mean()
 
-        # Store additional metrics
         trial.set_user_attr("mae", mae)
         trial.set_user_attr("r2", r2)
         trial.set_user_attr("directional_accuracy", dir_acc)
@@ -199,23 +186,20 @@ class StockModelOptimizer:
             timeout: Maximum time in seconds for optimization
 
         Returns:
-            Dictionary with best parameters and study
+            Dictionary with the best parameters and study
         """
         logger.info("Starting XGBoost optimization...")
 
-        # Create study
         self.xgb_study = optuna.create_study(
             direction="minimize",
             study_name="xgboost_optimization",
             sampler=optuna.samplers.TPESampler(seed=self.random_state),
         )
 
-        # Optimize
         self.xgb_study.optimize(
             self.xgboost_objective, n_trials=self.n_trials, timeout=timeout, n_jobs=self.n_jobs, show_progress_bar=True
         )
 
-        # Get best parameters
         self.best_xgb_params = self.xgb_study.best_params
         best_trial = self.xgb_study.best_trial
 
@@ -244,23 +228,20 @@ class StockModelOptimizer:
             timeout: Maximum time in seconds for optimization
 
         Returns:
-            Dictionary with best parameters and study
+            Dictionary with the best parameters and study
         """
         logger.info("Starting LightGBM optimization...")
 
-        # Create study
         self.lgb_study = optuna.create_study(
             direction="minimize",
             study_name="lightgbm_optimization",
             sampler=optuna.samplers.TPESampler(seed=self.random_state),
         )
 
-        # Optimize
         self.lgb_study.optimize(
             self.lightgbm_objective, n_trials=self.n_trials, timeout=timeout, n_jobs=self.n_jobs, show_progress_bar=True
         )
 
-        # Get best parameters
         self.best_lgb_params = self.lgb_study.best_params
         best_trial = self.lgb_study.best_trial
 
@@ -324,7 +305,6 @@ class StockModelOptimizer:
             save_path: Directory to save plots
         """
         import os
-        import matplotlib.pyplot as plt
 
         os.makedirs(save_path, exist_ok=True)
 
@@ -393,13 +373,13 @@ class StockModelOptimizer:
 
 
 def cross_validate_with_optuna(
-    X: pd.DataFrame, y: pd.Series, model_type: str = "xgboost", n_splits: int = 5, n_trials: int = 50
+    x: pd.DataFrame, y: pd.Series, model_type: str = "xgboost", n_splits: int = 5, n_trials: int = 50
 ) -> Dict[str, Any]:
     """
     Perform cross-validated hyperparameter optimization
 
     Args:
-        X: Features
+        x: Features
         y: Target
         model_type: 'xgboost' or 'lightgbm'
         n_splits: Number of time series splits
@@ -414,12 +394,12 @@ def cross_validate_with_optuna(
     tscv = TimeSeriesSplit(n_splits=n_splits)
     fold_results = []
 
-    for fold, (train_idx, val_idx) in enumerate(tscv.split(X), 1):
+    for fold, (train_idx, val_idx) in enumerate(tscv.split(x), 1):
         logger.info(f"\nFold {fold}/{n_splits}")
         logger.info("-" * 40)
 
-        x_train = X.iloc[train_idx]
-        x_val = X.iloc[val_idx]
+        x_train = x.iloc[train_idx]
+        x_val = x.iloc[val_idx]
         y_train = y.iloc[train_idx]
         y_val = y.iloc[val_idx]
 
@@ -442,7 +422,6 @@ def cross_validate_with_optuna(
             }
         )
 
-    # Aggregate results
     avg_rmse = np.mean([r["best_rmse"] for r in fold_results])
     avg_r2 = np.mean([r["best_r2"] for r in fold_results])
     avg_dir_acc = np.mean([r["best_dir_acc"] for r in fold_results])
