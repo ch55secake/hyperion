@@ -199,7 +199,9 @@ def run_trade_simulation(
     print("\n--- Strategy 2: Adaptive Threshold ---")
     print("Uses statistical threshold based on prediction distribution")
     adaptive_simulator = TradingSimulator(initial_capital=initial_capital)
-    adaptive_strategy = AdaptiveThresholdStrategy(adaptive_simulator, initial_capital, threshold=0.02)
+    adaptive_strategy = AdaptiveThresholdStrategy(
+        adaptive_simulator, initial_capital, threshold=0.3 * np.std(np.array(preds))
+    )
     adaptive_threshold_results, adaptive_simulator = Strategy.simulate(
         adaptive_strategy, dates_test, prices_test, preds, y_test
     )
@@ -208,7 +210,9 @@ def run_trade_simulation(
     print("\n--- Strategy 3: Hold Days Strategy ---")
     print("Holds positions for multiple days")
     hold_days_simulator = TradingSimulator(initial_capital=initial_capital)
-    hold_days_strategy = HoldDaysStrategy(hold_days_simulator, initial_capital, hold_days=5, threshold=0.02)
+    hold_days_strategy = HoldDaysStrategy(
+        hold_days_simulator, initial_capital, hold_days=5, threshold=0.3 * np.std(np.array(preds))
+    )
     hold_days_results, hold_days_simulator = Strategy.simulate(
         hold_days_strategy, dates_test, prices_test, preds, y_test
     )
