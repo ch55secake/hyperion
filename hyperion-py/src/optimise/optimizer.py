@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from sklearn.model_selection import TimeSeriesSplit
+from sklearn.preprocessing import StandardScaler
 import logging
 from typing import Dict, Any, Tuple
 import warnings
@@ -21,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 class StockModelOptimizer:
-    """Optimize XGBoost and LightGBM models using Optuna"""
+    """Optimize XGBoost and LightGBM models using Optuna with categorical feature support"""
 
     def __init__(
         self,
@@ -45,18 +46,61 @@ class StockModelOptimizer:
             n_jobs: Number of parallel jobs
             random_state: Random seed
         """
-        self.X_train = x_train
+        # Process features before storing
+        self.X_train = self._process_features(x_train.copy())
+        self.X_val = self._process_features(x_val.copy())
         self.y_train = y_train
-        self.X_val = x_val
         self.y_val = y_val
         self.n_trials = n_trials
         self.n_jobs = n_jobs
         self.random_state = random_state
 
+        # Identify column types
+        self.categorical_columns = self.X_train.select_dtypes(include=["category"]).columns.tolist()
+        self.numeric_columns = self.X_train.select_dtypes(include=["number"]).columns.tolist()
+
+        logger.info(f"Optimizer initialized with {len(self.X_train.columns)} features")
+        logger.info(f"  Numeric columns: {len(self.numeric_columns)}")
+        logger.info(f"  Categorical columns: {len(self.categorical_columns)}")
+        if self.categorical_columns:
+            logger.info(f"    Categories: {self.categorical_columns}")
+
+        # Initialize scaler for numeric features
+        self.scaler = StandardScaler()
+
+        # Scale numeric features
+        if self.numeric_columns:
+            X_train_scaled = self.scaler.fit_transform(self.X_train[self.numeric_columns])
+            X_val_scaled = self.scaler.transform(self.X_val[self.numeric_columns])
+
+            # Replace numeric columns with scaled values while preserving categorical
+            for i, col in enumerate(self.numeric_columns):
+                self.X_train[col] = X_train_scaled[:, i]
+                self.X_val[col] = X_val_scaled[:, i]
+
         self.best_xgb_params = None
         self.best_lgb_params = None
         self.xgb_study = None
         self.lgb_study = None
+
+    def _process_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Process features to ensure categorical columns are properly typed
+
+        Args:
+            df: Input dataframe
+
+        Returns:
+            Processed dataframe with proper dtypes
+        """
+        # Convert object columns to category
+        object_cols = df.select_dtypes(include=["object"]).columns.tolist()
+        if object_cols:
+            logger.info(f"Converting {len(object_cols)} object columns to category: {object_cols}")
+            for col in object_cols:
+                df[col] = df[col].astype("category")
+
+        return df
 
     def xgboost_objective(self, trial: optuna.Trial) -> float:
         """
@@ -71,14 +115,14 @@ class StockModelOptimizer:
         params = {
             "objective": "reg:squarederror",
             "eval_metric": "rmse",
-            "tree_method": "hist",
+            "tree_method": "hist",  # Required for categorical support
             "verbosity": 0,
-            "enable_categorical": True,
+            "enable_categorical": True,  # Enable categorical support
             "seed": self.random_state,
             # Learning parameters
-            "learning_rate": trial.suggest_float("learning_rate", 0.001, 0.03, log=True),
-            "max_depth": trial.suggest_int("max_depth", 2, 10),
-            "min_child_weight": trial.suggest_int("min_child_weight", 1, 10),
+            "learning_rate": trial.suggest_float("learning_rate", 0.001, 0.3, log=True),
+            "max_depth": trial.suggest_int("max_depth", 2, 50),
+            "min_child_weight": trial.suggest_int("min_child_weight", 1, 50),
             # Regularization
             "lambda": trial.suggest_float("lambda", 0.1, 10.0, log=True),
             "alpha": trial.suggest_float("alpha", 0.0, 5.0),
@@ -91,12 +135,16 @@ class StockModelOptimizer:
             "max_delta_step": trial.suggest_float("max_delta_step", 0, 5),
         }
 
-        n_estimators = trial.suggest_int("n_estimators", 100, 700)
+        n_estimators = trial.suggest_int("n_estimators", 100, 4000)
 
         model = xgb.XGBRegressor(**params, n_estimators=n_estimators)
 
         model.fit(
-            self.X_train, self.y_train, eval_set=[(self.X_val, self.y_val)], early_stopping_rounds=50, verbose=False
+            self.X_train,
+            self.y_train,
+            eval_set=[(self.X_val, self.y_val)],
+            early_stopping_rounds=self.n_trials,
+            verbose=False,
         )
 
         y_pred = model.predict(self.X_val)
@@ -133,12 +181,11 @@ class StockModelOptimizer:
             "metric": "rmse",
             "verbosity": -1,
             "seed": self.random_state,
-            "enable_categorical": True,
             "force_col_wise": True,
             # Learning parameters
-            "learning_rate": trial.suggest_float("learning_rate", 0.001, 0.03, log=True),
+            "learning_rate": trial.suggest_float("learning_rate", 0.001, 0.3, log=True),
             "num_leaves": trial.suggest_int("num_leaves", 10, 200),
-            "max_depth": trial.suggest_int("max_depth", 2, 10),
+            "max_depth": trial.suggest_int("max_depth", 2, 50),
             "min_child_samples": trial.suggest_int("min_child_samples", 5, 100),
             "min_child_weight": trial.suggest_float("min_child_weight", 1e-5, 100, log=True),
             # Regularization
@@ -153,17 +200,27 @@ class StockModelOptimizer:
             "max_bin": trial.suggest_int("max_bin", 128, 512),
         }
 
-        n_estimators = trial.suggest_int("n_estimators", 100, 700)
+        n_estimators = trial.suggest_int("n_estimators", 100, 2000)
 
-        train_data = lgb.Dataset(self.X_train, label=self.y_train)
-        val_data = lgb.Dataset(self.X_val, label=self.y_val, reference=train_data)
+        # Create datasets with categorical feature support
+        train_data = lgb.Dataset(
+            self.X_train,
+            label=self.y_train,
+            categorical_feature=self.categorical_columns if self.categorical_columns else "auto",
+        )
+        val_data = lgb.Dataset(
+            self.X_val,
+            label=self.y_val,
+            reference=train_data,
+            categorical_feature=self.categorical_columns if self.categorical_columns else "auto",
+        )
 
         model = lgb.train(
             params,
             train_data,
             num_boost_round=n_estimators,
             valid_sets=[val_data],
-            callbacks=[lgb.early_stopping(stopping_rounds=50, verbose=False), lgb.log_evaluation(period=0)],
+            callbacks=[lgb.early_stopping(stopping_rounds=self.n_trials, verbose=False), lgb.log_evaluation(period=0)],
         )
 
         y_pred = model.predict(self.X_val, num_iteration=model.best_iteration)
@@ -375,7 +432,7 @@ class StockModelOptimizer:
 
 
 def cross_validate_with_optuna(
-    x: pd.DataFrame, y: pd.Series, model_type: str = "xgboost", n_splits: int = 5, n_trials: int = 50
+    x: pd.DataFrame, y: pd.Series, model_type: str = "xgboost", n_splits: int = 5, n_trials: int = 1000
 ) -> Dict[str, Any]:
     """
     Perform cross-validated hyperparameter optimization

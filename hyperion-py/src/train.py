@@ -316,11 +316,8 @@ def prepare_all_stocks_data(symbols: List[str], period: str = "2y", interval: st
 
             # Add stock-specific features
             x_daily["ticker"] = symbol
-            x_daily["ticker"] = x_daily["ticker"].astype("category")
             x_daily["sector"] = stock_data_downloader.get_sector(symbol)
-            x_daily["sector"] = x_daily["sector"].astype("category")
             x_daily["industry"] = stock_data_downloader.get_industry(symbol)
-            x_daily["industry"] = x_daily["industry"].astype("category")
             x_daily["beta"] = stock_data_downloader.get_beta(symbol)
             x_daily["avg_volume_log"] = np.log(stock_data_downloader.get_avg_volume(symbol) + 1)
             x_daily["market_cap_log"] = np.log(stock_data_downloader.get_market_cap(symbol) + 1)
@@ -332,11 +329,8 @@ def prepare_all_stocks_data(symbols: List[str], period: str = "2y", interval: st
 
             # Add stock-specific features to hourly
             x_hourly["ticker"] = symbol
-            x_hourly["ticker"] = x_hourly["ticker"].astype("category")
             x_hourly["sector"] = stock_data_downloader.get_sector(symbol)
-            x_hourly["sector"] = x_hourly["sector"].astype("category")
             x_hourly["industry"] = stock_data_downloader.get_industry(symbol)
-            x_hourly["industry"] = x_hourly["industry"].astype("category")
             x_hourly["beta"] = stock_data_downloader.get_beta(symbol)
             x_hourly["avg_volume_log"] = np.log(stock_data_downloader.get_avg_volume(symbol) + 1)
             x_hourly["market_cap_log"] = np.log(stock_data_downloader.get_market_cap(symbol) + 1)
@@ -372,6 +366,16 @@ def prepare_all_stocks_data(symbols: List[str], period: str = "2y", interval: st
 
     # Create a symbol series aligned with the combined data
     combined_symbols = pd.Series(all_symbols, index=combined_daily.index)
+
+    # Convert categorical columns to category dtype AFTER concatenation
+    print("\nConverting categorical columns...")
+    categorical_cols = ["ticker", "sector", "industry"]
+    for col in categorical_cols:
+        if col in combined_daily.columns:
+            combined_daily[col] = combined_daily[col].astype("category")
+            print(f"  {col}: {combined_daily[col].nunique()} unique values")
+        if col in combined_hourly.columns:
+            combined_hourly[col] = combined_hourly[col].astype("category")
 
     print(f"✓ Total samples: {len(combined_daily)}")
     print(f"✓ Number of stocks: {len(symbols)}")
@@ -431,7 +435,14 @@ def train_single_model_for_all_stocks(
     print(f"Training samples: {len(x_train_daily)}")
     print(f"Testing samples: {len(x_test_daily)}")
 
-    # Create stacked predictor
+    # Optional: Hyperparameter optimization (disabled by default for single model)
+    # Uncomment to enable optimization, but note it may take a long time
+    optimizer = StockModelOptimizer(x_train_daily, y_train, x_test_daily, y_test, n_trials=1000, n_jobs=1)
+    optimizer.optimize_both()
+    optimizer.visualize_studies(save_path="plots/optuna")
+    optimizer.save_results(f"params/ALL_STOCKS_best_params.json")
+
+    # Create stacked predictor with default or optimized params
     stacked = StackedStockPredictor(
         {
             "daily": XGBoostStockPredictor(),
