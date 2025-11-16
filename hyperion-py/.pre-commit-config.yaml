@@ -1,0 +1,68 @@
+default_language_version:
+  python: python3.12
+
+default_stages: [ pre-commit, pre-push ]
+
+repos:
+  - repo: https://github.com/python-poetry/poetry
+    rev: '2.0.1'
+    hooks:
+      - id: poetry-lock
+      - id: poetry-check
+      - id: poetry-install
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: 'v5.0.0'
+    hooks:
+      # https://github.com/pre-commit/pre-commit-hooks#check-ast
+      - id: check-ast
+        description: Simply checks whether the files parse as valid python.
+        entry: check-ast
+        name: Check python syntax
+        types: [ python ]
+
+      # https://github.com/pre-commit/pre-commit-hooks#check-added-large-files
+      - id: check-added-large-files
+        description: prevents giant files from being committed.
+        entry: check-added-large-files
+        name: Check added large files
+
+      # https://github.com/pre-commit/pre-commit-hooks#check-json
+      - id: check-json
+        description: Checks json files for parseable syntax.
+        entry: check-json
+        name: Check JSON
+        types: [ json ]
+
+      # https://github.com/pre-commit/pre-commit-hooks#check-toml
+      - id: check-toml
+        description: Checks toml files for parseable syntax.
+        entry: check-toml
+        name: Check TOML
+        types: [ toml ]
+
+      # https://github.com/pre-commit/pre-commit-hooks#check-yaml
+      - id: check-yaml
+        description: Checks yaml files for parseable syntax.
+        entry: check-yaml
+        name: Check YAML
+        types: [ yaml ]
+
+      # https://github.com/pre-commit/pre-commit-hooks#end-of-file-fixer
+      - id: end-of-file-fixer
+        description: Ensures that a file is either empty, or ends with one newline.
+        entry: end-of-file-fixer
+        name: End of file fixer
+
+      # https://github.com/pre-commit/pre-commit-hooks#trailing-whitespace
+      - id: trailing-whitespace
+        description: Trims trailing whitespace.
+        entry: trailing-whitespace-fixer
+        name: Trailing whitespace
+
+  - repo: https://github.com/psf/black
+    rev: '25.1.0'
+    hooks:
+      - id: black
+        description: Reformats code with black
+        language_version: python3.12
