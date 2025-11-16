@@ -305,6 +305,7 @@ class StockModelOptimizer:
             save_path: Directory to save plots
         """
         import os
+
         os.makedirs(save_path, exist_ok=True)
 
         # XGBoost plots
