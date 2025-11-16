@@ -9,6 +9,7 @@ import pandas as pd
 from src.data import StockDataDownloader
 from src.feature import FeatureEngineering
 from src.lgb import LightGBMStockPredictor
+from src.optimise import StockModelOptimizer
 from src.stacker import StackedStockPredictor
 from src.visualisation import generate_plots, Visualizer
 from src.writer import save_trained_model, persist_results, output_best_strategy
@@ -39,15 +40,15 @@ def simple_train_test_split(
     dates_test = dates[split_idx:]
     prices_test = prices.iloc[split_idx:]
 
-    # optimizer = StockModelOptimizer(x_train_daily, y_train, x_test_daily, y_test)
-    #
-    # optimizer.optimize_both()
-    #
-    # # Visualize
-    # optimizer.visualize_studies(save_path="plots/optuna")
-    #
-    # # Save results
-    # optimizer.save_results(f"params/{symbol}_best_params.json")
+    optimizer = StockModelOptimizer(x_train_daily, y_train, x_test_daily, y_test)
+
+    optimizer.optimize_both()
+
+    # Visualize
+    optimizer.visualize_studies(save_path="plots/optuna")
+
+    # Save results
+    optimizer.save_results(f"params/{symbol}_best_params.json")
 
     x_train_dict = {"daily": x_train_daily, "hourly": x_train_hourly}
     x_test_dict = {"daily": x_test_daily, "hourly": x_test_hourly}
@@ -176,7 +177,6 @@ def run_trade_simulation(
     preds = np.asarray(preds).ravel()
     test_results["predictions"] = preds
 
-    # Import strategy classes
     from src.simulation import TradingSimulator
     from src.simulation.strategy.directional import DirectionalTradingStrategy
     from src.simulation.strategy.threshold import AdaptiveThresholdStrategy
