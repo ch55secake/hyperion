@@ -113,6 +113,9 @@ def train_model(symbols=None, period: str = "5y", interval: str = "1h", visualiz
             x_daily, y_daily, dates_daily, prices_daily, _ = features_daily.prepare_features()
 
             # Sector, market cap, industry and avg_volume
+            # TODO?
+            # x_daily["ticker"] = symbol
+            # x_daily["ticker"] = x_daily["ticker"].astype("category")
             x_daily["sector"] = stock_data_downloader.get_sector(symbol)
             x_daily["sector"] = x_daily["sector"].astype("category")
             x_daily["industry"] = stock_data_downloader.get_industry(symbol)
@@ -129,6 +132,9 @@ def train_model(symbols=None, period: str = "5y", interval: str = "1h", visualiz
             x_hourly, _, _, _, _ = features_hourly.prepare_features()
 
             # Sector, market cap, industry and avg_volume
+            # TODO?
+            # x_hourly["ticker"] = symbol
+            # x_hourly["ticker"] = x_hourly["ticker"].astype("category")
             x_hourly["sector"] = stock_data_downloader.get_sector(symbol)
             x_hourly["sector"] = x_hourly["sector"].astype("category")
             x_hourly["industry"] = stock_data_downloader.get_industry(symbol)
@@ -436,17 +442,25 @@ def train_single_model_for_all_stocks(
     print(f"Testing samples: {len(x_test_daily)}")
 
     # Optional: Hyperparameter optimization (disabled by default for single model)
-    # Uncomment to enable optimization, but note it may take a long time
-    optimizer = StockModelOptimizer(x_train_daily, y_train, x_test_daily, y_test, n_trials=1000, n_jobs=1)
-    optimizer.optimize_both()
-    optimizer.visualize_studies(save_path="plots/optuna")
-    optimizer.save_results(f"params/ALL_STOCKS_best_params.json")
+    xgb_params = None
+    lgb_params = None
+
+    # Enable optimization here, but not it make take a long time
+    use_optuna = False
+
+    if use_optuna:
+        optimizer = StockModelOptimizer(x_train_daily, y_train, x_test_daily, y_test, n_trials=1000, n_jobs=1)
+        optimizer.optimize_both()
+        optimizer.visualize_studies(save_path="plots/optuna")
+        optimizer.save_results(f"params/ALL_STOCKS_best_params.json")
+
+        xgb_params, lgb_params = optimizer.best_xgb_params, optimizer.best_lgb_params
 
     # Create stacked predictor with default or optimized params
     stacked = StackedStockPredictor(
         {
-            "daily": XGBoostStockPredictor(),
-            "hourly": LightGBMStockPredictor(),
+            "daily": XGBoostStockPredictor(params=xgb_params),
+            "hourly": LightGBMStockPredictor(params=lgb_params),
         }
     )
 

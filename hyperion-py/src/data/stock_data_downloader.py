@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 class StockDataDownloader:
     """Downloads and manages stock data from yfinance"""
+
     # Stock info is cached to avoid downloading the same data multiple times
     _stock_info: dict[str, dict[str, Any]] = {}
     # History data is cached to avoid downloading the same data multiple times
@@ -30,9 +31,11 @@ class StockDataDownloader:
 
         for symbol in self.symbols:
             try:
-                if (symbol in self.data
-                        and (symbol, self.period, self.interval) in self._history_data.keys()
-                        and symbol in self._stock_info.keys()):
+                if (
+                    symbol in self.data
+                    and (symbol, self.period, self.interval) in self._history_data.keys()
+                    and symbol in self._stock_info.keys()
+                ):
                     # No check on if data is in file, technically shouldn't be needed
                     print(f"\nData already downloaded for {symbol}")
                     continue
@@ -121,4 +124,6 @@ class StockDataDownloader:
         :param symbol: the stock you want the average volume for
         :return: average volume
         """
-        return self._history_data.get((symbol, self.period, self.interval), yf.Ticker(symbol).history(period=self.period, interval=self.interval))["Volume"].mean()
+        return self._history_data.get(
+            (symbol, self.period, self.interval), yf.Ticker(symbol).history(period=self.period, interval=self.interval)
+        )["Volume"].mean()
