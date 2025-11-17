@@ -101,7 +101,7 @@ class FeatureEngineering:
 
     def _add_rsi(self) -> FeatureEngineering:
         if self.__n_rows < 14:
-            return
+            return self
         delta = self.df["Close"].diff()
         gain = delta.where(delta > 0, 0).rolling(14).mean()
         loss = -delta.where(delta < 0, 0).rolling(14).mean()
@@ -381,7 +381,7 @@ class FeatureEngineering:
         # Scale features if requested
         if scale:
             scaler = StandardScaler()
-            cat_cols = ["sector", "industry"]
+            cat_cols = ["ticker", "sector", "industry"]
             num_cols = [c for c in x.columns if c not in cat_cols]
             x = pd.DataFrame(scaler.fit_transform(x), columns=num_cols, index=x.index)
 
