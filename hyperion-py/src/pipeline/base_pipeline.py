@@ -1,21 +1,17 @@
 import traceback
+from abc import ABC, abstractmethod
+from typing import Any
 
 import numpy as np
 import pandas as pd
 
 from src.data import StockDataDownloader
 from src.feature import FeatureEngineering
-from src.lgb import LightGBMStockPredictor
-from src.optimise import StockModelOptimizer
-from src.stacker import StackedStockPredictor
-from src.writer import save_trained_model
-from src.xbg import XGBoostStockPredictor
 
 
-class TrainingPipeline:
+class BaseTrainingPipeline(ABC):
     """
-    Builder-esq class for training a model.
-    I love Java (my-beloved, my lover, my best friend).
+    Base class for training pipelines
     """
 
     def __init__(
@@ -119,12 +115,7 @@ class TrainingPipeline:
                 x_daily, y_daily, dates_daily, prices_daily, _ = features_daily.prepare_features()
 
                 # Add stock-specific features
-                x_daily["ticker"] = symbol
-                x_daily["sector"] = self._downloader.get_sector(symbol)
-                x_daily["industry"] = self._downloader.get_industry(symbol)
-                x_daily["beta"] = self._downloader.get_beta(symbol)
-                x_daily["avg_volume_log"] = np.log(self._downloader.get_avg_volume(symbol) + 1)
-                x_daily["market_cap_log"] = np.log(self._downloader.get_market_cap(symbol) + 1)
+                x_daily = self._add_stock_features(x_daily, symbol)
 
                 # Hourly features
                 features_hourly = FeatureEngineering(self._stock_data[symbol])
@@ -132,12 +123,7 @@ class TrainingPipeline:
                 x_hourly, _, _, _, _ = features_hourly.prepare_features()
 
                 # Add stock-specific features to hourly
-                x_hourly["ticker"] = symbol
-                x_hourly["sector"] = self._downloader.get_sector(symbol)
-                x_hourly["industry"] = self._downloader.get_industry(symbol)
-                x_hourly["beta"] = self._downloader.get_beta(symbol)
-                x_hourly["avg_volume_log"] = np.log(self._downloader.get_avg_volume(symbol) + 1)
-                x_hourly["market_cap_log"] = np.log(self._downloader.get_market_cap(symbol) + 1)
+                x_hourly = self._add_stock_features(x_hourly, symbol)
 
                 # Align hourly with daily
                 x_hourly = x_hourly.loc[x_daily.index]
@@ -222,6 +208,22 @@ class TrainingPipeline:
 
         return self
 
+    def _add_stock_features(self, df: pd.DataFrame, symbol: str):
+        """
+        Add stock-specific features to the dataframe. These include sector, industry, beta, avg_volume_log, market_cap_log.
+        :param df:
+        :param symbol:
+        :return:
+        """
+        df["ticker"] = symbol
+        df["sector"] = self._downloader.get_sector(symbol)
+        df["industry"] = self._downloader.get_industry(symbol)
+        df["beta"] = self._downloader.get_beta(symbol)
+        df["avg_volume_log"] = np.log(self._downloader.get_avg_volume(symbol) + 1)
+        df["market_cap_log"] = np.log(self._downloader.get_market_cap(symbol) + 1)
+
+        return df
+
     def _create_categorical_features(self, train_daily, train_hourly, test_daily, test_hourly):
         """
         Create category columns so that when it tries to process those columns, it doesn't freak out as they are
@@ -240,76 +242,36 @@ class TrainingPipeline:
 
         return self, train_daily, train_hourly, test_daily, test_hourly
 
-    def train(self):
+    @abstractmethod
+    def _create_model(self) -> Any:
         """
-        Train both the daily and hourly models on the combined training data and then flatten them
+        Create the model or models to be trained
+        :return:
+        """
+        pass
+
+    @abstractmethod
+    def _optimize_hyperparameters(self) -> Any:
+        """
+        Run hyperparameter optimization if it is enabled
+        :return:
+        """
+        pass
+
+    @abstractmethod
+    def train(self) -> Any:
+        """
+        Train the model or models provided earlier in this pipeline
         :return:
         """
 
-        if self._test_train_data is None:
-            raise Exception("Please run prepare_features(), before trying to run train()")
-
-        x_train_daily = self._test_train_data["train"]["daily"]
-        x_train_hourly = self._test_train_data["train"]["hourly"]
-        y_train = self._test_train_data["train"]["targets"]
-
-        x_test_daily = self._test_train_data["test"]["daily"]
-        x_test_hourly = self._test_train_data["test"]["hourly"]
-        self._y_test = self._test_train_data["test"]["targets"]
-        self._dates_test = self._test_train_data["test"]["dates"]
-        self._prices_test = self._test_train_data["test"]["prices"]
-        self._symbols_test = self._test_train_data["test"]["symbols"]
-
-        print("\n" + "=" * 60)
-        print("Training Single Model")
-        print("=" * 60)
-        print(f"Training samples: {len(x_train_daily)}")
-        print(f"Testing samples: {len(x_test_daily)}")
-        print(f"Unique stocks in test set: {self._symbols_test.nunique()}")
-
-        if self.should_optimise:
-            print("Running hyperparameter optimisation, this will take a while...")
-            self._optimise_model(x_train_daily, y_train, x_test_daily, self._y_test)
-
-        self._model = StackedStockPredictor(
-            {
-                "daily": XGBoostStockPredictor(params=self._xgb_params),
-                "hourly": LightGBMStockPredictor(params=self._lgb_params),
-            }
-        )
-
-        train_data = {
-            "daily": (x_train_daily, y_train, x_test_daily, self._y_test),
-            "hourly": (x_train_hourly, y_train, x_test_hourly, self._y_test),
-        }
-
-        self._model.train(train_data)
-
-        self._x_test_dict = {"daily": x_test_daily, "hourly": x_test_hourly}
-        test_results = self._model.evaluate(self._x_test_dict, self._y_test)
-
-        model_name: str = "ALL_STOCKS"
-        save_trained_model(self._model, model_name, test_results)
-
-        return self
-
-    def _optimise_model(self, x_train_daily=None, y_train=None, x_test_daily=None, y_test=None):
+    @abstractmethod
+    def _get_predictions(self):
         """
-        Run optimization will only be run if the flag is enabled when the pipeline is instantiated.
-        :param x_train_daily:
-        :param y_train:
-        :param x_test_daily:
-        :param y_test:
+        Get predictions from the model because the single models expect a raw dataframe and not a dictionary
         :return:
         """
-        optimizer = StockModelOptimizer(x_train_daily, y_train, x_test_daily, y_test, n_trials=1000, n_jobs=1)
-        optimizer.optimize_both()
-        optimizer.visualize_studies(save_path="plots/optuna")
-        optimizer.save_results(f"params/ALL_STOCKS_best_params.json")
-
-        self._xgb_params, self._lgb_params = optimizer.best_xgb_params, optimizer.best_lgb_params
-
-        return self
+        pass
 
     def evaluate_model(self):
         """
@@ -323,7 +285,7 @@ class TrainingPipeline:
         print("Per-Stock Performance Analysis")
         print("=" * 60)
 
-        predictions = self._model.predict(self._x_test_dict)
+        predictions = self._get_predictions()
 
         symbols_list = (
             self._symbols_test.tolist() if hasattr(self._symbols_test, "tolist") else list(self._symbols_test)
@@ -440,5 +402,22 @@ class TrainingPipeline:
         print(f"✓ Detailed predictions saved to: results/detailed_predictions.csv")
 
     def visualize(self):
-        # This doesn't yet produce any plots, so it can be blank for now
+        """
+        Placeholder for visualization - can be overridden
+        :return:
+        """
         return self
+
+    def get_model(self):
+        """
+        Return the trained model
+        :return:
+        """
+        return self._model
+
+    def get_results(self):
+        """
+        Return evaluation results
+        :return:
+        """
+        return self._results

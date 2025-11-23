@@ -1,7 +1,7 @@
 import os
 import warnings
 
-from src.pipeline.pipeline import TrainingPipeline
+from src.pipeline.stacked_pipeline import StackedModelTrainingPipeline
 
 warnings.filterwarnings("ignore")
 
@@ -14,9 +14,9 @@ os.makedirs("./invalid_models", exist_ok=True)
 os.makedirs("./params", exist_ok=True)
 
 if __name__ == "__main__":
-    pipeline: TrainingPipeline = TrainingPipeline()
+    stacked_pipeline: StackedModelTrainingPipeline = StackedModelTrainingPipeline()
 
-    (pipeline.read_tickers().download_data().prepare_features().train().evaluate_model())
+    (stacked_pipeline.read_tickers().download_data().prepare_features().train().evaluate_model())
 
     # train_single_model_for_all_stocks(visualization=True)
     # from src.simulation import predict_mode

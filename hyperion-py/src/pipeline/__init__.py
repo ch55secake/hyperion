@@ -1,1 +1,2 @@
-from .pipeline import TrainingPipeline
+from .single_pipeline import SingleModelTrainingPipeline
+from .stacked_pipeline import StackedModelTrainingPipeline
