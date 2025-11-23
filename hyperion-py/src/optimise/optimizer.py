@@ -143,7 +143,7 @@ class StockModelOptimizer:
             self.X_train,
             self.y_train,
             eval_set=[(self.X_val, self.y_val)],
-            early_stopping_rounds=self.n_trials,
+            early_stopping_rounds=50,
             verbose=False,
         )
 
@@ -220,7 +220,7 @@ class StockModelOptimizer:
             train_data,
             num_boost_round=n_estimators,
             valid_sets=[val_data],
-            callbacks=[lgb.early_stopping(stopping_rounds=self.n_trials, verbose=False), lgb.log_evaluation(period=0)],
+            callbacks=[lgb.early_stopping(stopping_rounds=50, verbose=False), lgb.log_evaluation(period=0)],
         )
 
         y_pred = model.predict(self.X_val, num_iteration=model.best_iteration)
@@ -463,7 +463,7 @@ def cross_validate_with_optuna(
         y_val = y.iloc[val_idx]
 
         optimizer = StockModelOptimizer(
-            x_train, y_train, x_val, y_val, n_trials=n_trials, n_jobs=1  # Sequential for cross-validation
+            x_train, y_train, x_val, y_val, n_trials=n_trials, n_jobs=-1  # Sequential for cross-validation
         )
 
         if model_type.lower() == "xgboost":

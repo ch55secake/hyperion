@@ -93,7 +93,7 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         :param y_test:
         :return:
         """
-        optimizer = StockModelOptimizer(x_train_daily, y_train, x_test_daily, y_test, n_trials=1000, n_jobs=1)
+        optimizer = StockModelOptimizer(x_train_daily, y_train, x_test_daily, y_test, n_trials=200, n_jobs=1)
         optimizer.optimize_both()
         optimizer.visualize_studies(save_path="plots/optuna")
         optimizer.save_results(f"params/ALL_STOCKS_best_params.json")
