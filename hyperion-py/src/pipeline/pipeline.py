@@ -33,16 +33,19 @@ class TrainingPipeline:
         self.should_optimise = should_optimise
 
         # Unfortunately, lots of state management but hey ho
+        # State
         self._downloader = None
         self._stock_data = None
+        self._model = None
+        self._results = None
+        self._test_train_data = None
+
+        # References
         self._symbols_test = None
         self._x_test_dict = None
         self._y_test = None
         self._dates_test = None
         self._prices_test = None
-        self._test_train_data = None
-        self._model = None
-        self._results = None
         self._xgb_params = None
         self._lgb_params = None
 
@@ -313,7 +316,6 @@ class TrainingPipeline:
         Evaluate the model on the test set
         :return:
         """
-
         if self._model is None:
             raise Exception("Please run train(), before trying to run evaluate_model()")
 
@@ -399,11 +401,19 @@ class TrainingPipeline:
             print(f"  R²: {r2:.6f}")
             print(f"  Directional Accuracy: {directional_accuracy:.2f}%")
 
+        self._print_summary_stats()
+
+        self._save_results_and_predictions(detailed_predictions)
+
+        return self
+
+    def _print_summary_stats(self):
         print("\n" + "=" * 60)
         print("Summary Statistics Across All Stocks")
         print("=" * 60)
 
         results_df = pd.DataFrame(self._results)
+
         print(f"\nNumber of stocks evaluated: {len(results_df)}")
         print(f"Average RMSE: {results_df['rmse'].mean():.6f}")
         print(f"Average MAE: {results_df['mae'].mean():.6f}")
@@ -420,6 +430,8 @@ class TrainingPipeline:
             f"Best directional accuracy: {results_df.loc[results_df['directional_accuracy'].idxmax(), 'symbol']} ({results_df['directional_accuracy'].max():.2f}%)"
         )
 
+    def _save_results_and_predictions(self, detailed_predictions):
+        results_df = pd.DataFrame(self._results)
         results_df.to_csv("results/per_stock_performance.csv", index=False)
         print(f"\n✓ Per-stock results saved to: results/per_stock_performance.csv")
 
@@ -427,8 +439,6 @@ class TrainingPipeline:
         detailed_df.to_csv("results/detailed_predictions.csv", index=False)
         print(f"✓ Detailed predictions saved to: results/detailed_predictions.csv")
 
-        return self
-
     def visualize(self):
-        # This doesn't yet produce any plots so it can be blank for now
+        # This doesn't yet produce any plots, so it can be blank for now
         return self
