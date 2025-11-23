@@ -1,4 +1,5 @@
 import logging
+import os
 from typing import Any
 
 import pandas as pd
@@ -31,6 +32,13 @@ class StockDataDownloader:
 
         for symbol in self.symbols:
             try:
+                # TODO: Double check this slop
+                default_path: str = "./historic_data/"
+                filename: str = symbol + "_2y_1h" + ".csv"
+                complete_path: str = os.path.join(default_path, filename)
+                print(f"\nChecking for existing data for {complete_path}...")
+                if os.path.isfile(complete_path):
+                    self._history_data[(symbol, self.period, self.interval)] = pd.read_csv(complete_path)
                 if (
                     symbol in self.data
                     and (symbol, self.period, self.interval) in self._history_data.keys()
@@ -51,7 +59,6 @@ class StockDataDownloader:
                     print(f"  ⚠️  No data found for {symbol}")
                     continue
 
-                # Save to CSV
                 filename = f"./historic_data/{symbol}_{self.period}_{self.interval}.csv"
                 df.to_csv(filename)
 

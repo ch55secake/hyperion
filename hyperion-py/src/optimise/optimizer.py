@@ -70,13 +70,13 @@ class StockModelOptimizer:
 
         # Scale numeric features
         if self.numeric_columns:
-            X_train_scaled = self.scaler.fit_transform(self.X_train[self.numeric_columns])
-            X_val_scaled = self.scaler.transform(self.X_val[self.numeric_columns])
+            x_train_scaled = self.scaler.fit_transform(self.X_train[self.numeric_columns])
+            x_val_scaled = self.scaler.transform(self.X_val[self.numeric_columns])
 
             # Replace numeric columns with scaled values while preserving categorical
             for i, col in enumerate(self.numeric_columns):
-                self.X_train[col] = X_train_scaled[:, i]
-                self.X_val[col] = X_val_scaled[:, i]
+                self.X_train[col] = x_train_scaled[:, i]
+                self.X_val[col] = x_val_scaled[:, i]
 
         self.best_xgb_params = None
         self.best_lgb_params = None

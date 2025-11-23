@@ -1,6 +1,7 @@
 import os
 import warnings
 
+from src.pipeline.pipeline import TrainingPipeline
 from src.server import ModelServer
 from src.train import train_model, train_single_model_for_all_stocks
 
@@ -15,7 +16,11 @@ os.makedirs("./invalid_models", exist_ok=True)
 os.makedirs("./params", exist_ok=True)
 
 if __name__ == "__main__":
-    train_single_model_for_all_stocks(visualization=True)
+    pipeline: TrainingPipeline = TrainingPipeline()
+
+    (pipeline.read_tickers().download_data().prepare_features().train().evaluate_model())
+
+    # train_single_model_for_all_stocks(visualization=True)
     # from src.simulation import predict_mode
     # predict_mode(visualisation=True)
     # ModelServer(port=8080).run()
