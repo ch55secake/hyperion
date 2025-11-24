@@ -53,7 +53,6 @@ class StockDataDownloader:
         except Exception as e:
             print(f"\n⚠️ Failed to save stock info: {e}")
 
-
     def download_data(self):
         """Download data for all symbols"""
         print("=" * 60)
@@ -176,5 +175,7 @@ class StockDataDownloader:
         :return: average volume
         """
         if (symbol, self.period, self.interval) not in self._history_data:
-            self._history_data[(symbol, self.period, self.interval)] = yf.Ticker(symbol).history(period=self.period, interval=self.interval)
+            self._history_data[(symbol, self.period, self.interval)] = yf.Ticker(symbol).history(
+                period=self.period, interval=self.interval
+            )
         return self._history_data[(symbol, self.period, self.interval)]["Volume"].mean()
