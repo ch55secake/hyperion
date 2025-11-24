@@ -46,12 +46,10 @@ class LightGBMStockPredictor:
         print("Training LightGBM Model")
         print("=" * 60)
 
-        # Store feature columns
         if isinstance(x_train, pd.DataFrame):
             self.feature_columns = list(x_train.columns)
             print(f"Stored {len(self.feature_columns)} feature columns")
 
-        # Identify numeric and categorical columns
         self.categorical_columns = x_train.select_dtypes(include=["category"]).columns.tolist()
         self.numeric_columns = x_train.select_dtypes(include=["number"]).columns.tolist()
 
@@ -60,7 +58,6 @@ class LightGBMStockPredictor:
         if self.categorical_columns:
             print(f"  Categories: {self.categorical_columns}")
 
-        # Check for object columns that should be categorical
         object_cols = x_train.select_dtypes(include=["object"]).columns.tolist()
         if object_cols:
             print(f"⚠️ Warning: Found {len(object_cols)} object columns that should be categorical: {object_cols}")
@@ -68,21 +65,17 @@ class LightGBMStockPredictor:
             x_train = x_train.copy()
             for col in object_cols:
                 x_train[col] = x_train[col].astype("category")
-            # Re-identify columns after conversion
             self.categorical_columns = x_train.select_dtypes(include=["category"]).columns.tolist()
             print(f"  Updated categorical columns: {self.categorical_columns}")
 
-        # Scale only numeric features while preserving categorical columns
         print("Scaling numeric features...")
         x_train_processed = x_train.copy()
 
         if self.numeric_columns:
             x_train_scaled = self.scaler.fit_transform(x_train[self.numeric_columns])
-            # Replace only the numeric columns, preserving categorical ones
             for i, col in enumerate(self.numeric_columns):
                 x_train_processed[col] = x_train_scaled[:, i]
 
-        # Create dataset for LightGBM with categorical features
         train_data = lgb.Dataset(
             x_train_processed,
             label=y_train,
@@ -95,7 +88,6 @@ class LightGBMStockPredictor:
         if x_val is not None and y_val is not None:
             x_val_processed = x_val.copy()
 
-            # Convert object columns in validation set too
             for col in object_cols if object_cols else []:
                 if col in x_val_processed.columns:
                     x_val_processed[col] = x_val_processed[col].astype("category")
@@ -113,7 +105,6 @@ class LightGBMStockPredictor:
             valid_sets.append(val_data)
             valid_names.append("valid")
 
-        # Train with early stopping if validation data provided
         self.model = lgb.train(
             self.params,
             train_data,
@@ -122,11 +113,9 @@ class LightGBMStockPredictor:
             num_boost_round=self.params.get("n_estimators", 1500),
         )
 
-        # Store feature importance
         feature_names = x_train_processed.columns.tolist()
         feature_importances = self.model.feature_importance()
 
-        # Ensure lengths match
         if len(feature_names) != len(feature_importances):
             print(
                 f"⚠️ Warning: Feature name count ({len(feature_names)}) doesn't match importance count ({len(feature_importances)})"
@@ -144,7 +133,6 @@ class LightGBMStockPredictor:
         print(f"✓ Number of trees: {self.model.best_iteration or self.params['n_estimators']}")
         print(f"✓ Max depth: {self.params['max_depth']}")
 
-        # Show top features
         print("\nTop 10 Most Important Features:")
         print(self.feature_importance.head(10).to_string(index=False))
 
@@ -153,22 +141,18 @@ class LightGBMStockPredictor:
         if self.model is None:
             raise ValueError("Model not trained yet")
 
-        # Ensure features are in the correct order
         if self.feature_columns is not None and isinstance(x, pd.DataFrame):
             x = x[self.feature_columns]
 
-        # Convert object columns to category (same as in training)
         object_cols = x.select_dtypes(include=["object"]).columns.tolist()
         if object_cols:
             x = x.copy()
             for col in object_cols:
                 x[col] = x[col].astype("category")
 
-        # Process features (scale numeric only, preserve categorical)
         x_processed = x.copy()
         if self.numeric_columns:
             x_scaled = self.scaler.transform(x[self.numeric_columns])
-            # Replace only the numeric columns, preserving categorical ones
             for i, col in enumerate(self.numeric_columns):
                 x_processed[col] = x_scaled[:, i]
 

@@ -27,9 +27,9 @@ class XGBoostStockPredictor:
                 "alpha": 0.3,
                 "gamma": 0.0,
                 "n_estimators": 500,
-                "tree_method": "hist",  # Changed from "exact" - hist supports categorical
+                "tree_method": "hist",
                 "seed": 42,
-                "enable_categorical": True,  # Enable categorical support
+                "enable_categorical": True,
             }
 
         self.params = params
@@ -46,12 +46,10 @@ class XGBoostStockPredictor:
         print("Training XGBoost Model")
         print("=" * 60)
 
-        # Store feature columns for later use during prediction
         if isinstance(x_train, pd.DataFrame):
             self.feature_columns = list(x_train.columns)
             print(f"Stored {len(self.feature_columns)} feature columns")
 
-        # Identify numeric and categorical columns BEFORE any processing
         self.categorical_columns = x_train.select_dtypes(include=["category"]).columns.tolist()
         self.numeric_columns = x_train.select_dtypes(include=["number"]).columns.tolist()
 
@@ -60,7 +58,6 @@ class XGBoostStockPredictor:
         if self.categorical_columns:
             print(f"  Categories: {self.categorical_columns}")
 
-        # Check for object columns that should be categorical
         object_cols = x_train.select_dtypes(include=["object"]).columns.tolist()
         if object_cols:
             print(f"⚠️ Warning: Found {len(object_cols)} object columns that should be categorical: {object_cols}")
@@ -68,30 +65,24 @@ class XGBoostStockPredictor:
             x_train = x_train.copy()
             for col in object_cols:
                 x_train[col] = x_train[col].astype("category")
-            # Re-identify columns after conversion
             self.categorical_columns = x_train.select_dtypes(include=["category"]).columns.tolist()
             print(f"  Updated categorical columns: {self.categorical_columns}")
 
-        # Scale only numeric features while preserving categorical columns
         print("Scaling numeric features...")
         x_train_processed = x_train.copy()
 
         if self.numeric_columns:
             x_train_scaled = self.scaler.fit_transform(x_train[self.numeric_columns])
-            # Replace only the numeric columns, preserving categorical ones
             for i, col in enumerate(self.numeric_columns):
                 x_train_processed[col] = x_train_scaled[:, i]
 
-        # Verify dtypes before fitting
         print("\nDataFrame dtypes before fitting:")
         for col in x_train_processed.columns:
             if x_train_processed[col].dtype.name in ["object", "category"]:
                 print(f"  {col}: {x_train_processed[col].dtype}")
 
-        # Extract early stopping rounds if present
         early_stopping = self.params.pop("early_stopping_rounds", None)
 
-        # Check if we need to enable categorical support
         enable_categorical = self.params.get("enable_categorical", False)
         if self.categorical_columns and not enable_categorical:
             print("⚠️ Warning: Categorical columns detected but enable_categorical not set. Enabling it.")
@@ -102,7 +93,6 @@ class XGBoostStockPredictor:
         if x_val is not None and y_val is not None and early_stopping is not None:
             x_val_processed = x_val.copy()
 
-            # Convert object columns in validation set too
             for col in object_cols if object_cols else []:
                 if col in x_val_processed.columns:
                     x_val_processed[col] = x_val_processed[col].astype("category")
@@ -117,16 +107,13 @@ class XGBoostStockPredictor:
         else:
             self.model.fit(x_train_processed, y_train)
 
-        # Store feature importance - use actual feature names from the processed data
         feature_names = x_train_processed.columns.tolist()
         feature_importances = self.model.feature_importances_
 
-        # Ensure lengths match
         if len(feature_names) != len(feature_importances):
             print(
                 f"⚠️ Warning: Feature name count ({len(feature_names)}) doesn't match importance count ({len(feature_importances)})"
             )
-            # Use indices if there's a mismatch
             feature_names = [f"feature_{i}" for i in range(len(feature_importances))]
 
         self.feature_importance = pd.DataFrame(
@@ -138,7 +125,6 @@ class XGBoostStockPredictor:
         print(f"✓ Best iteration: {self.model.best_iteration if hasattr(self.model, 'best_iteration') else 'N/A'}")
         print(f"✓ Max depth: {self.params['max_depth']}")
 
-        # Show top features
         print("\nTop 10 Most Important Features:")
         print(self.feature_importance.head(10).to_string(index=False))
 
@@ -151,18 +137,15 @@ class XGBoostStockPredictor:
         if self.feature_columns is not None and isinstance(x, pd.DataFrame):
             x = x[self.feature_columns]
 
-        # Convert object columns to category (same as in training)
         object_cols = x.select_dtypes(include=["object"]).columns.tolist()
         if object_cols:
             x = x.copy()
             for col in object_cols:
                 x[col] = x[col].astype("category")
 
-        # Process features (scale numeric only, preserve categorical)
         x_processed = x.copy()
         if self.numeric_columns:
             x_scaled = self.scaler.transform(x[self.numeric_columns])
-            # Replace only the numeric columns, preserving categorical ones
             for i, col in enumerate(self.numeric_columns):
                 x_processed[col] = x_scaled[:, i]
 
@@ -222,7 +205,6 @@ class XGBoostStockPredictor:
         with open(filename, "rb") as f:
             model_data = pickle.load(f)
 
-        # Create instance and restore model
         instance = cls(params=model_data["params"])
         instance.model = model_data["model"]
         instance.scaler = model_data["scaler"]

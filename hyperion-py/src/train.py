@@ -113,9 +113,6 @@ def train_model(symbols=None, period: str = "5y", interval: str = "1h", visualiz
             x_daily, y_daily, dates_daily, prices_daily, _ = features_daily.prepare_features()
 
             # Sector, market cap, industry and avg_volume
-            # TODO?
-            # x_daily["ticker"] = symbol
-            # x_daily["ticker"] = x_daily["ticker"].astype("category")
             x_daily["sector"] = stock_data_downloader.get_sector(symbol)
             x_daily["sector"] = x_daily["sector"].astype("category")
             x_daily["industry"] = stock_data_downloader.get_industry(symbol)
@@ -132,9 +129,6 @@ def train_model(symbols=None, period: str = "5y", interval: str = "1h", visualiz
             x_hourly, _, _, _, _ = features_hourly.prepare_features()
 
             # Sector, market cap, industry and avg_volume
-            # TODO?
-            # x_hourly["ticker"] = symbol
-            # x_hourly["ticker"] = x_hourly["ticker"].astype("category")
             x_hourly["sector"] = stock_data_downloader.get_sector(symbol)
             x_hourly["sector"] = x_hourly["sector"].astype("category")
             x_hourly["industry"] = stock_data_downloader.get_industry(symbol)
