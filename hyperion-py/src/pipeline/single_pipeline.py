@@ -58,7 +58,7 @@ class SingleModelTrainingPipeline(BaseTrainingPipeline):
 
     def train(self) -> Any:
         """
-
+        Train a single model on the training data which will be sampled at 1 day at a time
         :return:
         """
         if self._test_train_data is None:
@@ -67,10 +67,7 @@ class SingleModelTrainingPipeline(BaseTrainingPipeline):
         x_train_daily = self._test_train_data["train"]["daily"]
         y_train = self._test_train_data["train"]["targets"]
         x_test_daily = self._test_train_data["test"]["daily"]
-        self._y_test = self._test_train_data["test"]["targets"]
-        self._dates_test = self._test_train_data["test"]["dates"]
-        self._prices_test = self._test_train_data["test"]["prices"]
-        self._symbols_test = self._test_train_data["test"]["symbols"]
+        self._populate_test_train_data()
 
         print("\n" + "=" * 60)
         print(f"Training Single {self.model_type.upper()} Model")

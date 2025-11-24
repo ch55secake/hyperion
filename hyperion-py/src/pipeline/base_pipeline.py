@@ -159,20 +159,26 @@ class BaseTrainingPipeline(ABC):
         print("Combining Training Data")
         print("=" * 60)
 
-        train_daily = pd.concat(train_daily_features, axis=0, ignore_index=False)
-        train_hourly = pd.concat(train_hourly_features, axis=0, ignore_index=False)
-        train_targets = pd.concat(train_targets, axis=0, ignore_index=False)
-        train_dates = pd.concat(train_dates, axis=0, ignore_index=False)
-        train_prices = pd.concat(train_prices, axis=0, ignore_index=False)
+        train_daily, train_hourly, train_targets, train_dates, train_prices = self._combine_features(
+            daily_features=train_daily_features,
+            hourly_features=train_hourly_features,
+            train_targets=train_targets,
+            train_dates=train_dates,
+            train_prices=train_prices,
+        )
+
         train_symbols_series = pd.Series(train_symbols, index=train_daily.index)
 
         # Combine test data
         print("Combining Test Data")
-        test_daily = pd.concat(test_daily_features, axis=0, ignore_index=False)
-        test_hourly = pd.concat(test_hourly_features, axis=0, ignore_index=False)
-        test_targets = pd.concat(test_targets, axis=0, ignore_index=False)
-        test_dates = pd.concat(test_dates, axis=0, ignore_index=False)
-        test_prices = pd.concat(test_prices, axis=0, ignore_index=False)
+        test_daily, test_hourly, test_targets, test_dates, test_targets = self._combine_features(
+            daily_features=test_daily_features,
+            hourly_features=test_hourly_features,
+            train_targets=test_targets,
+            train_dates=test_dates,
+            train_prices=test_prices,
+        )
+
         test_symbols_series = pd.Series(test_symbols, index=test_daily.index)
 
         # Convert categorical columns to category dtype AFTER concatenation
@@ -272,6 +278,30 @@ class BaseTrainingPipeline(ABC):
         :return:
         """
         pass
+
+    def _populate_test_train_data(self):
+        """
+        Populate test train data to avoid duplication between pipelines
+        :return:
+        """
+        self._y_test = self._test_train_data["test"]["targets"]
+        self._dates_test = self._test_train_data["test"]["dates"]
+        self._prices_test = self._test_train_data["test"]["prices"]
+        self._symbols_test = self._test_train_data["test"]["symbols"]
+
+    @staticmethod
+    def _combine_features(daily_features, hourly_features, train_targets, train_dates, train_prices):
+        """
+        Concatenate dataframes so that they are along the same axis
+        :return:
+        """
+        train_daily = pd.concat(daily_features, axis=0, ignore_index=False)
+        train_hourly = pd.concat(hourly_features, axis=0, ignore_index=False)
+        train_targets = pd.concat(train_targets, axis=0, ignore_index=False)
+        train_dates = pd.concat(train_dates, axis=0, ignore_index=False)
+        train_prices = pd.concat(train_prices, axis=0, ignore_index=False)
+
+        return train_daily, train_hourly, train_targets, train_dates, train_prices
 
     def evaluate_model(self):
         """
