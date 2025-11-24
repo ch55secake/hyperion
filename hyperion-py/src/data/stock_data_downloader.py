@@ -32,9 +32,8 @@ class StockDataDownloader:
 
         for symbol in self.symbols:
             try:
-                # TODO: Double check this slop
                 default_path: str = "./historic_data/"
-                filename: str = symbol + "_2y_1h" + ".csv"
+                filename: str = symbol + "_" + self.period + "_" + self.interval + ".csv"
                 complete_path: str = os.path.join(default_path, filename)
                 print(f"\nChecking for existing data for {complete_path}...")
                 if os.path.isfile(complete_path):
@@ -59,7 +58,7 @@ class StockDataDownloader:
                     print(f"  ⚠️  No data found for {symbol}")
                     continue
 
-                filename = f"./historic_data/{symbol}_{self.period}_{self.interval}.csv"
+                filename = f"./historic_data/{filename}"
                 df.to_csv(filename)
 
                 self.data[symbol] = df
