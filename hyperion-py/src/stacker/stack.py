@@ -116,12 +116,12 @@ class TimeSeriesStacker:
         """
         name = base["name"]
         model_factory: Callable = base["model_factory"]
-        X: pd.DataFrame = base["X"].sort_index()
+        x: pd.DataFrame = base["X"].sort_index()
         y_base: Optional[pd.Series] = base.get("y", None)
         align = base.get("align", "mean")  # 'mean' or 'ffill' or callable
 
         # Build index for time splits based on X
-        idx = X.index
+        idx = x.index
         n = len(idx)
         if n < (self.n_splits + 1):
             raise ValueError(f"Not enough rows ({n}) in base model '{name}' to do {self.n_splits} splits")
@@ -134,20 +134,20 @@ class TimeSeriesStacker:
             train_idx_loc = idx[train_idx]
             test_idx_loc = idx[test_idx]
 
-            X_tr = X.loc[train_idx_loc]
+            x_tr = x.loc[train_idx_loc]
             y_tr = self.target.reindex(train_idx_loc) if y_base is None else y_base.loc[train_idx_loc]
 
-            X_te = X.loc[test_idx_loc]
+            x_te = x.loc[test_idx_loc]
             # train a fresh model
             model = model_factory()
             # support models with train(X_train, y_train, x_val=None, y_val=None) signature
             try:
-                model.train(X_tr, y_tr)
+                model.train(x_tr, y_tr)
             except TypeError:
                 # maybe model.train expects only X and y
-                model.train(X_tr, y_tr)
+                model.train(x_tr, y_tr)
 
-            preds_te = pd.Series(model.predict(X_te), index=test_idx_loc)
+            preds_te = pd.Series(model.predict(x_te), index=test_idx_loc)
             oof_preds_indexed.loc[test_idx_loc] = preds_te
 
         # Align the base-frequency OOF preds to meta_index
@@ -200,18 +200,18 @@ class TimeSeriesStacker:
             name = base["name"]
             print(f"Retraining base model '{name}' on full data...")
             model = base["model_factory"]()
-            X_full = base["X"].sort_index()
+            x_full = base["X"].sort_index()
             # base may or may not have y at its frequency; if missing, use meta target reindexed to base X index
             y_base = base.get("y", None)
             if y_base is None:
-                y_full = self.target.reindex(X_full.index)
+                y_full = self.target.reindex(x_full.index)
             else:
-                y_full = y_base.reindex(X_full.index)
+                y_full = y_base.reindex(x_full.index)
 
-            model.train(X_full, y_full)
+            model.train(x_full, y_full)
             self.trained_base_models[name] = model
 
-            preds_full = pd.Series(model.predict(X_full), index=X_full.index)
+            preds_full = pd.Series(model.predict(x_full), index=x_full.index)
             aligned = self._align_preds(preds_full, test_meta_index, method=base.get("align", "mean"))
             base_preds_df[name] = aligned
 
@@ -299,7 +299,7 @@ class StackedStockPredictor:
         mae = mean_absolute_error(y_true, preds)
         r2 = r2_score(y_true, preds)
 
-        print(f"Stacked Model Performance:")
+        print("Stacked Model Performance:")
         print(f"  MSE : {mse:.8f}")
         print(f"  RMSE: {rmse:.8f}")
         print(f"  MAE : {mae:.8f}")

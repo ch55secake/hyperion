@@ -1,9 +1,5 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
-
-import numpy as np
-from numpy._typing import NDArray
 
 
 class TradeAction(Enum):

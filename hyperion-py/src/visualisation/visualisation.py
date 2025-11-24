@@ -75,7 +75,7 @@ class Visualizer:
         portfolio_df = simulation_results["portfolio_history"]
         trades_df = simulation_results["trades"]
 
-        fig, axes = plt.subplots(3, 1, figsize=(15, 14))
+        _, axes = plt.subplots(3, 1, figsize=(15, 14))
 
         # Portfolio value over time
         ax1 = axes[0]
@@ -157,7 +157,7 @@ class Visualizer:
                 color="red",
                 alpha=0.5,
                 fontweight="bold",
-                bbox=dict(boxstyle="round", facecolor="yellow", alpha=0.3),
+                bbox={"boxstyle": "round", "facecolor": "yellow", "alpha": 0.3},
             )
 
         ax2.set_xlabel("Date")
@@ -210,7 +210,7 @@ class Visualizer:
                 transform=ax3.transAxes,
                 verticalalignment="top",
                 fontsize=9,
-                bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5),
+                bbox={"boxstyle": "round", "facecolor": "wheat", "alpha": 0.5},
             )
 
         ax3.set_xlabel("Date")
@@ -316,7 +316,7 @@ class Visualizer:
     @staticmethod
     def plot_forecast(historical_df, forecast_data, symbol, save_path="plots"):
         """Plot historical prices and forecasted prices"""
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(16, 12))
+        _, (ax1, ax2) = plt.subplots(2, 1, figsize=(16, 12))
 
         # Plot 1: Price forecast
         hist_dates = historical_df.index
@@ -433,7 +433,7 @@ class Visualizer:
     @staticmethod
     def plot_price_with_indicators(df, symbol, save_path="plots"):
         """Plot stock price with technical indicators"""
-        fig, axes = plt.subplots(3, 1, figsize=(15, 12))
+        _, axes = plt.subplots(3, 1, figsize=(15, 12))
 
         # Price with moving averages
         ax1 = axes[0]

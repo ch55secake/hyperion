@@ -36,7 +36,7 @@ class StockDataDownloader:
 
         if os.path.isfile(path):
             try:
-                with open(path, "r") as f:
+                with open(path, "r", encoding="UTF-8") as f:
                     cls._stock_info = json.load(f)
                 print(f"✓ Loaded cached stock info ({len(cls._stock_info)} entries)")
             except Exception as e:
@@ -47,7 +47,7 @@ class StockDataDownloader:
         """Save cached stock info to disk."""
 
         try:
-            with open(path, "w") as f:
+            with open(path, "w", encoding="UTF-8") as f:
                 json.dump(cls._stock_info, f, indent=4)
             print(f"\n✓ Saved stock info ({len(cls._stock_info)} entries)")
         except Exception as e:

@@ -27,7 +27,7 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
     def _get_predictions(self):
         """
-
+        Grab the dictionary of the both daily and hourly models and pass it to the stacked model
         :return:
         """
         return self._model.predict(self._x_test_dict)

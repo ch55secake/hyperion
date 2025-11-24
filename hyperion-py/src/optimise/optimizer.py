@@ -1,19 +1,20 @@
+import logging
+import warnings
+from typing import Dict, Any, Tuple
+
+import lightgbm as lgb
+import numpy as np
 import optuna
+import pandas as pd
+import xgboost as xgb
 from optuna.visualization import (
     plot_optimization_history,
     plot_param_importances,
     plot_parallel_coordinate,
 )
-import xgboost as xgb
-import lightgbm as lgb
-import numpy as np
-import pandas as pd
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.preprocessing import StandardScaler
-import logging
-from typing import Dict, Any, Tuple
-import warnings
 
 warnings.filterwarnings("ignore")
 
@@ -47,8 +48,8 @@ class StockModelOptimizer:
             random_state: Random seed
         """
         # Process features before storing
-        self.X_train = self._process_features(x_train.copy())
-        self.X_val = self._process_features(x_val.copy())
+        self.x_train = self._process_features(x_train.copy())
+        self.x_val = self._process_features(x_val.copy())
         self.y_train = y_train
         self.y_val = y_val
         self.n_trials = n_trials
@@ -56,10 +57,10 @@ class StockModelOptimizer:
         self.random_state = random_state
 
         # Identify column types
-        self.categorical_columns = self.X_train.select_dtypes(include=["category"]).columns.tolist()
-        self.numeric_columns = self.X_train.select_dtypes(include=["number"]).columns.tolist()
+        self.categorical_columns = self.x_train.select_dtypes(include=["category"]).columns.tolist()
+        self.numeric_columns = self.x_train.select_dtypes(include=["number"]).columns.tolist()
 
-        logger.info(f"Optimizer initialized with {len(self.X_train.columns)} features")
+        logger.info(f"Optimizer initialized with {len(self.x_train.columns)} features")
         logger.info(f"  Numeric columns: {len(self.numeric_columns)}")
         logger.info(f"  Categorical columns: {len(self.categorical_columns)}")
         if self.categorical_columns:
@@ -70,13 +71,13 @@ class StockModelOptimizer:
 
         # Scale numeric features
         if self.numeric_columns:
-            x_train_scaled = self.scaler.fit_transform(self.X_train[self.numeric_columns])
-            x_val_scaled = self.scaler.transform(self.X_val[self.numeric_columns])
+            x_train_scaled = self.scaler.fit_transform(self.x_train[self.numeric_columns])
+            x_val_scaled = self.scaler.transform(self.x_val[self.numeric_columns])
 
             # Replace numeric columns with scaled values while preserving categorical
             for i, col in enumerate(self.numeric_columns):
-                self.X_train[col] = x_train_scaled[:, i]
-                self.X_val[col] = x_val_scaled[:, i]
+                self.x_train[col] = x_train_scaled[:, i]
+                self.x_val[col] = x_val_scaled[:, i]
 
         self.best_xgb_params = None
         self.best_lgb_params = None
@@ -140,14 +141,14 @@ class StockModelOptimizer:
         model = xgb.XGBRegressor(**params, n_estimators=n_estimators)
 
         model.fit(
-            self.X_train,
+            self.x_train,
             self.y_train,
-            eval_set=[(self.X_val, self.y_val)],
+            eval_set=[(self.x_val, self.y_val)],
             early_stopping_rounds=50,
             verbose=False,
         )
 
-        y_pred = model.predict(self.X_val)
+        y_pred = model.predict(self.x_val)
         rmse = np.sqrt(mean_squared_error(self.y_val, y_pred))
 
         # Calculate additional metrics for tracking
@@ -204,12 +205,12 @@ class StockModelOptimizer:
 
         # Create datasets with categorical feature support
         train_data = lgb.Dataset(
-            self.X_train,
+            self.x_train,
             label=self.y_train,
             categorical_feature=self.categorical_columns if self.categorical_columns else "auto",
         )
         val_data = lgb.Dataset(
-            self.X_val,
+            self.x_val,
             label=self.y_val,
             reference=train_data,
             categorical_feature=self.categorical_columns if self.categorical_columns else "auto",
@@ -223,7 +224,7 @@ class StockModelOptimizer:
             callbacks=[lgb.early_stopping(stopping_rounds=50, verbose=False), lgb.log_evaluation(period=0)],
         )
 
-        y_pred = model.predict(self.X_val, num_iteration=model.best_iteration)
+        y_pred = model.predict(self.x_val, num_iteration=model.best_iteration)
         rmse = np.sqrt(mean_squared_error(self.y_val, y_pred))
 
         mae = mean_absolute_error(self.y_val, y_pred)
@@ -266,7 +267,7 @@ class StockModelOptimizer:
         logger.info(f"Best RMSE: {best_trial.value:.6f}")
         logger.info(f"Best MAE: {best_trial.user_attrs['mae']:.6f}")
         logger.info(f"Best R²: {best_trial.user_attrs['r2']:.6f}")
-        logger.info(f"Best Directional Accuracy: {best_trial.user_attrs['directional_accuracy']*100:.2f}%")
+        logger.info(f"Best Directional Accuracy: {best_trial.user_attrs['directional_accuracy'] * 100:.2f}%")
         logger.info(f"Best Iteration: {best_trial.user_attrs['best_iteration']}")
         logger.info(f"\nBest Parameters:")
         for key, value in self.best_xgb_params.items():
@@ -308,7 +309,7 @@ class StockModelOptimizer:
         logger.info(f"Best RMSE: {best_trial.value:.6f}")
         logger.info(f"Best MAE: {best_trial.user_attrs['mae']:.6f}")
         logger.info(f"Best R²: {best_trial.user_attrs['r2']:.6f}")
-        logger.info(f"Best Directional Accuracy: {best_trial.user_attrs['directional_accuracy']*100:.2f}%")
+        logger.info(f"Best Directional Accuracy: {best_trial.user_attrs['directional_accuracy'] * 100:.2f}%")
         logger.info(f"Best Iteration: {best_trial.user_attrs['best_iteration']}")
         logger.info(f"\nBest Parameters:")
         for key, value in self.best_lgb_params.items():
@@ -341,12 +342,12 @@ class StockModelOptimizer:
         logger.info(
             f"XGBoost  - RMSE: {xgb_results['best_rmse']:.6f}, "
             f"R²: {xgb_results['best_trial'].user_attrs['r2']:.6f}, "
-            f"Dir Acc: {xgb_results['best_trial'].user_attrs['directional_accuracy']*100:.2f}%"
+            f"Dir Acc: {xgb_results['best_trial'].user_attrs['directional_accuracy'] * 100:.2f}%"
         )
         logger.info(
             f"LightGBM - RMSE: {lgb_results['best_rmse']:.6f}, "
             f"R²: {lgb_results['best_trial'].user_attrs['r2']:.6f}, "
-            f"Dir Acc: {lgb_results['best_trial'].user_attrs['directional_accuracy']*100:.2f}%"
+            f"Dir Acc: {lgb_results['best_trial'].user_attrs['directional_accuracy'] * 100:.2f}%"
         )
 
         if xgb_results["best_rmse"] < lgb_results["best_rmse"]:
@@ -490,6 +491,6 @@ def cross_validate_with_optuna(
     logger.info("=" * 80)
     logger.info(f"Average RMSE: {avg_rmse:.6f}")
     logger.info(f"Average R²: {avg_r2:.6f}")
-    logger.info(f"Average Directional Accuracy: {avg_dir_acc*100:.2f}%")
+    logger.info(f"Average Directional Accuracy: {avg_dir_acc * 100:.2f}%")
 
     return {"fold_results": fold_results, "avg_rmse": avg_rmse, "avg_r2": avg_r2, "avg_dir_acc": avg_dir_acc}

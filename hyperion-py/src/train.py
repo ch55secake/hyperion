@@ -1,7 +1,7 @@
 import json
 import os
 import traceback
-from typing import Dict, Tuple, List
+from typing import Dict, Tuple
 
 import numpy as np
 import pandas as pd
@@ -20,7 +20,7 @@ USE_WALK_FORWARD = False  # Set to False for a simple train / test split
 
 
 def load_best_params_file(symbol: str, model_type: str):
-    with open(f"params/{symbol}_best_params.json", "r") as f:
+    with open(f"params/{symbol}_best_params.json", "r", encoding="UTF-8") as f:
         params = json.load(f)
         return params[model_type]["best_params"]
 
@@ -80,7 +80,7 @@ def train_model(symbols=None, period: str = "5y", interval: str = "1h", visualiz
     """
     if symbols is None:
         symbols: list[str] = []
-        with open("resources/tickers.txt", "r") as f:
+        with open("resources/tickers.txt", "r", encoding="UTF-8") as f:
             for line in f:
                 symbols.append(line.strip())
         # symbols = ["AAPL"]

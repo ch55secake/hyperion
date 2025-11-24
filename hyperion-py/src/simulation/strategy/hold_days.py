@@ -1,7 +1,5 @@
 from typing import Any
 
-from src.simulation.types import Trade, TradeAction
-
 from .strategy import Strategy
 from .strategy_registry import register_strategy
 

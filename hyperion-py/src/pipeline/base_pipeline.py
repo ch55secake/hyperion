@@ -395,11 +395,11 @@ class BaseTrainingPipeline(ABC):
     def _save_results_and_predictions(self, detailed_predictions):
         results_df = pd.DataFrame(self._results)
         results_df.to_csv("results/per_stock_performance.csv", index=False)
-        print(f"\n✓ Per-stock results saved to: results/per_stock_performance.csv")
+        print("\n✓ Per-stock results saved to: results/per_stock_performance.csv")
 
         detailed_df = pd.DataFrame(detailed_predictions)
         detailed_df.to_csv("results/detailed_predictions.csv", index=False)
-        print(f"✓ Detailed predictions saved to: results/detailed_predictions.csv")
+        print("✓ Detailed predictions saved to: results/detailed_predictions.csv")
 
     def visualize(self):
         """
