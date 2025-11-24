@@ -6,6 +6,8 @@ from typing import Any
 import pandas as pd
 import yfinance as yf
 
+from src.console import ConsoleFormatter
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -38,9 +40,9 @@ class StockDataDownloader:
             try:
                 with open(path, "r") as f:
                     cls._stock_info = json.load(f)
-                print(f"✓ Loaded cached stock info ({len(cls._stock_info)} entries)")
+                ConsoleFormatter.success(f"Loaded cached stock info ({len(cls._stock_info)} entries)")
             except Exception as e:
-                print(f"⚠️ Failed to load cached stock info: {e}")
+                ConsoleFormatter.warning(f"Failed to load cached stock info: {e}")
 
     @classmethod
     def save_stock_info(cls, path="./historic_data/stock_info.json"):
@@ -49,26 +51,24 @@ class StockDataDownloader:
         try:
             with open(path, "w") as f:
                 json.dump(cls._stock_info, f, indent=4)
-            print(f"\n✓ Saved stock info ({len(cls._stock_info)} entries)")
+            ConsoleFormatter.success(f"Saved stock info ({len(cls._stock_info)} entries)", new_lines_before_message=1)
         except Exception as e:
-            print(f"\n⚠️ Failed to save stock info: {e}")
+            ConsoleFormatter.warning(f"Failed to save stock info: {e}", new_lines_before_message=1)
 
 
     def download_data(self):
         """Download data for all symbols"""
-        print("=" * 60)
-        print("Downloading Stock Data from yfinance")
-        print("=" * 60)
+        ConsoleFormatter.new_section("Downloading Stock Data from yfinance", new_lines_before_message=1)
 
         for symbol in self.symbols:
             try:
                 default_path: str = "./historic_data/"
                 filename = f"{symbol}_{self.period}_{self.interval}.csv"
                 complete_path: str = os.path.join(default_path, filename)
-                print(f"\nChecking for existing data for {complete_path}...")
+                ConsoleFormatter.info(f"Checking for existing data for {complete_path}...", new_lines_before_message=1)
 
                 if os.path.isfile(complete_path):
-                    print(f"  ✓ Using cached data for {symbol}")
+                    ConsoleFormatter.success(f"Using cached data for {symbol}", indentation=1)
                     df = pd.read_csv(complete_path, parse_dates=True, index_col=0)
 
                     self._history_data[(symbol, self.period, self.interval)] = df
@@ -77,8 +77,8 @@ class StockDataDownloader:
                         self._stock_info[symbol] = yf.Ticker(symbol).info
                     continue
 
-                print(f"\nDownloading {symbol}...")
-                print(f"\n{self.period} {self.interval} data for {symbol}")
+                ConsoleFormatter.info(f"Downloading {symbol}...", new_lines_before_message=1)
+                ConsoleFormatter.info(f"{self.period} {self.interval} data for {symbol}", new_lines_before_message=1)
                 ticker = yf.Ticker(symbol)
                 df = ticker.history(period=self.period, interval=self.interval)
 
@@ -86,7 +86,7 @@ class StockDataDownloader:
                 df = df.resample("1D").last()
 
                 if df.empty:
-                    print(f"  ⚠️  No data found for {symbol}")
+                    ConsoleFormatter.error(f"No data found for {symbol}", indentation=1)
                     continue
 
                 filename = f"./historic_data/{filename}"
@@ -95,12 +95,12 @@ class StockDataDownloader:
                 self.data[symbol] = df
                 self._stock_info[symbol] = ticker.info
 
-                print(f"  ✓ Downloaded {len(df)} data points")
-                print(f"  ✓ Date range: {df.index[0].date()} to {df.index[-1].date()}")
-                print(f"  ✓ Saved to {filename}")
+                ConsoleFormatter.success(f"Downloaded {len(df)} data points", indentation=1)
+                ConsoleFormatter.success(f"Date range: {df.index[0].date()} to {df.index[-1].date()}", indentation=1)
+                ConsoleFormatter.success(f"Saved to {filename}", indentation=1)
 
             except Exception as e:
-                print(f"  ✗ Error downloading {symbol}: {str(e)}")
+                ConsoleFormatter.error(f"Error downloading {symbol}: {str(e)}", indentation=1)
 
         self.save_stock_info()
         return self.data

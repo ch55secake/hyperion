@@ -1,6 +1,7 @@
 from typing import Any
 
 from src.lgb import LightGBMStockPredictor
+from src.console import ConsoleFormatter
 from src.optimise import StockModelOptimizer
 from src.pipeline.base_pipeline import BaseTrainingPipeline
 from src.writer import save_trained_model
@@ -31,7 +32,7 @@ class SingleModelTrainingPipeline(BaseTrainingPipeline):
 
         :return:
         """
-        print(f"Running {self.model_type} hyperparameter optimization...")
+        ConsoleFormatter.info(f"Running {self.model_type} hyperparameter optimization...")
 
         x_train_daily = self._test_train_data["train"]["daily"]
         y_train = self._test_train_data["train"]["targets"]
@@ -72,9 +73,7 @@ class SingleModelTrainingPipeline(BaseTrainingPipeline):
         self._prices_test = self._test_train_data["test"]["prices"]
         self._symbols_test = self._test_train_data["test"]["symbols"]
 
-        print("\n" + "=" * 60)
-        print(f"Training Single {self.model_type.upper()} Model")
-        print("=" * 60)
+        ConsoleFormatter.new_section(f"Training Single {self.model_type.upper()} Model", new_lines_before_message=1)
 
         if self.should_optimise:
             self._optimize_hyperparameters()
@@ -86,6 +85,6 @@ class SingleModelTrainingPipeline(BaseTrainingPipeline):
         test_results = self._model.evaluate(x_test_daily, self._y_test)
 
         save_trained_model(self._model, f"{self.model_type.upper()}_MODEL", test_results)
-        print(f"\n✓ {self.model_type.upper()} model training complete!")
+        ConsoleFormatter.success(f"{self.model_type.upper()} model training complete!", new_lines_before_message=1)
 
         return self

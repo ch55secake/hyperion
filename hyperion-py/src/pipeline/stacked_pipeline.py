@@ -1,4 +1,5 @@
 from src.lgb import LightGBMStockPredictor
+from src.console import ConsoleFormatter
 from src.optimise import StockModelOptimizer
 from src.pipeline.base_pipeline import BaseTrainingPipeline
 from src.stacker import StackedStockPredictor
@@ -51,15 +52,14 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         self._prices_test = self._test_train_data["test"]["prices"]
         self._symbols_test = self._test_train_data["test"]["symbols"]
 
-        print("\n" + "=" * 60)
-        print("Training Single Model")
-        print("=" * 60)
-        print(f"Training samples: {len(x_train_daily)}")
-        print(f"Testing samples: {len(x_test_daily)}")
-        print(f"Unique stocks in test set: {self._symbols_test.nunique()}")
+        ConsoleFormatter.new_section("Training Single Model", new_lines_before_message=1)
+
+        ConsoleFormatter.info(f"Training samples: {len(x_train_daily)}")
+        ConsoleFormatter.info(f"Testing samples: {len(x_test_daily)}")
+        ConsoleFormatter.info(f"Unique stocks in test set: {self._symbols_test.nunique()}")
 
         if self.should_optimise:
-            print("Running hyperparameter optimisation, this will take a while...")
+            ConsoleFormatter.info("Running hyperparameter optimisation, this will take a while...")
             self._optimize_hyperparameters(x_train_daily, y_train, x_test_daily, self._y_test)
 
         self._model = StackedStockPredictor(

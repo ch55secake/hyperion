@@ -8,6 +8,8 @@ import lightgbm as lgb
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from sklearn.preprocessing import StandardScaler
 
+from src.console import ConsoleFormatter
+
 
 class LightGBMStockPredictor:
     """
@@ -42,33 +44,30 @@ class LightGBMStockPredictor:
 
     def train(self, x_train, y_train, x_val=None, y_val=None):
         """Train the LightGBM model"""
-        print("\n" + "=" * 60)
-        print("Training LightGBM Model")
-        print("=" * 60)
+        ConsoleFormatter.new_section("Training LightGBM Model")
 
         if isinstance(x_train, pd.DataFrame):
             self.feature_columns = list(x_train.columns)
-            print(f"Stored {len(self.feature_columns)} feature columns")
+            ConsoleFormatter.info(f"Stored {len(self.feature_columns)} feature columns")
 
         self.categorical_columns = x_train.select_dtypes(include=["category"]).columns.tolist()
         self.numeric_columns = x_train.select_dtypes(include=["number"]).columns.tolist()
 
-        print(f"Numeric columns: {len(self.numeric_columns)}")
-        print(f"Categorical columns: {len(self.categorical_columns)}")
+        ConsoleFormatter.info(f"Numeric columns: {len(self.numeric_columns)}")
+        ConsoleFormatter.info(f"Categorical columns: {len(self.categorical_columns)}")
         if self.categorical_columns:
-            print(f"  Categories: {self.categorical_columns}")
+            ConsoleFormatter.info(f"Categories: {self.categorical_columns}", indentation=1)
 
         object_cols = x_train.select_dtypes(include=["object"]).columns.tolist()
         if object_cols:
-            print(f"⚠️ Warning: Found {len(object_cols)} object columns that should be categorical: {object_cols}")
-            print("Converting them to category dtype...")
+            ConsoleFormatter.warning(f"Found {len(object_cols)} object columns that should be categorical: {object_cols}\nConverting them to category dtype...")
             x_train = x_train.copy()
             for col in object_cols:
                 x_train[col] = x_train[col].astype("category")
             self.categorical_columns = x_train.select_dtypes(include=["category"]).columns.tolist()
-            print(f"  Updated categorical columns: {self.categorical_columns}")
+            ConsoleFormatter.info(f"Updated categorical columns: {self.categorical_columns}", indentation=1)
 
-        print("Scaling numeric features...")
+        ConsoleFormatter.info("Scaling numeric features...")
         x_train_processed = x_train.copy()
 
         if self.numeric_columns:
@@ -117,9 +116,7 @@ class LightGBMStockPredictor:
         feature_importances = self.model.feature_importance()
 
         if len(feature_names) != len(feature_importances):
-            print(
-                f"⚠️ Warning: Feature name count ({len(feature_names)}) doesn't match importance count ({len(feature_importances)})"
-            )
+            ConsoleFormatter.warning(f"Feature name count ({len(feature_names)}) doesn't match importance count ({len(feature_importances)})")
             feature_names = [f"feature_{i}" for i in range(len(feature_importances))]
 
         self.feature_importance = pd.DataFrame(
@@ -129,12 +126,12 @@ class LightGBMStockPredictor:
             }
         ).sort_values("importance", ascending=False)
 
-        print("✓ Model trained successfully")
-        print(f"✓ Number of trees: {self.model.best_iteration or self.params['n_estimators']}")
-        print(f"✓ Max depth: {self.params['max_depth']}")
+        ConsoleFormatter.success("Model trained successfully")
+        ConsoleFormatter.success(f"Number of trees: {self.model.best_iteration or self.params['n_estimators']}")
+        ConsoleFormatter.success(f"Max depth: {self.params['max_depth']}")
 
-        print("\nTop 10 Most Important Features:")
-        print(self.feature_importance.head(10).to_string(index=False))
+        ConsoleFormatter().apply_bold().add_newline().add("Top 10 Most Important Features:").clear_formatting().build_and_print()
+        ConsoleFormatter.info(self.feature_importance.head(10).to_string(index=False))
 
     def predict(self, x):
         """Make predictions"""
@@ -167,11 +164,12 @@ class LightGBMStockPredictor:
         mae = mean_absolute_error(y, predictions)
         r2 = r2_score(y, predictions)
 
-        print(f"\n{dataset_name} Set Performance:")
-        print(f"  MSE:  {mse:.8f}")
-        print(f"  RMSE: {rmse:.8f}")
-        print(f"  MAE:  {mae:.8f}")
-        print(f"  R²:   {r2:.8f}")
+        ConsoleFormatter().add_newline().apply_bold().add(f"{dataset_name} Set Performance:").clear_formatting().build_and_print()
+
+        ConsoleFormatter.info(f"MSE: {mse:.8f}", indentation=1)
+        ConsoleFormatter.info(f"RMSE: {rmse:.8f}", indentation=1)
+        ConsoleFormatter.info(f"MAE:  {mae:.8f}", indentation=1)
+        ConsoleFormatter.info(f"R²:   {r2:.8f}", indentation=1)
 
         return {"predictions": predictions, "mse": mse, "rmse": rmse, "mae": mae, "r2": r2}
 
@@ -196,7 +194,7 @@ class LightGBMStockPredictor:
         with open(filename, "wb") as f:
             pickle.dump(model_data, f)
 
-        print(f"\n✓ Model saved to: {filename}")
+        ConsoleFormatter.success(f"Model saved to: {filename}")
         return filename
 
     @classmethod
@@ -218,11 +216,11 @@ class LightGBMStockPredictor:
         instance.numeric_columns = model_data.get("numeric_columns")
         instance.categorical_columns = model_data.get("categorical_columns")
 
-        print(f"\n✓ Model loaded from: {filename}")
-        print(f"  Trained on: {model_data['trained_date']}")
+        ConsoleFormatter.success(f"Model loaded from: {filename}")
+        ConsoleFormatter.info(f"Trained on: {model_data['trained_date']}", indentation=1)
         if instance.feature_columns:
-            print(f"  Features: {len(instance.feature_columns)} columns stored")
+            ConsoleFormatter.info(f"Features: {len(instance.feature_columns)} columns stored", indentation=1)
         if instance.categorical_columns:
-            print(f"  Categorical features: {instance.categorical_columns}")
+            ConsoleFormatter.info(f"Categorical features: {instance.categorical_columns}", indentation=1)
 
         return instance

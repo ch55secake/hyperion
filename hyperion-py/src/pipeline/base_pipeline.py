@@ -7,6 +7,7 @@ import pandas as pd
 
 from src.data import StockDataDownloader
 from src.feature import FeatureEngineering
+from src.console import ConsoleFormatter
 
 
 class BaseTrainingPipeline(ABC):
@@ -57,7 +58,7 @@ class BaseTrainingPipeline(ABC):
                     symbols.append(line.strip())
 
             self.symbols = symbols
-            print(f"Read {len(symbols)} tickers from resources/tickers.txt")
+            ConsoleFormatter.info(f"Read {len(symbols)} tickers from resources/tickers.txt")
 
         return self
 
@@ -66,9 +67,7 @@ class BaseTrainingPipeline(ABC):
         Download the historical stock data for all tickers provided in the resources/tickers.txt
         :return: pipeline instance but should also update the _stock_data attribute
         """
-        print("\n" + "=" * 60)
-        print("Downloading and Preparing Data for All Stocks")
-        print("=" * 60)
+        ConsoleFormatter.new_section("Downloading and Preparing Data for All Stocks", new_lines_before_message=1)
 
         if self.symbols is None:
             raise Exception("Please run read_tickers(), before trying to run download_data()")
@@ -77,7 +76,7 @@ class BaseTrainingPipeline(ABC):
         self._stock_data = self._downloader.download_data()
 
         if not self._stock_data:
-            print("⚠️  No data downloaded. Exiting.")
+            ConsoleFormatter.warning("No data downloaded. Exiting.")
             return None
 
         return self
@@ -107,7 +106,7 @@ class BaseTrainingPipeline(ABC):
 
         for symbol in self.symbols:
             try:
-                print(f"\nProcessing {symbol}...")
+                ConsoleFormatter.info(f"Processing {symbol}...", new_lines_before_message=1)
 
                 # Daily features
                 features_daily = FeatureEngineering(self._stock_data[symbol])
@@ -147,17 +146,15 @@ class BaseTrainingPipeline(ABC):
                 test_prices.append(prices_daily.iloc[split_idx:])
                 test_symbols.extend([symbol] * (len(x_daily) - split_idx))
 
-                print(f"  ✓ {symbol}: {split_idx} train samples, {len(x_daily) - split_idx} test samples")
+                ConsoleFormatter.success(f"{symbol}: {split_idx} train samples, {len(x_daily) - split_idx} test samples", indentation=1)
 
             except Exception as e:
-                print(f"  ✗ Error processing {symbol}: {str(e)}")
+                ConsoleFormatter.error(f"Error processing {symbol}: {str(e)}", indentation=1)
                 traceback.print_exc()
                 continue
 
         # Combine train data
-        print("\n" + "=" * 60)
-        print("Combining Training Data")
-        print("=" * 60)
+        ConsoleFormatter.new_section("Combining Training Data", new_lines_before_message=1)
 
         train_daily = pd.concat(train_daily_features, axis=0, ignore_index=False)
         train_hourly = pd.concat(train_hourly_features, axis=0, ignore_index=False)
@@ -167,7 +164,7 @@ class BaseTrainingPipeline(ABC):
         train_symbols_series = pd.Series(train_symbols, index=train_daily.index)
 
         # Combine test data
-        print("Combining Test Data")
+        ConsoleFormatter.info("Combining Test Data")
         test_daily = pd.concat(test_daily_features, axis=0, ignore_index=False)
         test_hourly = pd.concat(test_hourly_features, axis=0, ignore_index=False)
         test_targets = pd.concat(test_targets, axis=0, ignore_index=False)
@@ -176,16 +173,16 @@ class BaseTrainingPipeline(ABC):
         test_symbols_series = pd.Series(test_symbols, index=test_daily.index)
 
         # Convert categorical columns to category dtype AFTER concatenation
-        print("\nConverting categorical columns...")
+        ConsoleFormatter.info("Converting categorical columns...", new_lines_before_message=1)
         _, train_daily, train_hourly, test_daily, test_hourly = self._create_categorical_features(
             train_daily, train_hourly, test_daily, test_hourly
         )
 
-        print(f"✓ Total train samples: {len(train_daily)}")
-        print(f"✓ Total test samples: {len(test_daily)}")
-        print(f"✓ Number of stocks: {len(self.symbols)}")
-        print(f"✓ Stocks in test set: {test_symbols_series.nunique()}")
-        print(f"✓ Features per timeframe: {len(train_daily.columns)}")
+        ConsoleFormatter.success(f"Total train samples: {len(train_daily)}")
+        ConsoleFormatter.success(f"Total test samples: {len(test_daily)}")
+        ConsoleFormatter.success(f"Number of stocks: {len(self.symbols)}")
+        ConsoleFormatter.success(f"Stocks in test set: {test_symbols_series.nunique()}")
+        ConsoleFormatter.success(f"Features per timeframe: {len(train_daily.columns)}")
 
         self._test_train_data = {
             "train": {
@@ -235,7 +232,7 @@ class BaseTrainingPipeline(ABC):
             if col in train_daily.columns:
                 train_daily[col] = train_daily[col].astype("category")
                 test_daily[col] = test_daily[col].astype("category")
-                print(f"  {col}: {train_daily[col].nunique()} unique values")
+                ConsoleFormatter.info(f"{col}: {train_daily[col].nunique()} unique values", indentation=1)
             if col in train_hourly.columns:
                 train_hourly[col] = train_hourly[col].astype("category")
                 test_hourly[col] = test_hourly[col].astype("category")
@@ -281,9 +278,7 @@ class BaseTrainingPipeline(ABC):
         if self._model is None:
             raise Exception("Please run train(), before trying to run evaluate_model()")
 
-        print("\n" + "=" * 60)
-        print("Per-Stock Performance Analysis")
-        print("=" * 60)
+        ConsoleFormatter.new_section("Per-Stock Performance Analysis", new_lines_before_message=1)
 
         predictions = self._get_predictions()
 
@@ -293,7 +288,7 @@ class BaseTrainingPipeline(ABC):
 
         unique_symbols = sorted(list(set(symbols_list)))
 
-        print(f"\nEvaluating {len(unique_symbols)} stocks...")
+        ConsoleFormatter.info(f"Evaluating {len(unique_symbols)} stocks...", new_lines_before_message=1)
 
         self._results = []
         detailed_predictions = []
@@ -354,14 +349,14 @@ class BaseTrainingPipeline(ABC):
                     }
                 )
 
-            print(f"\n{symbol}:")
-            print(f"  Test Period: {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
-            print(f"  Samples: {len(symbol_indices)}")
-            print(f"  RMSE: {rmse:.6f}")
-            print(f"  MAE: {mae:.6f}")
-            print(f"  MAPE: {mape:.2f}%")
-            print(f"  R²: {r2:.6f}")
-            print(f"  Directional Accuracy: {directional_accuracy:.2f}%")
+            ConsoleFormatter().add_newline().apply_bold().add(f"{symbol}:").clear_formatting().build_and_print()
+            ConsoleFormatter.info(f"Test Period: {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}", indentation=1)
+            ConsoleFormatter.info(f"Samples: {len(symbol_indices)}", indentation=1)
+            ConsoleFormatter.info(f"RMSE: {rmse:.6f}", indentation=1)
+            ConsoleFormatter.info(f"MAE: {mae:.6f}", indentation=1)
+            ConsoleFormatter.info(f"MAPE: {mape:.2f}%", indentation=1)
+            ConsoleFormatter.info(f"R²: {r2:.6f}", indentation=1)
+            ConsoleFormatter.info(f"Directional Accuracy: {directional_accuracy:.2f}%", indentation=1)
 
         self._print_summary_stats()
 
@@ -370,36 +365,35 @@ class BaseTrainingPipeline(ABC):
         return self
 
     def _print_summary_stats(self):
-        print("\n" + "=" * 60)
-        print("Summary Statistics Across All Stocks")
-        print("=" * 60)
+        ConsoleFormatter.new_section("Summary Statistics Across All Stocks", new_lines_before_message=1)
 
         results_df = pd.DataFrame(self._results)
 
-        print(f"\nNumber of stocks evaluated: {len(results_df)}")
-        print(f"Average RMSE: {results_df['rmse'].mean():.6f}")
-        print(f"Average MAE: {results_df['mae'].mean():.6f}")
-        print(f"Average MAPE: {results_df['mape'].mean():.2f}%")
-        print(f"Average R²: {results_df['r2'].mean():.6f}")
-        print(f"Average Directional Accuracy: {results_df['directional_accuracy'].mean():.2f}%")
-        print(
-            f"\nBest performing stock (by R²): {results_df.loc[results_df['r2'].idxmax(), 'symbol']} (R²: {results_df['r2'].max():.6f})"
+        ConsoleFormatter.info(f"Number of stocks evaluated: {len(results_df)}", new_lines_before_message=1)
+        ConsoleFormatter.info(f"Average RMSE: {results_df['rmse'].mean():.6f}")
+        ConsoleFormatter.info(f"Average MAE: {results_df['mae'].mean():.6f}")
+        ConsoleFormatter.info(f"Average MAPE: {results_df['mape'].mean():.2f}%")
+        ConsoleFormatter.info(f"Average R²: {results_df['r2'].mean():.6f}")
+        ConsoleFormatter.info(f"Average Directional Accuracy: {results_df['directional_accuracy'].mean():.2f}%")
+        ConsoleFormatter.info(
+            f"Best performing stock (by R²): {results_df.loc[results_df['r2'].idxmax(), 'symbol']} (R²: {results_df['r2'].max():.6f})",
+            new_lines_before_message=1
         )
-        print(
+        ConsoleFormatter.info(
             f"Worst performing stock (by R²): {results_df.loc[results_df['r2'].idxmin(), 'symbol']} (R²: {results_df['r2'].min():.6f})"
         )
-        print(
+        ConsoleFormatter.info(
             f"Best directional accuracy: {results_df.loc[results_df['directional_accuracy'].idxmax(), 'symbol']} ({results_df['directional_accuracy'].max():.2f}%)"
         )
 
     def _save_results_and_predictions(self, detailed_predictions):
         results_df = pd.DataFrame(self._results)
         results_df.to_csv("results/per_stock_performance.csv", index=False)
-        print(f"\n✓ Per-stock results saved to: results/per_stock_performance.csv")
+        ConsoleFormatter.success(f"Per-stock results saved to: results/per_stock_performance.csv", new_lines_before_message=1)
 
         detailed_df = pd.DataFrame(detailed_predictions)
         detailed_df.to_csv("results/detailed_predictions.csv", index=False)
-        print(f"✓ Detailed predictions saved to: results/detailed_predictions.csv")
+        ConsoleFormatter.success(f"Detailed predictions saved to: results/detailed_predictions.csv")
 
     def visualize(self):
         """
