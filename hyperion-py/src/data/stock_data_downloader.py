@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 from typing import Any
@@ -24,6 +25,35 @@ class StockDataDownloader:
         self.interval = interval
         self.data = {}
 
+        os.makedirs("./historic_data", exist_ok=True)
+
+        if not self._stock_info:
+            self._load_stock_info()
+
+    @classmethod
+    def _load_stock_info(cls, path="./historic_data/stock_info.json"):
+        """Load cached stock info from disk if available."""
+
+        if os.path.isfile(path):
+            try:
+                with open(path, "r") as f:
+                    cls._stock_info = json.load(f)
+                print(f"✓ Loaded cached stock info ({len(cls._stock_info)} entries)")
+            except Exception as e:
+                print(f"⚠️ Failed to load cached stock info: {e}")
+
+    @classmethod
+    def save_stock_info(cls, path="./historic_data/stock_info.json"):
+        """Save cached stock info to disk."""
+
+        try:
+            with open(path, "w") as f:
+                json.dump(cls._stock_info, f, indent=4)
+            print(f"\n✓ Saved stock info ({len(cls._stock_info)} entries)")
+        except Exception as e:
+            print(f"\n⚠️ Failed to save stock info: {e}")
+
+
     def download_data(self):
         """Download data for all symbols"""
         print("=" * 60)
@@ -33,19 +63,20 @@ class StockDataDownloader:
         for symbol in self.symbols:
             try:
                 default_path: str = "./historic_data/"
-                filename: str = symbol + "_" + self.period + "_" + self.interval + ".csv"
+                filename = f"{symbol}_{self.period}_{self.interval}.csv"
                 complete_path: str = os.path.join(default_path, filename)
                 print(f"\nChecking for existing data for {complete_path}...")
+
                 if os.path.isfile(complete_path):
-                    self._history_data[(symbol, self.period, self.interval)] = pd.read_csv(complete_path)
-                if (
-                    symbol in self.data
-                    and (symbol, self.period, self.interval) in self._history_data.keys()
-                    and symbol in self._stock_info.keys()
-                ):
-                    # No check on if data is in file, technically shouldn't be needed
-                    print(f"\nData already downloaded for {symbol}")
+                    print(f"  ✓ Using cached data for {symbol}")
+                    df = pd.read_csv(complete_path, parse_dates=True, index_col=0)
+
+                    self._history_data[(symbol, self.period, self.interval)] = df
+                    self.data[symbol] = df
+                    if symbol not in self._stock_info:
+                        self._stock_info[symbol] = yf.Ticker(symbol).info
                     continue
+
                 print(f"\nDownloading {symbol}...")
                 print(f"\n{self.period} {self.interval} data for {symbol}")
                 ticker = yf.Ticker(symbol)
@@ -62,7 +93,10 @@ class StockDataDownloader:
                 df.to_csv(filename)
 
                 self.data[symbol] = df
-                self._stock_info[symbol] = ticker.info
+                info = ticker.info
+                if isinstance(info, dict):
+                    self._stock_info[symbol] = info
+
                 print(f"  ✓ Downloaded {len(df)} data points")
                 print(f"  ✓ Date range: {df.index[0].date()} to {df.index[-1].date()}")
                 print(f"  ✓ Saved to {filename}")
@@ -70,6 +104,7 @@ class StockDataDownloader:
             except Exception as e:
                 print(f"  ✗ Error downloading {symbol}: {str(e)}")
 
+        self.save_stock_info()
         return self.data
 
     @staticmethod
@@ -79,7 +114,7 @@ class StockDataDownloader:
         :param symbol: the stock you want the sector for
         :return: sector or unknown if it is not found
         """
-        return StockDataDownloader._stock_info.get(symbol, yf.Ticker(symbol)).get("sector", "Unknown")
+        return StockDataDownloader._stock_info.get(symbol, yf.Ticker(symbol).info).get("sector", "Unknown")
 
     @staticmethod
     def get_market_cap(symbol):
@@ -113,7 +148,7 @@ class StockDataDownloader:
         :param symbol: the stock you want the industry for
         :return: the industry or unknown if it is not found
         """
-        return StockDataDownloader._stock_info.get(symbol, yf.Ticker(symbol)).get("industry", "Unknown")
+        return StockDataDownloader._stock_info.get(symbol, yf.Ticker(symbol).info).get("industry", "Unknown")
 
     @staticmethod
     def get_beta(symbol):
@@ -122,7 +157,7 @@ class StockDataDownloader:
         :param symbol: the stock you want the beta for
         :return: beta or 1.0 if it is not found
         """
-        return StockDataDownloader._stock_info.get(symbol, yf.Ticker(symbol)).get("beta", 1.0)
+        return StockDataDownloader._stock_info.get(symbol, yf.Ticker(symbol).info).get("beta", 1.0)
 
     def get_avg_volume(self, symbol):
         """
