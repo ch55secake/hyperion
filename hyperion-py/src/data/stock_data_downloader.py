@@ -93,9 +93,7 @@ class StockDataDownloader:
                 df.to_csv(filename)
 
                 self.data[symbol] = df
-                info = ticker.info
-                if isinstance(info, dict):
-                    self._stock_info[symbol] = info
+                self._stock_info[symbol] = ticker.info
 
                 print(f"  ✓ Downloaded {len(df)} data points")
                 print(f"  ✓ Date range: {df.index[0].date()} to {df.index[-1].date()}")
@@ -108,13 +106,23 @@ class StockDataDownloader:
         return self.data
 
     @staticmethod
+    def _get_stock_info(symbol) -> None:
+        """
+        Get stock info from yfinance
+        :param symbol: the stock symbol
+        """
+        if symbol not in StockDataDownloader._stock_info.keys():
+            StockDataDownloader._stock_info[symbol] = yf.Ticker(symbol).info
+
+    @staticmethod
     def get_sector(symbol):
         """
         Get the sector of a given stock
         :param symbol: the stock you want the sector for
         :return: sector or unknown if it is not found
         """
-        return StockDataDownloader._stock_info.get(symbol, yf.Ticker(symbol).info).get("sector", "Unknown")
+        StockDataDownloader._get_stock_info(symbol)
+        return StockDataDownloader._stock_info[symbol].get("sector", "Unknown")
 
     @staticmethod
     def get_market_cap(symbol):
@@ -123,8 +131,8 @@ class StockDataDownloader:
         :param symbol:
         :return:
         """
-
-        data = StockDataDownloader._stock_info.get(symbol, yf.Ticker(symbol).info)
+        StockDataDownloader._get_stock_info(symbol)
+        data = StockDataDownloader._stock_info[symbol]
 
         market_cap = data.get("marketCap", None)
 
@@ -148,7 +156,8 @@ class StockDataDownloader:
         :param symbol: the stock you want the industry for
         :return: the industry or unknown if it is not found
         """
-        return StockDataDownloader._stock_info.get(symbol, yf.Ticker(symbol).info).get("industry", "Unknown")
+        StockDataDownloader._get_stock_info(symbol)
+        return StockDataDownloader._stock_info[symbol].get("industry", "Unknown")
 
     @staticmethod
     def get_beta(symbol):
@@ -157,7 +166,8 @@ class StockDataDownloader:
         :param symbol: the stock you want the beta for
         :return: beta or 1.0 if it is not found
         """
-        return StockDataDownloader._stock_info.get(symbol, yf.Ticker(symbol).info).get("beta", 1.0)
+        StockDataDownloader._get_stock_info(symbol)
+        return StockDataDownloader._stock_info[symbol].get("beta", 1.0)
 
     def get_avg_volume(self, symbol):
         """
@@ -165,6 +175,6 @@ class StockDataDownloader:
         :param symbol: the stock you want the average volume for
         :return: average volume
         """
-        return self._history_data.get(
-            (symbol, self.period, self.interval), yf.Ticker(symbol).history(period=self.period, interval=self.interval)
-        )["Volume"].mean()
+        if (symbol, self.period, self.interval) not in self._history_data:
+            self._history_data[(symbol, self.period, self.interval)] = yf.Ticker(symbol).history(period=self.period, interval=self.interval)
+        return self._history_data[(symbol, self.period, self.interval)]["Volume"].mean()
