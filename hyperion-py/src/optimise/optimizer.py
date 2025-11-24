@@ -263,13 +263,13 @@ class StockModelOptimizer:
         self.best_xgb_params = self.xgb_study.best_params
         best_trial = self.xgb_study.best_trial
 
-        logger.info(f"\nXGBoost Optimization Complete!")
+        logger.info("\nXGBoost Optimization Complete!")
         logger.info(f"Best RMSE: {best_trial.value:.6f}")
         logger.info(f"Best MAE: {best_trial.user_attrs['mae']:.6f}")
         logger.info(f"Best R²: {best_trial.user_attrs['r2']:.6f}")
         logger.info(f"Best Directional Accuracy: {best_trial.user_attrs['directional_accuracy'] * 100:.2f}%")
         logger.info(f"Best Iteration: {best_trial.user_attrs['best_iteration']}")
-        logger.info(f"\nBest Parameters:")
+        logger.info("\nBest Parameters:")
         for key, value in self.best_xgb_params.items():
             logger.info(f"  {key}: {value}")
 
@@ -305,13 +305,13 @@ class StockModelOptimizer:
         self.best_lgb_params = self.lgb_study.best_params
         best_trial = self.lgb_study.best_trial
 
-        logger.info(f"\nLightGBM Optimization Complete!")
+        logger.info("\nLightGBM Optimization Complete!")
         logger.info(f"Best RMSE: {best_trial.value:.6f}")
         logger.info(f"Best MAE: {best_trial.user_attrs['mae']:.6f}")
         logger.info(f"Best R²: {best_trial.user_attrs['r2']:.6f}")
         logger.info(f"Best Directional Accuracy: {best_trial.user_attrs['directional_accuracy'] * 100:.2f}%")
         logger.info(f"Best Iteration: {best_trial.user_attrs['best_iteration']}")
-        logger.info(f"\nBest Parameters:")
+        logger.info("\nBest Parameters:")
         for key, value in self.best_lgb_params.items():
             logger.info(f"  {key}: {value}")
 

@@ -14,6 +14,11 @@ from src.stacker import StackedStockPredictor
 from src.visualisation import generate_plots, Visualizer
 from src.writer import save_trained_model, persist_results, output_best_strategy
 from src.xbg import XGBoostStockPredictor
+from src.simulation import TradingSimulator
+from src.simulation.strategy.directional import DirectionalTradingStrategy
+from src.simulation.strategy.adaptive import AdaptiveThresholdStrategy
+from src.simulation.strategy.hold_days import HoldDaysStrategy
+from src.simulation.strategy.strategy import Strategy
 
 TEST_SIZE = 0.3  # Train/test split ratio
 USE_WALK_FORWARD = False  # Set to False for a simple train / test split
@@ -198,12 +203,6 @@ def run_trade_simulation(
     # Ensure 1D
     preds = np.asarray(preds).ravel()
     test_results["predictions"] = preds
-
-    from src.simulation import TradingSimulator
-    from src.simulation.strategy.directional import DirectionalTradingStrategy
-    from src.simulation.strategy.adaptive import AdaptiveThresholdStrategy
-    from src.simulation.strategy.hold_days import HoldDaysStrategy
-    from src.simulation.strategy.strategy import Strategy
 
     # Initialize capital for all strategies
     initial_capital = 10000

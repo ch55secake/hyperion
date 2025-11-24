@@ -28,15 +28,12 @@ class BaseTrainingPipeline(ABC):
         self.test_size = test_size
         self.should_optimise = should_optimise
 
-        # Unfortunately, lots of state management but hey ho
-        # State
         self._downloader = None
         self._stock_data = None
         self._model = None
         self._results = None
         self._test_train_data = None
 
-        # References
         self._symbols_test = None
         self._x_test_dict = None
         self._y_test = None
@@ -109,29 +106,22 @@ class BaseTrainingPipeline(ABC):
             try:
                 print(f"\nProcessing {symbol}...")
 
-                # Daily features
                 features_daily = FeatureEngineering(self._stock_data[symbol])
                 features_daily.create_target_features()
                 x_daily, y_daily, dates_daily, prices_daily, _ = features_daily.prepare_features()
 
-                # Add stock-specific features
                 x_daily = self._add_stock_features(x_daily, symbol)
 
-                # Hourly features
                 features_hourly = FeatureEngineering(self._stock_data[symbol])
                 features_hourly.create_target_features()
                 x_hourly, _, _, _, _ = features_hourly.prepare_features()
 
-                # Add stock-specific features to hourly
                 x_hourly = self._add_stock_features(x_hourly, symbol)
 
-                # Align hourly with daily
                 x_hourly = x_hourly.loc[x_daily.index]
 
-                # Split THIS stock's data by time
                 split_idx = int(len(x_daily) * (1 - self.test_size))
 
-                # Train data for this stock
                 train_daily_features.append(x_daily.iloc[:split_idx])
                 train_hourly_features.append(x_hourly.iloc[:split_idx])
                 train_targets.append(y_daily.iloc[:split_idx])
@@ -139,7 +129,6 @@ class BaseTrainingPipeline(ABC):
                 train_prices.append(prices_daily.iloc[:split_idx])
                 train_symbols.extend([symbol] * split_idx)
 
-                # Test data for this stock
                 test_daily_features.append(x_daily.iloc[split_idx:])
                 test_hourly_features.append(x_hourly.iloc[split_idx:])
                 test_targets.append(y_daily.iloc[split_idx:])
@@ -154,7 +143,6 @@ class BaseTrainingPipeline(ABC):
                 traceback.print_exc()
                 continue
 
-        # Combine train data
         print("\n" + "=" * 60)
         print("Combining Training Data")
         print("=" * 60)
@@ -169,9 +157,8 @@ class BaseTrainingPipeline(ABC):
 
         train_symbols_series = pd.Series(train_symbols, index=train_daily.index)
 
-        # Combine test data
         print("Combining Test Data")
-        test_daily, test_hourly, test_targets, test_dates, test_targets = self._combine_features(
+        test_daily, test_hourly, test_targets, test_dates, test_prices = self._combine_features(
             daily_features=test_daily_features,
             hourly_features=test_hourly_features,
             train_targets=test_targets,
@@ -181,7 +168,6 @@ class BaseTrainingPipeline(ABC):
 
         test_symbols_series = pd.Series(test_symbols, index=test_daily.index)
 
-        # Convert categorical columns to category dtype AFTER concatenation
         print("\nConverting categorical columns...")
         _, train_daily, train_hourly, test_daily, test_hourly = self._create_categorical_features(
             train_daily, train_hourly, test_daily, test_hourly
@@ -266,10 +252,7 @@ class BaseTrainingPipeline(ABC):
 
     @abstractmethod
     def train(self) -> Any:
-        """
-        Train the model or models provided earlier in this pipeline
-        :return:
-        """
+        pass
 
     @abstractmethod
     def _get_predictions(self):
@@ -317,11 +300,12 @@ class BaseTrainingPipeline(ABC):
 
         predictions = self._get_predictions()
 
-        symbols_list = (
-            self._symbols_test.tolist() if hasattr(self._symbols_test, "tolist") else list(self._symbols_test)
-        )
+        y_test_reset = self._y_test.reset_index(drop=True)
+        dates_reset = self._dates_test.reset_index(drop=True)
+        prices_reset = self._prices_test.reset_index(drop=True)
+        symbols_reset = self._symbols_test.reset_index(drop=True)
 
-        unique_symbols = sorted(list(set(symbols_list)))
+        unique_symbols = sorted(symbols_reset.unique())
 
         print(f"\nEvaluating {len(unique_symbols)} stocks...")
 
@@ -329,17 +313,15 @@ class BaseTrainingPipeline(ABC):
         detailed_predictions = []
 
         for symbol in unique_symbols:
-            symbol_mask = [s == symbol for s in symbols_list]
-            symbol_indices = [i for i, mask in enumerate(symbol_mask) if mask]
+            symbol_mask = symbols_reset == symbol
 
-            if len(symbol_indices) == 0:
+            if symbol_mask.sum() == 0:
                 continue
 
-            # Extract data for this symbol
-            y_true_symbol = self._y_test.iloc[symbol_indices]
-            y_pred_symbol = predictions[symbol_indices]
-            dates_symbol = self._dates_test.iloc[symbol_indices]
-            prices_symbol = self._prices_test.iloc[symbol_indices]
+            y_true_symbol = y_test_reset[symbol_mask]
+            y_pred_symbol = predictions[symbol_mask]
+            dates_symbol = dates_reset[symbol_mask]
+            prices_symbol = prices_reset[symbol_mask]
 
             from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 
@@ -349,7 +331,7 @@ class BaseTrainingPipeline(ABC):
             r2 = r2_score(y_true_symbol, y_pred_symbol)
 
             percentage_errors = np.abs((y_pred_symbol - y_true_symbol) / y_true_symbol) * 100
-            mape = percentage_errors.mean()  # Mean Absolute Percentage Error
+            mape = percentage_errors.mean()
 
             direction_actual = np.sign(y_true_symbol)
             direction_pred = np.sign(y_pred_symbol)
@@ -361,7 +343,7 @@ class BaseTrainingPipeline(ABC):
             self._results.append(
                 {
                     "symbol": symbol,
-                    "samples": len(symbol_indices),
+                    "samples": symbol_mask.sum(),
                     "rmse": rmse,
                     "mae": mae,
                     "mape": mape,
@@ -373,20 +355,22 @@ class BaseTrainingPipeline(ABC):
                 }
             )
 
+            y_pred_array = np.array(y_pred_symbol)
+            symbol_indices = np.where(symbol_mask)[0]
             for i, idx in enumerate(symbol_indices):
                 detailed_predictions.append(
                     {
                         "symbol": symbol,
                         "date": dates_symbol.iloc[i],
                         "actual_return": y_true_symbol.iloc[i],
-                        "predicted_return": y_pred_symbol[i],
+                        "predicted_return": y_pred_array[i],
                         "price": prices_symbol.iloc[i],
                     }
                 )
 
             print(f"\n{symbol}:")
             print(f"  Test Period: {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
-            print(f"  Samples: {len(symbol_indices)}")
+            print(f"  Samples: {symbol_mask.sum()}")
             print(f"  RMSE: {rmse:.6f}")
             print(f"  MAE: {mae:.6f}")
             print(f"  MAPE: {mape:.2f}%")
