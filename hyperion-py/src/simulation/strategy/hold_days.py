@@ -1,10 +1,10 @@
 from typing import Any
 
-from src.simulation.types import Trade, TradeAction
-
 from .strategy import Strategy
+from .strategy_registry import register_strategy
 
 
+@register_strategy("hold_days")
 class HoldDaysStrategy(Strategy):
     def __init__(self, simulator: Any, capital: Any, hold_days: int = 5, threshold: float = 0.02):
         super().__init__(simulator, capital)

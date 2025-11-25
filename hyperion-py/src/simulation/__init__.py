@@ -4,3 +4,4 @@ from .trading_simulation import (
 )
 from .predict import predict_mode
 from .trading_simulator import TradingSimulator
+from .strategy.strategy_registry import StrategyRegistry

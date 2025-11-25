@@ -1,9 +1,9 @@
 from typing import Any
 
+import matplotlib
 import numpy as np
 import pandas as pd
 import seaborn as sns
-import matplotlib
 
 matplotlib.use("Agg")
 from matplotlib import pyplot as plt
@@ -62,7 +62,8 @@ class Visualizer:
                 bbox_inches="tight",
             )
             print(
-                f"  ✓ Saved feature importance plot: {save_path}/{symbol.split("_")[0]}/{symbol.split("_")[1]}_feature_importance.png"
+                f"  ✓ Saved feature importance plot: {save_path}/{symbol.split("_")[0]}/{symbol.split("_")[1]}"
+                f"_feature_importance.png"
             )
         else:
             plt.savefig(f"{save_path}/{symbol}/feature_importance.png", dpi=300, bbox_inches="tight")
@@ -75,7 +76,7 @@ class Visualizer:
         portfolio_df = simulation_results["portfolio_history"]
         trades_df = simulation_results["trades"]
 
-        fig, axes = plt.subplots(3, 1, figsize=(15, 14))
+        _, axes = plt.subplots(3, 1, figsize=(15, 14))
 
         # Portfolio value over time
         ax1 = axes[0]
@@ -157,7 +158,7 @@ class Visualizer:
                 color="red",
                 alpha=0.5,
                 fontweight="bold",
-                bbox=dict(boxstyle="round", facecolor="yellow", alpha=0.3),
+                bbox={"boxstyle": "round", "facecolor": "yellow", "alpha": 0.3},
             )
 
         ax2.set_xlabel("Date")
@@ -201,8 +202,10 @@ class Visualizer:
                 label="Negative Prediction",
             )
 
-            # Add statistics
-            pred_stats = f"Mean: {np.mean(predictions):.3f}% | Std: {np.std(predictions):.3f}% | Range: [{np.min(predictions):.3f}, {np.max(predictions):.3f}]%"
+            pred_stats = (
+                f"Mean: {np.mean(predictions):.3f}% | Std: {np.std(predictions):.3f}% | "
+                f"Range: [{np.min(predictions):.3f}, {np.max(predictions):.3f}]%"
+            )
             ax3.text(
                 0.02,
                 0.98,
@@ -210,9 +213,10 @@ class Visualizer:
                 transform=ax3.transAxes,
                 verticalalignment="top",
                 fontsize=9,
-                bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5),
+                bbox={"boxstyle": "round", "facecolor": "wheat", "alpha": 0.5},
             )
 
+        ax3.set_xlabel("Date")
         ax3.set_xlabel("Date")
         ax3.set_ylabel("Predicted Return (%)")
         ax3.set_title(f"{symbol} - Model Predictions Over Time")
@@ -228,7 +232,7 @@ class Visualizer:
     @staticmethod
     def plot_walk_forward_results(wf_results, symbol, save_path="plots"):
         """Plot walk-forward analysis results with fold boundaries"""
-        fig, axes = plt.subplots(3, 1, figsize=(16, 14))
+        _, axes = plt.subplots(3, 1, figsize=(16, 14))
 
         dates = wf_results["dates"]
         predictions = wf_results["predictions"]
@@ -277,7 +281,7 @@ class Visualizer:
             transform=ax2.transAxes,
             verticalalignment="top",
             fontsize=10,
-            bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5),
+            bbox={"boxstyle": "round", "facecolor": "wheat", "alpha": 0.5},
         )
 
         ax2.set_xlabel("Date")
@@ -316,7 +320,7 @@ class Visualizer:
     @staticmethod
     def plot_forecast(historical_df, forecast_data, symbol, save_path="plots"):
         """Plot historical prices and forecasted prices"""
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(16, 12))
+        _, (ax1, ax2) = plt.subplots(2, 1, figsize=(16, 12))
 
         # Plot 1: Price forecast
         hist_dates = historical_df.index
@@ -412,7 +416,7 @@ class Visualizer:
             verticalalignment="top",
             fontsize=12,
             fontweight="bold",
-            bbox=dict(boxstyle="round", facecolor="yellow", alpha=0.7),
+            bbox={"boxstyle": "round", "facecolor": "yellow", "alpha": 0.7},
         )
 
         ax2.set_xlabel("Date", fontsize=12)
@@ -433,7 +437,7 @@ class Visualizer:
     @staticmethod
     def plot_price_with_indicators(df, symbol, save_path="plots"):
         """Plot stock price with technical indicators"""
-        fig, axes = plt.subplots(3, 1, figsize=(15, 12))
+        _, axes = plt.subplots(3, 1, figsize=(15, 12))
 
         # Price with moving averages
         ax1 = axes[0]

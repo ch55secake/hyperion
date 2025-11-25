@@ -1,18 +1,20 @@
+import logging
+import warnings
+from typing import Dict, Any, Tuple
+
+import lightgbm as lgb
+import numpy as np
 import optuna
+import pandas as pd
+import xgboost as xgb
 from optuna.visualization import (
     plot_optimization_history,
     plot_param_importances,
     plot_parallel_coordinate,
 )
-import xgboost as xgb
-import lightgbm as lgb
-import numpy as np
-import pandas as pd
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from sklearn.model_selection import TimeSeriesSplit
-import logging
-from typing import Dict, Any, Tuple
-import warnings
+from sklearn.preprocessing import StandardScaler
 
 warnings.filterwarnings("ignore")
 
@@ -21,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 class StockModelOptimizer:
-    """Optimize XGBoost and LightGBM models using Optuna"""
+    """Optimize XGBoost and LightGBM models using Optuna with categorical feature support"""
 
     def __init__(
         self,
@@ -45,18 +47,61 @@ class StockModelOptimizer:
             n_jobs: Number of parallel jobs
             random_state: Random seed
         """
-        self.X_train = x_train
+        # Process features before storing
+        self.x_train = self._process_features(x_train.copy())
+        self.x_val = self._process_features(x_val.copy())
         self.y_train = y_train
-        self.X_val = x_val
         self.y_val = y_val
         self.n_trials = n_trials
         self.n_jobs = n_jobs
         self.random_state = random_state
 
+        # Identify column types
+        self.categorical_columns = self.x_train.select_dtypes(include=["category"]).columns.tolist()
+        self.numeric_columns = self.x_train.select_dtypes(include=["number"]).columns.tolist()
+
+        logger.info(f"Optimizer initialized with {len(self.x_train.columns)} features")
+        logger.info(f"  Numeric columns: {len(self.numeric_columns)}")
+        logger.info(f"  Categorical columns: {len(self.categorical_columns)}")
+        if self.categorical_columns:
+            logger.info(f"    Categories: {self.categorical_columns}")
+
+        # Initialize scaler for numeric features
+        self.scaler = StandardScaler()
+
+        # Scale numeric features
+        if self.numeric_columns:
+            x_train_scaled = self.scaler.fit_transform(self.x_train[self.numeric_columns])
+            x_val_scaled = self.scaler.transform(self.x_val[self.numeric_columns])
+
+            # Replace numeric columns with scaled values while preserving categorical
+            for i, col in enumerate(self.numeric_columns):
+                self.x_train[col] = x_train_scaled[:, i]
+                self.x_val[col] = x_val_scaled[:, i]
+
         self.best_xgb_params = None
         self.best_lgb_params = None
         self.xgb_study = None
         self.lgb_study = None
+
+    def _process_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Process features to ensure categorical columns are properly typed
+
+        Args:
+            df: Input dataframe
+
+        Returns:
+            Processed dataframe with proper dtypes
+        """
+        # Convert object columns to category
+        object_cols = df.select_dtypes(include=["object"]).columns.tolist()
+        if object_cols:
+            logger.info(f"Converting {len(object_cols)} object columns to category: {object_cols}")
+            for col in object_cols:
+                df[col] = df[col].astype("category")
+
+        return df
 
     def xgboost_objective(self, trial: optuna.Trial) -> float:
         """
@@ -71,13 +116,14 @@ class StockModelOptimizer:
         params = {
             "objective": "reg:squarederror",
             "eval_metric": "rmse",
-            "tree_method": "hist",
+            "tree_method": "hist",  # Required for categorical support
             "verbosity": 0,
+            "enable_categorical": True,  # Enable categorical support
             "seed": self.random_state,
             # Learning parameters
-            "learning_rate": trial.suggest_float("learning_rate", 0.001, 0.03, log=True),
-            "max_depth": trial.suggest_int("max_depth", 2, 10),
-            "min_child_weight": trial.suggest_int("min_child_weight", 1, 10),
+            "learning_rate": trial.suggest_float("learning_rate", 0.001, 0.3, log=True),
+            "max_depth": trial.suggest_int("max_depth", 2, 50),
+            "min_child_weight": trial.suggest_int("min_child_weight", 1, 50),
             # Regularization
             "lambda": trial.suggest_float("lambda", 0.1, 10.0, log=True),
             "alpha": trial.suggest_float("alpha", 0.0, 5.0),
@@ -90,15 +136,19 @@ class StockModelOptimizer:
             "max_delta_step": trial.suggest_float("max_delta_step", 0, 5),
         }
 
-        n_estimators = trial.suggest_int("n_estimators", 100, 700)
+        n_estimators = trial.suggest_int("n_estimators", 100, 4000)
 
         model = xgb.XGBRegressor(**params, n_estimators=n_estimators)
 
         model.fit(
-            self.X_train, self.y_train, eval_set=[(self.X_val, self.y_val)], early_stopping_rounds=50, verbose=False
+            self.x_train,
+            self.y_train,
+            eval_set=[(self.x_val, self.y_val)],
+            early_stopping_rounds=50,
+            verbose=False,
         )
 
-        y_pred = model.predict(self.X_val)
+        y_pred = model.predict(self.x_val)
         rmse = np.sqrt(mean_squared_error(self.y_val, y_pred))
 
         # Calculate additional metrics for tracking
@@ -134,9 +184,9 @@ class StockModelOptimizer:
             "seed": self.random_state,
             "force_col_wise": True,
             # Learning parameters
-            "learning_rate": trial.suggest_float("learning_rate", 0.001, 0.03, log=True),
+            "learning_rate": trial.suggest_float("learning_rate", 0.001, 0.3, log=True),
             "num_leaves": trial.suggest_int("num_leaves", 10, 200),
-            "max_depth": trial.suggest_int("max_depth", 2, 10),
+            "max_depth": trial.suggest_int("max_depth", 2, 50),
             "min_child_samples": trial.suggest_int("min_child_samples", 5, 100),
             "min_child_weight": trial.suggest_float("min_child_weight", 1e-5, 100, log=True),
             # Regularization
@@ -151,10 +201,20 @@ class StockModelOptimizer:
             "max_bin": trial.suggest_int("max_bin", 128, 512),
         }
 
-        n_estimators = trial.suggest_int("n_estimators", 100, 700)
+        n_estimators = trial.suggest_int("n_estimators", 100, 2000)
 
-        train_data = lgb.Dataset(self.X_train, label=self.y_train)
-        val_data = lgb.Dataset(self.X_val, label=self.y_val, reference=train_data)
+        # Create datasets with categorical feature support
+        train_data = lgb.Dataset(
+            self.x_train,
+            label=self.y_train,
+            categorical_feature=self.categorical_columns if self.categorical_columns else "auto",
+        )
+        val_data = lgb.Dataset(
+            self.x_val,
+            label=self.y_val,
+            reference=train_data,
+            categorical_feature=self.categorical_columns if self.categorical_columns else "auto",
+        )
 
         model = lgb.train(
             params,
@@ -164,7 +224,7 @@ class StockModelOptimizer:
             callbacks=[lgb.early_stopping(stopping_rounds=50, verbose=False), lgb.log_evaluation(period=0)],
         )
 
-        y_pred = model.predict(self.X_val, num_iteration=model.best_iteration)
+        y_pred = model.predict(self.x_val, num_iteration=model.best_iteration)
         rmse = np.sqrt(mean_squared_error(self.y_val, y_pred))
 
         mae = mean_absolute_error(self.y_val, y_pred)
@@ -203,13 +263,13 @@ class StockModelOptimizer:
         self.best_xgb_params = self.xgb_study.best_params
         best_trial = self.xgb_study.best_trial
 
-        logger.info(f"\nXGBoost Optimization Complete!")
+        logger.info("\nXGBoost Optimization Complete!")
         logger.info(f"Best RMSE: {best_trial.value:.6f}")
         logger.info(f"Best MAE: {best_trial.user_attrs['mae']:.6f}")
         logger.info(f"Best R²: {best_trial.user_attrs['r2']:.6f}")
-        logger.info(f"Best Directional Accuracy: {best_trial.user_attrs['directional_accuracy']*100:.2f}%")
+        logger.info(f"Best Directional Accuracy: {best_trial.user_attrs['directional_accuracy'] * 100:.2f}%")
         logger.info(f"Best Iteration: {best_trial.user_attrs['best_iteration']}")
-        logger.info(f"\nBest Parameters:")
+        logger.info("\nBest Parameters:")
         for key, value in self.best_xgb_params.items():
             logger.info(f"  {key}: {value}")
 
@@ -245,13 +305,13 @@ class StockModelOptimizer:
         self.best_lgb_params = self.lgb_study.best_params
         best_trial = self.lgb_study.best_trial
 
-        logger.info(f"\nLightGBM Optimization Complete!")
+        logger.info("\nLightGBM Optimization Complete!")
         logger.info(f"Best RMSE: {best_trial.value:.6f}")
         logger.info(f"Best MAE: {best_trial.user_attrs['mae']:.6f}")
         logger.info(f"Best R²: {best_trial.user_attrs['r2']:.6f}")
-        logger.info(f"Best Directional Accuracy: {best_trial.user_attrs['directional_accuracy']*100:.2f}%")
+        logger.info(f"Best Directional Accuracy: {best_trial.user_attrs['directional_accuracy'] * 100:.2f}%")
         logger.info(f"Best Iteration: {best_trial.user_attrs['best_iteration']}")
-        logger.info(f"\nBest Parameters:")
+        logger.info("\nBest Parameters:")
         for key, value in self.best_lgb_params.items():
             logger.info(f"  {key}: {value}")
 
@@ -282,12 +342,12 @@ class StockModelOptimizer:
         logger.info(
             f"XGBoost  - RMSE: {xgb_results['best_rmse']:.6f}, "
             f"R²: {xgb_results['best_trial'].user_attrs['r2']:.6f}, "
-            f"Dir Acc: {xgb_results['best_trial'].user_attrs['directional_accuracy']*100:.2f}%"
+            f"Dir Acc: {xgb_results['best_trial'].user_attrs['directional_accuracy'] * 100:.2f}%"
         )
         logger.info(
             f"LightGBM - RMSE: {lgb_results['best_rmse']:.6f}, "
             f"R²: {lgb_results['best_trial'].user_attrs['r2']:.6f}, "
-            f"Dir Acc: {lgb_results['best_trial'].user_attrs['directional_accuracy']*100:.2f}%"
+            f"Dir Acc: {lgb_results['best_trial'].user_attrs['directional_accuracy'] * 100:.2f}%"
         )
 
         if xgb_results["best_rmse"] < lgb_results["best_rmse"]:
@@ -373,7 +433,7 @@ class StockModelOptimizer:
 
 
 def cross_validate_with_optuna(
-    x: pd.DataFrame, y: pd.Series, model_type: str = "xgboost", n_splits: int = 5, n_trials: int = 50
+    x: pd.DataFrame, y: pd.Series, model_type: str = "xgboost", n_splits: int = 5, n_trials: int = 1000
 ) -> Dict[str, Any]:
     """
     Perform cross-validated hyperparameter optimization
@@ -404,7 +464,7 @@ def cross_validate_with_optuna(
         y_val = y.iloc[val_idx]
 
         optimizer = StockModelOptimizer(
-            x_train, y_train, x_val, y_val, n_trials=n_trials, n_jobs=1  # Sequential for cross-validation
+            x_train, y_train, x_val, y_val, n_trials=n_trials, n_jobs=-1  # Sequential for cross-validation
         )
 
         if model_type.lower() == "xgboost":
@@ -431,6 +491,6 @@ def cross_validate_with_optuna(
     logger.info("=" * 80)
     logger.info(f"Average RMSE: {avg_rmse:.6f}")
     logger.info(f"Average R²: {avg_r2:.6f}")
-    logger.info(f"Average Directional Accuracy: {avg_dir_acc*100:.2f}%")
+    logger.info(f"Average Directional Accuracy: {avg_dir_acc * 100:.2f}%")
 
     return {"fold_results": fold_results, "avg_rmse": avg_rmse, "avg_r2": avg_r2, "avg_dir_acc": avg_dir_acc}

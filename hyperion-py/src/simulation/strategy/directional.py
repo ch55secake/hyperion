@@ -1,8 +1,10 @@
 from typing import Any
 
 from .strategy import Strategy
+from .strategy_registry import register_strategy
 
 
+@register_strategy("directional")
 class DirectionalTradingStrategy(Strategy):
     def __init__(self, simulator: Any, capital: Any):
         super().__init__(simulator, capital)

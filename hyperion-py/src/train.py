@@ -8,19 +8,23 @@ import pandas as pd
 
 from src.data import StockDataDownloader
 from src.feature import FeatureEngineering
-from src.lgb import LightGBMStockPredictor
+from src.model import XGBoostStockPredictor, LightGBMStockPredictor
 from src.optimise import StockModelOptimizer
 from src.stacker import StackedStockPredictor
 from src.visualisation import generate_plots, Visualizer
 from src.writer import save_trained_model, persist_results, output_best_strategy
-from src.xbg import XGBoostStockPredictor
+from src.simulation import TradingSimulator
+from src.simulation.strategy.directional import DirectionalTradingStrategy
+from src.simulation.strategy.adaptive import AdaptiveThresholdStrategy
+from src.simulation.strategy.hold_days import HoldDaysStrategy
+from src.simulation.strategy.strategy import Strategy
 
 TEST_SIZE = 0.3  # Train/test split ratio
 USE_WALK_FORWARD = False  # Set to False for a simple train / test split
 
 
 def load_best_params_file(symbol: str, model_type: str):
-    with open(f"params/{symbol}_best_params.json", "r") as f:
+    with open(f"params/{symbol}_best_params.json", "r", encoding="UTF-8") as f:
         params = json.load(f)
         return params[model_type]["best_params"]
 
@@ -80,7 +84,7 @@ def train_model(symbols=None, period: str = "5y", interval: str = "1h", visualiz
     """
     if symbols is None:
         symbols: list[str] = []
-        with open("resources/tickers.txt", "r") as f:
+        with open("resources/tickers.txt", "r", encoding="UTF-8") as f:
             for line in f:
                 symbols.append(line.strip())
         # symbols = ["AAPL"]
@@ -89,9 +93,9 @@ def train_model(symbols=None, period: str = "5y", interval: str = "1h", visualiz
     print("=" * 60)
 
     # Download data hourly (interval='1h')
-    hourly_downloader = StockDataDownloader(symbols, period="2y", interval=interval)
+    stock_data_downloader = StockDataDownloader(symbols, period="2y", interval=interval)
 
-    stock_data_hourly = hourly_downloader.download_data()
+    stock_data_hourly = stock_data_downloader.download_data()
 
     if not stock_data_hourly:
         print("⚠️  No data downloaded. Exiting.")
@@ -105,15 +109,37 @@ def train_model(symbols=None, period: str = "5y", interval: str = "1h", visualiz
             print(f"Processing {symbol}")
             print("=" * 60)
 
+            # Sector, market cap, industry and avg_volume
+
             # Daily features
             features_daily = FeatureEngineering(stock_data_hourly[symbol])
             df_daily = features_daily.create_target_features()
             x_daily, y_daily, dates_daily, prices_daily, _ = features_daily.prepare_features()
 
+            # Sector, market cap, industry and avg_volume
+            x_daily["sector"] = stock_data_downloader.get_sector(symbol)
+            x_daily["sector"] = x_daily["sector"].astype("category")
+            x_daily["industry"] = stock_data_downloader.get_industry(symbol)
+            x_daily["industry"] = x_daily["industry"].astype("category")
+            x_daily["beta"] = stock_data_downloader.get_beta(symbol)
+            x_daily["avg_volume_log"] = np.log(stock_data_downloader.get_avg_volume(symbol))
+            x_daily["market_cap"] = np.log(stock_data_downloader.get_market_cap(symbol))
+
+            print(x_daily.head())
+
             # Hourly features
             features_hourly = FeatureEngineering(stock_data_hourly[symbol])
             features_hourly.create_target_features()
             x_hourly, _, _, _, _ = features_hourly.prepare_features()
+
+            # Sector, market cap, industry and avg_volume
+            x_hourly["sector"] = stock_data_downloader.get_sector(symbol)
+            x_hourly["sector"] = x_hourly["sector"].astype("category")
+            x_hourly["industry"] = stock_data_downloader.get_industry(symbol)
+            x_hourly["industry"] = x_hourly["industry"].astype("category")
+            x_hourly["beta"] = stock_data_downloader.get_beta(symbol)
+            x_hourly["avg_volume_log"] = np.log(stock_data_downloader.get_avg_volume(symbol))
+            x_hourly["market_cap"] = np.log(stock_data_downloader.get_market_cap(symbol))
 
             # Align hourly target with daily (optional: forward-fill or aggregate)
             # Here we just slice to daily index for stacking
@@ -176,12 +202,6 @@ def run_trade_simulation(
     # Ensure 1D
     preds = np.asarray(preds).ravel()
     test_results["predictions"] = preds
-
-    from src.simulation import TradingSimulator
-    from src.simulation.strategy.directional import DirectionalTradingStrategy
-    from src.simulation.strategy.threshold import AdaptiveThresholdStrategy
-    from src.simulation.strategy.hold_days import HoldDaysStrategy
-    from src.simulation.strategy.strategy import Strategy
 
     # Initialize capital for all strategies
     initial_capital = 10000
