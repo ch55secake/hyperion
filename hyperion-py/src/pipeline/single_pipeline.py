@@ -1,10 +1,10 @@
 from typing import Any
 
-from src.lgb import LightGBMStockPredictor
+from src.model import LightGBMStockPredictor
 from src.optimise import StockModelOptimizer
 from src.pipeline.base_pipeline import BaseTrainingPipeline
 from src.writer import save_trained_model
-from src.xbg import XGBoostStockPredictor
+from src.model import XGBoostStockPredictor
 
 
 class SingleModelTrainingPipeline(BaseTrainingPipeline):
