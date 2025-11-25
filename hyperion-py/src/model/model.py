@@ -6,11 +6,11 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-from sklearn.preprocessing import StandardScaler\
+from sklearn.preprocessing import StandardScaler
 
 
 class Model(ABC):
-    def __init__(self, model_name: str, params = None):
+    def __init__(self, model_name: str, params=None):
         self.model_name = model_name
         self.params = params
         self.model = None
@@ -70,7 +70,7 @@ class Model(ABC):
         return filename
 
     @classmethod
-    def load_model(cls, model_name: str, symbol: str, load_path: str="models"):
+    def load_model(cls, model_name: str, symbol: str, load_path: str = "models"):
         """Load a trained model and scaler"""
         filename = f"{load_path}/{symbol}_{model_name}_model.pkl"
 

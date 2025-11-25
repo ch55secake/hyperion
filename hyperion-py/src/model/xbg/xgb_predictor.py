@@ -3,6 +3,7 @@ import xgboost
 
 from ..model import Model
 
+
 class XGBoostStockPredictor(Model):
     """
     XGBoost model for stock price prediction with categorical feature support
