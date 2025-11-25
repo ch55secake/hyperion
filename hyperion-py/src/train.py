@@ -8,12 +8,11 @@ import pandas as pd
 
 from src.data import StockDataDownloader
 from src.feature import FeatureEngineering
-from src.lgb import LightGBMStockPredictor
+from src.model import XGBoostStockPredictor, LightGBMStockPredictor
 from src.optimise import StockModelOptimizer
 from src.stacker import StackedStockPredictor
 from src.visualisation import generate_plots, Visualizer
 from src.writer import save_trained_model, persist_results, output_best_strategy
-from src.xbg import XGBoostStockPredictor
 from src.simulation import TradingSimulator
 from src.simulation.strategy.directional import DirectionalTradingStrategy
 from src.simulation.strategy.adaptive import AdaptiveThresholdStrategy

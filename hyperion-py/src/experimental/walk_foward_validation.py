@@ -5,8 +5,8 @@ import pandas as pd
 from pandas import Series
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
+from src.model import XGBoostStockPredictor
 from src.visualisation import generate_walk_forward_plots
-from src.xbg import XGBoostStockPredictor
 
 WALK_FORWARD_TRAIN_WINDOW = 180  # ~9 months of training data (reduced from 252)
 WALK_FORWARD_TEST_WINDOW = 20  # ~1 month of testing

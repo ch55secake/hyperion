@@ -4,6 +4,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
 from src.data import StockDataDownloader
 from src.feature import FeatureEngineering
@@ -323,15 +324,10 @@ class BaseTrainingPipeline(ABC):
             dates_symbol = dates_reset[symbol_mask]
             prices_symbol = prices_reset[symbol_mask]
 
-            from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
-
             mse = mean_squared_error(y_true_symbol, y_pred_symbol)
             rmse = np.sqrt(mse)
             mae = mean_absolute_error(y_true_symbol, y_pred_symbol)
             r2 = r2_score(y_true_symbol, y_pred_symbol)
-
-            percentage_errors = np.abs((y_pred_symbol - y_true_symbol) / y_true_symbol) * 100
-            mape = percentage_errors.mean()
 
             direction_actual = np.sign(y_true_symbol)
             direction_pred = np.sign(y_pred_symbol)
@@ -346,7 +342,6 @@ class BaseTrainingPipeline(ABC):
                     "samples": symbol_mask.sum(),
                     "rmse": rmse,
                     "mae": mae,
-                    "mape": mape,
                     "r2": r2,
                     "directional_accuracy": directional_accuracy,
                     "test_start": start_date,
@@ -373,7 +368,6 @@ class BaseTrainingPipeline(ABC):
             print(f"  Samples: {symbol_mask.sum()}")
             print(f"  RMSE: {rmse:.6f}")
             print(f"  MAE: {mae:.6f}")
-            print(f"  MAPE: {mape:.2f}%")
             print(f"  R²: {r2:.6f}")
             print(f"  Directional Accuracy: {directional_accuracy:.2f}%")
 
@@ -393,7 +387,6 @@ class BaseTrainingPipeline(ABC):
         print(f"\nNumber of stocks evaluated: {len(results_df)}")
         print(f"Average RMSE: {results_df['rmse'].mean():.6f}")
         print(f"Average MAE: {results_df['mae'].mean():.6f}")
-        print(f"Average MAPE: {results_df['mape'].mean():.2f}%")
         print(f"Average R²: {results_df['r2'].mean():.6f}")
         print(f"Average Directional Accuracy: {results_df['directional_accuracy'].mean():.2f}%")
         print(
