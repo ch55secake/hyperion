@@ -42,6 +42,7 @@ class BaseTrainingPipeline(ABC):
         self._prices_test = None
         self._xgb_params = None
         self._lgb_params = None
+        self._test_results = None
 
     def read_tickers(self):
         """
@@ -259,6 +260,14 @@ class BaseTrainingPipeline(ABC):
     def _get_predictions(self):
         """
         Get predictions from the model because the single models expect a raw dataframe and not a dictionary
+        :return:
+        """
+        pass
+
+    @abstractmethod
+    def simulate(self, initial_capital: float = 10000) -> Any:
+        """
+        Simulate trading day by day based on the model predictions
         :return:
         """
         pass

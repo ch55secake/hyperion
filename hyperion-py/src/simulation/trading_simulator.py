@@ -28,19 +28,18 @@ class TradingSimulator:
         threshold="auto",
         strategy=None,
     ):
-        if strategy is None:
-            strategy = DirectionalTradingStrategy(self, self.initial_capital)
-
         """
         Simulate trading strategy and evaluate predictive performance.
         """
+        if strategy is None:
+            strategy = DirectionalTradingStrategy(self, self.initial_capital)
+
         print("\n" + "=" * 60)
         print("Running Trading Simulation")
         print("=" * 60)
 
         pred_array = np.array(predictions)
 
-        # --- Determine Threshold ---
         if threshold == "auto":
             threshold = np.percentile(np.abs(pred_array), 25)
             print(f"\nAuto threshold (25th percentile): {threshold:.6f}")
@@ -82,7 +81,10 @@ class TradingSimulator:
             profit = strategy.capital - self.initial_capital
             pnl = ((final_price - strategy.entry_price) / strategy.entry_price) * 100
 
-            if hasattr(dates, "__getitem__"):
+            # Get final date using iloc for pandas Series
+            if hasattr(dates, "iloc"):
+                final_date = dates.iloc[-1]
+            elif hasattr(dates, "__getitem__"):
                 final_date = dates[-1]
             else:
                 final_date = None
@@ -106,7 +108,8 @@ class TradingSimulator:
         total_return = (final_value - self.initial_capital) / self.initial_capital
         buy_hold_return = None
         if prices is not None:
-            first_price, last_price = prices.iloc[0], prices.iloc[-1]
+            first_price = prices.iloc[0] if hasattr(prices, "iloc") else prices[0]
+            last_price = prices.iloc[-1] if hasattr(prices, "iloc") else prices[-1]
             buy_hold_return = (last_price - first_price) / first_price
 
         print("\n" + "=" * 60)
