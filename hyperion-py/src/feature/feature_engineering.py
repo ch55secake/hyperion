@@ -132,7 +132,15 @@ class FeatureEngineering:
         # BB_Width_Ratio: BB_Width relative to middle band. Normalized volatility.
         # Price_BB_Position: Position of price within the bands (0 = bottom, 1 = top).
         # BB_B: Measures the relative position of the closing price within the Bollinger Bands.
-        self.df["BB_Upper"], self.df["BB_Lower"], self.df["BB_Middle"], self.df["BB_Width"], self.df["BB_Width_Ratio"], self.df["Price_BB_Position"], self.df["BB_B"] = ti.bollinger_bands(self.df["Close"])
+        (
+            self.df["BB_Upper"],
+            self.df["BB_Lower"],
+            self.df["BB_Middle"],
+            self.df["BB_Width"],
+            self.df["BB_Width_Ratio"],
+            self.df["Price_BB_Position"],
+            self.df["BB_B"],
+        ) = ti.bollinger_bands(self.df["Close"])
 
         return self
 
@@ -233,7 +241,9 @@ class FeatureEngineering:
         if "ATR" in self.df.columns and self.__n_rows >= 14:
             # Plus_DI / Minus_DI: 14-day directional indicators. Show trend direction strength.
             # ADX: Average Directional Index. Measures trend strength regardless of direction.
-            self.df["Plus_DI"], self.df["Minus_DI"], self.df["ADX"] = ti.directional_indicators(self.df["High"], self.df["Low"], self.df["ATR"])
+            self.df["Plus_DI"], self.df["Minus_DI"], self.df["ADX"] = ti.directional_indicators(
+                self.df["High"], self.df["Low"], self.df["ATR"]
+            )
 
             # TODO Maybe
             # self.df["ATR_Directional_Up"] = (self.df["High"] - self.df["Close"].shift(1)).where(self.df["High"] - self.df["Close"].shift(1) > self.df["ATR"], 0)
@@ -249,7 +259,9 @@ class FeatureEngineering:
         return self
 
     def _add_candlestick_patterns(self) -> FeatureEngineering:
-        self.df["Bull_Engulfing"], self.df["Doji"] = ti.candlestick_patterns(self.df["Open"], self.df["Close"], self.df["High"], self.df["Low"])
+        self.df["Bull_Engulfing"], self.df["Doji"] = ti.candlestick_patterns(
+            self.df["Open"], self.df["Close"], self.df["High"], self.df["Low"]
+        )
 
         return self
 
