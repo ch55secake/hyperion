@@ -1,10 +1,10 @@
-from typing import Callable, Dict, List, Optional, Any
+from typing import Callable, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.linear_model import Ridge
-from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
+from sklearn.metrics import r2_score, mean_squared_error
 from sklearn.base import clone
 
 
@@ -83,7 +83,7 @@ class TimeSeriesStacker:
             aligned = aligned.reindex(target_index, method="ffill")
             return aligned
 
-        elif method == "ffill":
+        if method == "ffill":
             # forward-fill: align by asof - take last available prediction before target timestamp
             # pandas.merge_asof requires both as dataframes sorted
             s = preds.sort_index().rename("pred")

@@ -6,11 +6,8 @@ import numpy as np
 from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
 from scipy.optimize import minimize
 
-from ..model import Model
-from typing_extensions import override
 
-
-class StackedStockPredictor(Model):
+class StackedStockPredictor:
     """
     Stacked predictor combining multiple base models (e.g., daily + hourly).
     """
@@ -22,7 +19,6 @@ class StackedStockPredictor(Model):
         """
         self.models = models
         self.weights = weights or {k: 1.0 for k in models}
-        self.feature_importance = None
 
     def _optimize_weights(self, x_val_dict, y_val):
         """Find optimal linear combination of model predictions on validation set"""
@@ -113,7 +109,6 @@ class StackedStockPredictor(Model):
             "r2": r2,
         }
 
-    @override
     def save_model(self, symbol, save_path="models"):
         os.makedirs(save_path, exist_ok=True)
         filename = f"{save_path}/{symbol}_stacked_model.pkl"
@@ -132,7 +127,6 @@ class StackedStockPredictor(Model):
         for name, cols in feature_columns_per_model.items():
             print(f"✓ Saved {len(cols)} feature columns for '{name}' model")
 
-    @override
     @staticmethod
     def load_model(symbol, save_path="models"):
         filename = f"{save_path}/{symbol}_stacked_model.pkl"
