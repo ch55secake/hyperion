@@ -1,9 +1,10 @@
 from src.model import LightGBMStockPredictor
 from src.optimise import StockModelOptimizer
 from src.pipeline.base_pipeline import BaseTrainingPipeline
-from src.stacker import StackedStockPredictor
+from src.model import StackedStockPredictor
 from src.writer import save_trained_model
 from src.model import XGBoostStockPredictor
+from src.data import StockDataDownloader
 
 
 class StackedModelTrainingPipeline(BaseTrainingPipeline):

@@ -4,7 +4,7 @@ import numpy as np
 import yfinance as yf
 
 from src.feature import FeatureEngineering
-from src.stacker import StackedStockPredictor
+from src.models import StackedStockPredictor
 
 
 def predict_today(symbol, model_path="models", visualisation: bool = False):
