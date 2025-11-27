@@ -10,13 +10,13 @@ from src.simulation.strategy.strategy_registry import StrategyRegistry
 from src.stacker import StackedStockPredictor
 from src.writer import save_trained_model
 
-from src.simulation.strategy import ema_cross
-from src.simulation.strategy import directional
 from src.simulation.strategy import adaptive
+from src.simulation.strategy import bb_reversion
+from src.simulation.strategy import directional
 from src.simulation.strategy import contrarian
+from src.simulation.strategy import ema_cross
 from src.simulation.strategy import hold_days
 from src.simulation.strategy import hybrid_trend_ml
-from src.simulation.strategy import mean_reversion
 from src.simulation.strategy import momentum
 from src.simulation.strategy import sltp
 from src.simulation.strategy import sma_trend
@@ -160,15 +160,21 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
             for symbol in unique_symbols:
                 try:
                     ticker_data = test_df[test_df["symbol"] == symbol].sort_values("date")
+                    strategy_class = StrategyRegistry.get(strategy_key)
 
-                    if len(ticker_data) < 10:
+                    if len(ticker_data) < strategy_class.get_minimum_data_points():
                         print(f" Skipping {symbol}: insufficient data ({len(ticker_data)} rows)")
                         continue
 
                     print(f"\n--- {symbol} ({len(ticker_data)} trades) ---")
 
+                    additional_data = strategy_class.get_extra_params(ticker_data.set_index("date")["price"])
+
                     simulator = TradingSimulator(initial_capital=initial_capital)
-                    strategy = StrategyRegistry.get(strategy_key)(simulator, initial_capital)
+                    strategy = StrategyRegistry.create(name=strategy_key,
+                                                       simulator=simulator,
+                                                       capital=initial_capital,
+                                                       **additional_data)
 
                     ticker_data_reset = ticker_data.reset_index(drop=True)
 

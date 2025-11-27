@@ -4,7 +4,7 @@ from .strategy_registry import register_strategy
 
 @register_strategy("time_stop")
 class TimeStopStrategy(Strategy):
-    def __init__(self, simulator, capital, hold_days=5):
+    def __init__(self, simulator, capital, hold_days: int = 5):
         super().__init__(simulator, capital)
         self.hold_days = hold_days
 
