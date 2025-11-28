@@ -4,6 +4,7 @@ import pandas as pd
 
 from .strategy import Strategy
 from .strategy_registry import register_strategy
+from src.feature import sma
 
 
 @register_strategy("sma_trend")
@@ -31,7 +32,7 @@ class SMATrendStrategy(Strategy):
     def get_extra_params(prices_series: pd.Series) -> Dict[str, Any]:
         sma_period = 50
 
-        sma_values = prices_series.rolling(window=sma_period, min_periods=1).mean()
+        sma_values = sma(prices_series, sma_period)
 
         return {"sma_series": sma_values.to_dict()}
 

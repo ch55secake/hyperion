@@ -148,18 +148,17 @@ def stochastic_oscillator(high: pd.Series, low: pd.Series, close: pd.Series, win
 
 def bollinger_bands_upper(close: pd.Series, window: int = 20) -> pd.Series:
     """Bollinger Bands Upper Band"""
-
-    return close.rolling(window).mean() + 2 * std(close, window)
+    return sma(close, window) + 2 * std(close, window)
 
 
 def bollinger_bands_lower(close: pd.Series, window: int = 20) -> pd.Series:
     """Bollinger Bands Lower Band"""
-    return close.rolling(window).mean() - 2 * std(close, window)
+    return sma(close, window) - 2 * std(close, window)
 
 
 def bollinger_bands_middle(close: pd.Series, window: int = 20) -> pd.Series:
     """Bollinger Bands Middle Band"""
-    return close.rolling(window).mean()
+    return sma(close, window)
 
 
 def bollinger_bands_width(bb_upper: pd.Series, bb_lower: pd.Series) -> pd.Series:
@@ -168,27 +167,18 @@ def bollinger_bands_width(bb_upper: pd.Series, bb_lower: pd.Series) -> pd.Series
 
 
 def bollinger_bands_width_ratio(bb_width: pd.Series, bb_middle: pd.Series) -> pd.Series:
-    """Bollinger Bands %B"""
+    """Bollinger Bands Width Ratio"""
     return ratio(bb_width, bb_middle)
 
 
-def bollinger_bands_price_position(close: pd.Series, bb_lower: pd.Series, bb_upper: pd.Series) -> pd.Series:
-    """Bollinger Bands Price Position"""
+def bollinger_bands_percent_b(close: pd.Series, bb_lower: pd.Series, bb_upper: pd.Series) -> pd.Series:
+    """Bollinger Bands Price Position (%B)"""
     return ratio(close - bb_lower, bb_upper - bb_lower)
-
-
-def bollinger_bands_b(close: pd.Series, window: int = 20) -> pd.Series:
-    """Bollinger Bands Bollinger Band Indicator"""
-    sma_ = sma(close, window)
-    std_ = std(close, window)
-    upper = sma_ + 2 * std_
-    lower = sma_ - 2 * std_
-    return ratio(close - lower, upper - lower)
 
 
 def bollinger_bands(
     close: pd.Series, window: int = 20
-) -> tuple[pd.Series, pd.Series, pd.Series, pd.Series, pd.Series, pd.Series, pd.Series]:
+) -> tuple[pd.Series, pd.Series, pd.Series, pd.Series, pd.Series, pd.Series]:
     """Bollinger Bands"""
     bb_upper = bollinger_bands_upper(close, window)
     bb_lower = bollinger_bands_lower(close, window)
@@ -196,10 +186,9 @@ def bollinger_bands(
 
     bb_width = bollinger_bands_width(bb_upper, bb_lower)
     bb_width_ratio = bollinger_bands_width_ratio(bb_width, bb_middle)
-    bb_price_position = bollinger_bands_price_position(close, bb_lower, bb_upper)
-    bb_b = bollinger_bands_b(close, window)
+    bb_b = bollinger_bands_percent_b(close, bb_lower, bb_upper)
 
-    return bb_upper, bb_lower, bb_middle, bb_width, bb_width_ratio, bb_price_position, bb_b
+    return bb_upper, bb_lower, bb_middle, bb_width, bb_width_ratio, bb_b
 
 
 def price_change(series: pd.Series, window: int) -> pd.Series:

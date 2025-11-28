@@ -130,7 +130,6 @@ class FeatureEngineering:
         # BB_Upper / BB_Lower / BB_Middle: Upper/lower bands around 20-day SMA ± 2 standard deviations. Measures volatility.
         # BB_Width: Width between upper and lower band. Higher width = higher volatility.
         # BB_Width_Ratio: BB_Width relative to middle band. Normalized volatility.
-        # Price_BB_Position: Position of price within the bands (0 = bottom, 1 = top).
         # BB_B: Measures the relative position of the closing price within the Bollinger Bands.
         (
             self.df["BB_Upper"],
@@ -138,7 +137,6 @@ class FeatureEngineering:
             self.df["BB_Middle"],
             self.df["BB_Width"],
             self.df["BB_Width_Ratio"],
-            self.df["Price_BB_Position"],
             self.df["BB_B"],
         ) = ti.bollinger_bands(self.df["Close"])
 

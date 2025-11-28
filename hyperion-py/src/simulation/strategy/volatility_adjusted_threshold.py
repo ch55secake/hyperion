@@ -4,6 +4,7 @@ import pandas as pd
 
 from .strategy import Strategy
 from .strategy_registry import register_strategy
+from src.feature import std
 
 
 @register_strategy("volatility_adjusted")
@@ -31,8 +32,7 @@ class VolatilityAdjustedStrategy(Strategy):
         vol_period = 20
 
         returns = prices_series.pct_change()
-
-        vol_values = returns.rolling(window=vol_period, min_periods=1).std()
+        vol_values = std(returns, vol_period)
 
         return {"vol_series": vol_values.to_dict()}
 

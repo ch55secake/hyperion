@@ -4,6 +4,7 @@ import pandas as pd
 
 from .strategy import Strategy
 from .strategy_registry import register_strategy
+from src.feature import ema
 
 
 @register_strategy("ema_cross")
@@ -34,8 +35,8 @@ class EMACrossStrategy(Strategy):
         ema_fast_period = 12
         ema_slow_period = 26
 
-        ema_fast_values = prices_series.ewm(span=ema_fast_period, adjust=False).mean()
-        ema_slow_values = prices_series.ewm(span=ema_slow_period, adjust=False).mean()
+        ema_fast_values = ema(prices_series, ema_fast_period)
+        ema_slow_values = ema(prices_series, ema_slow_period)
 
         return {
             "ema_fast": ema_fast_values.to_dict(),

@@ -4,6 +4,7 @@ import pandas as pd
 
 from .strategy import Strategy
 from .strategy_registry import register_strategy
+from src.feature import bollinger_bands_upper, bollinger_bands_lower
 
 
 @register_strategy("bb_reversion")
@@ -32,13 +33,9 @@ class BollingerReversionStrategy(Strategy):
     @staticmethod
     def get_extra_params(prices_series: pd.Series) -> Dict[str, Any]:
         bb_period = 20
-        bb_std = 2
 
-        middle_band = prices_series.rolling(window=bb_period, min_periods=1).mean()
-        rolling_std = prices_series.rolling(window=bb_period, min_periods=1).std()
-
-        upper_band = middle_band + (rolling_std * bb_std)
-        lower_band = middle_band - (rolling_std * bb_std)
+        upper_band = bollinger_bands_upper(prices_series, window=bb_period)
+        lower_band = bollinger_bands_lower(prices_series, window=bb_period)
 
         return {"upper_band": upper_band.to_dict(), "lower_band": lower_band.to_dict()}
 

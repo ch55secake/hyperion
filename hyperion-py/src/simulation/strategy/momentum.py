@@ -4,6 +4,7 @@ import pandas as pd
 
 from .strategy import Strategy
 from .strategy_registry import register_strategy
+from src.feature import rate_of_change
 
 
 @register_strategy("momentum")
@@ -31,7 +32,7 @@ class MomentumStrategy(Strategy):
     def get_extra_params(prices_series: pd.Series) -> Dict[str, Any]:
         roc_period = 12
 
-        roc_values = ((prices_series - prices_series.shift(roc_period)) / prices_series.shift(roc_period)) * 100
+        roc_values = rate_of_change(prices_series, roc_period)
 
         return {"roc_series": roc_values.to_dict()}
 
