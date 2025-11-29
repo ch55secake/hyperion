@@ -40,6 +40,7 @@ class TradingSimulator:
         if threshold == "auto":
             threshold = np.percentile(np.abs(pred_array), 25)
             print(f"\nAuto threshold (25th percentile): {threshold:.6f}")
+            print(f"\nSignals above threshold: {(np.abs(pred_array) > threshold).mean():.1%}")
         elif threshold == "adaptive":
             threshold = 0.3 * np.std(pred_array)
             print(f"\nAdaptive threshold (0.3 std): {threshold:.6f}")

@@ -2,28 +2,16 @@ import numpy as np
 import pandas as pd
 
 from src.model import LightGBMStockPredictor
+from src.model import StackedStockPredictor
 from src.model import XGBoostStockPredictor
 from src.optimise import StockModelOptimizer
 from src.pipeline.base_pipeline import BaseTrainingPipeline
 from src.simulation import TradingSimulator
 from src.simulation.strategy.strategy_registry import StrategyRegistry
-from src.model import StackedStockPredictor
 from src.writer import save_trained_model
 
-from src.simulation.strategy import adaptive
-from src.simulation.strategy import bb_reversion
-from src.simulation.strategy import directional
-from src.simulation.strategy import contrarian
-from src.simulation.strategy import ema_cross
-from src.simulation.strategy import hold_days
-from src.simulation.strategy import hybrid_trend_ml
-from src.simulation.strategy import momentum
-from src.simulation.strategy import sltp
-from src.simulation.strategy import sma_trend
-from src.simulation.strategy import time_stop
-from src.simulation.strategy import volatility_adjusted_threshold
-from src.model import XGBoostStockPredictor
-from src.data import StockDataDownloader
+# Required for the usage of the strategy registry
+import src.simulation.strategy
 
 
 class StackedModelTrainingPipeline(BaseTrainingPipeline):
@@ -153,9 +141,9 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         all_results = {}
 
         for strategy_key in strategies_to_run:
-            print(f"\n{'='*60}")
+            print(f"\n{'=' * 60}")
             print(f"Strategy: {strategy_key}")
-            print(f"{'='*60}")
+            print(f"{'=' * 60}")
 
             strategy_results = {}
 
@@ -190,7 +178,7 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
                     strategy_results[symbol] = results
 
                     print(f"Final Value: ${results['final_value']:,.2f}")
-                    print(f"Return: {results['total_return']*100:.2f}%")
+                    print(f"Return: {results['total_return'] * 100:.2f}%")
 
                 except Exception as e:
                     print(f" Error running {strategy_key} on {symbol}: {e}")
@@ -200,9 +188,9 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
             all_results[strategy_key] = strategy_results
 
-            print(f"\n{'='*60}")
+            print(f"\n{'=' * 60}")
             print(f"Summary for {strategy_key}")
-            print(f"{'='*60}")
+            print(f"{'=' * 60}")
 
             if strategy_results:
                 total_final_value = sum(r["final_value"] for r in strategy_results.values())
@@ -211,9 +199,9 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
                 print(f"Tickers simulated: {len(strategy_results)}")
                 print(f"Total final value: ${total_final_value:,.2f}")
-                print(f"Average return: {avg_return*100:.2f}%")
+                print(f"Average return: {avg_return * 100:.2f}%")
                 print(
-                    f"Winning tickers: {winning_tickers}/{len(strategy_results)} ({winning_tickers/len(strategy_results)*100:.1f}%)"
+                    f"Winning tickers: {winning_tickers}/{len(strategy_results)} ({winning_tickers / len(strategy_results) * 100:.1f}%)"
                 )
 
         return self

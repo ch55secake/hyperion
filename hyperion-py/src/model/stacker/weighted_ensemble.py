@@ -120,7 +120,7 @@ class StackedStockPredictor:
 
         model_data = {"stacked_predictor": self, "feature_columns_per_model": feature_columns_per_model}
 
-        with open(filename, "wb", "UTF-8") as f:
+        with open(filename, "wb") as f:
             pickle.dump(model_data, f)
 
         print(f"✓ Saved full stacked model to {filename}")
@@ -130,7 +130,7 @@ class StackedStockPredictor:
     @staticmethod
     def load_model(symbol, save_path="models"):
         filename = f"{save_path}/{symbol}_stacked_model.pkl"
-        with open(filename, "rb", encoding="UTF-8") as f:
+        with open(filename, "rb") as f:
             model_data = pickle.load(f)
 
         if isinstance(model_data, dict) and "stacked_predictor" in model_data:
