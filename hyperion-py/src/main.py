@@ -5,7 +5,6 @@ from src.pipeline.stacked_pipeline import StackedModelTrainingPipeline
 
 warnings.filterwarnings("ignore")
 
-# Create directories for outputs
 os.makedirs("./historic_data", exist_ok=True)
 os.makedirs("./plots", exist_ok=True)
 os.makedirs("./results", exist_ok=True)

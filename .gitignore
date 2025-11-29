@@ -37,6 +37,7 @@ hyperion-py/invalid_models
 hyperion-py/plots
 hyperion-py/results
 hyperion-py/params
+hyperion-py/catboost_info
 
 # Pycaches
 hyperion-py/**/__pycache__/
