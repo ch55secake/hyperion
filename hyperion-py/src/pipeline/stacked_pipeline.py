@@ -156,7 +156,7 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
                         print(f" Skipping {symbol}: insufficient data ({len(ticker_data)} rows)")
                         continue
 
-                    print(f"\n--- {symbol} ({len(ticker_data)} trades) ---")
+                    print(f"\n--- {symbol} ({len(ticker_data)} samples) ---")
 
                     additional_data = strategy_class.get_extra_params(ticker_data.set_index("date")["price"])
 

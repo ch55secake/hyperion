@@ -110,16 +110,17 @@ class TradingSimulator:
             last_price = prices.iloc[-1] if hasattr(prices, "iloc") else prices[-1]
             buy_hold_return = (last_price - first_price) / first_price
 
-        print("\n" + "=" * 60)
-        print("Trading Simulation Results")
-        print("=" * 60)
-        print(f"Initial Capital:       ${self.initial_capital:,.2f}")
-        print(f"Final Portfolio Value: ${final_value:,.2f}")
-        print(f"Total Return:          {total_return * 100:.2f}%")
-        if buy_hold_return is not None:
-            print(f"Buy & Hold Return:     {buy_hold_return * 100:.2f}%")
-            print(f"Strategy Alpha:        {(total_return - buy_hold_return) * 100:.2f}%")
-        print(f"Number of Trades:      {len(self.trades)}")
+        if total_return - buy_hold_return > 0:
+            print("\n" + "=" * 60)
+            print("Trading Simulation Results")
+            print("=" * 60)
+            print(f"Initial Capital:       ${self.initial_capital:,.2f}")
+            print(f"Final Portfolio Value: ${final_value:,.2f}")
+            print(f"Total Return:          {total_return * 100:.2f}%")
+            if buy_hold_return is not None:
+                print(f"Buy & Hold Return:     {buy_hold_return * 100:.2f}%")
+                print(f"Strategy Alpha:        {(total_return - buy_hold_return) * 100:.2f}%")
+            print(f"Number of Trades:      {len(self.trades)}")
 
         return {
             "portfolio_history": pd.DataFrame(self.portfolio_history),
