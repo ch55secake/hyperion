@@ -1,6 +1,7 @@
 from typing import Any
 
 from src.model import LightGBMStockPredictor
+from src.model.catboost.catboost_predictor import CatBoostStockPredictor
 from src.optimise import StockModelOptimizer
 from src.pipeline.base_pipeline import BaseTrainingPipeline
 from src.writer import save_trained_model
@@ -11,8 +12,8 @@ class SingleModelTrainingPipeline(BaseTrainingPipeline):
 
     def __init__(self, model_type: str = "xgboost", *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if model_type not in ["xgboost", "lightgbm"]:
-            raise ValueError("model_type must be 'xgboost' or 'lightgbm'")
+        if model_type not in ["xgboost", "lightgbm", "catboost"]:
+            raise ValueError("model_type must be 'xgboost', 'lightgbm' or 'catboost'")
         self.model_type = model_type
         self._model_params = None
 
@@ -21,10 +22,13 @@ class SingleModelTrainingPipeline(BaseTrainingPipeline):
         Create either xgboost or lightgbm model
         :return:
         """
-        if self.model_type == "xgboost":
-            return XGBoostStockPredictor(params=self._model_params)
-        else:
-            return LightGBMStockPredictor(params=self._model_params)
+        match self.model_type:
+            case "xgboost":
+                return XGBoostStockPredictor(params=self._model_params)
+            case "lightgbm":
+                return LightGBMStockPredictor(params=self._model_params)
+            case "catboost":
+                return CatBoostStockPredictor(params=self._model_params)
 
     def _optimize_hyperparameters(self) -> Any:
         """
