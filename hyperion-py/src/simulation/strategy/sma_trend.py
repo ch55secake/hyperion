@@ -33,7 +33,7 @@ class SMATrendStrategy(Strategy):
 
         sma_values = prices_series.rolling(window=sma_period, min_periods=1).mean()
 
-        return { "sma_series": sma_values.to_dict() }
+        return {"sma_series": sma_values.to_dict()}
 
     @override
     @staticmethod

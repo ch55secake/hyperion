@@ -40,7 +40,7 @@ class BollingerReversionStrategy(Strategy):
         upper_band = middle_band + (rolling_std * bb_std)
         lower_band = middle_band - (rolling_std * bb_std)
 
-        return { "upper_band": upper_band.to_dict(), "lower_band": lower_band.to_dict() }
+        return {"upper_band": upper_band.to_dict(), "lower_band": lower_band.to_dict()}
 
     @override
     @staticmethod

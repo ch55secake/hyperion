@@ -7,7 +7,7 @@ from src.optimise import StockModelOptimizer
 from src.pipeline.base_pipeline import BaseTrainingPipeline
 from src.simulation import TradingSimulator
 from src.simulation.strategy.strategy_registry import StrategyRegistry
-from src.stacker import StackedStockPredictor
+from src.model import StackedStockPredictor
 from src.writer import save_trained_model
 
 from src.simulation.strategy import adaptive
@@ -22,6 +22,8 @@ from src.simulation.strategy import sltp
 from src.simulation.strategy import sma_trend
 from src.simulation.strategy import time_stop
 from src.simulation.strategy import volatility_adjusted_threshold
+from src.model import XGBoostStockPredictor
+from src.data import StockDataDownloader
 
 
 class StackedModelTrainingPipeline(BaseTrainingPipeline):
@@ -171,10 +173,9 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
                     additional_data = strategy_class.get_extra_params(ticker_data.set_index("date")["price"])
 
                     simulator = TradingSimulator(initial_capital=initial_capital)
-                    strategy = StrategyRegistry.create(name=strategy_key,
-                                                       simulator=simulator,
-                                                       capital=initial_capital,
-                                                       **additional_data)
+                    strategy = StrategyRegistry.create(
+                        name=strategy_key, simulator=simulator, capital=initial_capital, **additional_data
+                    )
 
                     ticker_data_reset = ticker_data.reset_index(drop=True)
 

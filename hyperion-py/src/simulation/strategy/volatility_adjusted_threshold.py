@@ -34,7 +34,7 @@ class VolatilityAdjustedStrategy(Strategy):
 
         vol_values = returns.rolling(window=vol_period, min_periods=1).std()
 
-        return { "vol_series": vol_values.to_dict() }
+        return {"vol_series": vol_values.to_dict()}
 
     @override
     @staticmethod

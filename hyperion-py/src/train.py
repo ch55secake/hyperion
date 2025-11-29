@@ -10,7 +10,7 @@ from src.data import StockDataDownloader
 from src.feature import FeatureEngineering
 from src.model import XGBoostStockPredictor, LightGBMStockPredictor
 from src.optimise import StockModelOptimizer
-from src.stacker import StackedStockPredictor
+from src.model import StackedStockPredictor
 from src.visualisation import generate_plots, Visualizer
 from src.writer import save_trained_model, persist_results, output_best_strategy
 from src.simulation import TradingSimulator

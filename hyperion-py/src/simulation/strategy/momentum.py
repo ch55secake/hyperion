@@ -33,7 +33,7 @@ class MomentumStrategy(Strategy):
 
         roc_values = ((prices_series - prices_series.shift(roc_period)) / prices_series.shift(roc_period)) * 100
 
-        return { "roc_series": roc_values.to_dict() }
+        return {"roc_series": roc_values.to_dict()}
 
     @override
     @staticmethod
