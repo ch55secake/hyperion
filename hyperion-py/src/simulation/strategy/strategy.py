@@ -41,8 +41,11 @@ class Strategy(ABC):
         )
 
     def sell(self, date: int | Any, price: int | Any, pred_return: Any) -> None:
-        self.capital = self.shares * price * (1 - self.simulator.transaction_cost)
-        profit = self.capital - self.simulator.initial_capital
+        cost_basis = self.shares * self.entry_price
+        sale_proceeds = self.shares * price * (1 - self.simulator.transaction_cost)
+        profit = sale_proceeds - cost_basis
+
+        self.capital = sale_proceeds
         pnl = ((price - self.entry_price) / self.entry_price) * 100
 
         self.simulator.trades.append(
