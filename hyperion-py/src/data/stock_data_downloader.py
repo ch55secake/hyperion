@@ -32,8 +32,9 @@ class StockDataDownloader:
 
     @classmethod
     def _load_stock_info(cls, path="./historic_data/stock_info.json"):
-        """Load cached stock info from disk if available."""
-
+        """
+        Load cached stock info from disk if available.
+        """
         if os.path.isfile(path):
             try:
                 with open(path, "r", encoding="UTF-8") as f:
@@ -44,8 +45,9 @@ class StockDataDownloader:
 
     @classmethod
     def save_stock_info(cls, path="./historic_data/stock_info.json"):
-        """Save cached stock info to disk."""
-
+        """
+        Save cached stock info to disk.
+        """
         try:
             with open(path, "w", encoding="UTF-8") as f:
                 json.dump(cls._stock_info, f, indent=4)
@@ -66,37 +68,47 @@ class StockDataDownloader:
                 complete_path: str = os.path.join(default_path, filename)
                 print(f"\nChecking for existing data for {complete_path}...")
 
+                needs_refresh = False
+
                 if os.path.isfile(complete_path):
-                    print(f"  ✓ Using cached data for {symbol}")
                     df = pd.read_csv(complete_path, parse_dates=True, index_col=0)
 
+                    last_date = pd.to_datetime(df.index[-1]).date()
+                    today = pd.Timestamp.now().date()
+
+                    if last_date < today:
+                        print(f" Cache is outdated (last date: {last_date}, today: {today})")
+                        needs_refresh = True
+                    else:
+                        print(f"  ✓ Using cached data for {symbol}")
+                        self._history_data[(symbol, self.period, self.interval)] = df
+                        self.data[symbol] = df
+                        if symbol not in self._stock_info:
+                            self._stock_info[symbol] = yf.Ticker(symbol).info
+                        continue
+
+                if not os.path.isfile(complete_path) or needs_refresh:
+                    print(f"\nDownloading {symbol}...")
+                    print(f"\n{self.period} {self.interval} data for {symbol}")
+                    ticker = yf.Ticker(symbol)
+                    df = ticker.history(period=self.period, interval=self.interval)
+
                     self._history_data[(symbol, self.period, self.interval)] = df
+                    df = df.resample("1D").last()
+
+                    if df.empty:
+                        print(f"  ⚠️  No data found for {symbol}")
+                        continue
+
+                    filename = f"./historic_data/{filename}"
+                    df.to_csv(filename)
+
                     self.data[symbol] = df
-                    if symbol not in self._stock_info:
-                        self._stock_info[symbol] = yf.Ticker(symbol).info
-                    continue
+                    self._stock_info[symbol] = ticker.info
 
-                print(f"\nDownloading {symbol}...")
-                print(f"\n{self.period} {self.interval} data for {symbol}")
-                ticker = yf.Ticker(symbol)
-                df = ticker.history(period=self.period, interval=self.interval)
-
-                self._history_data[(symbol, self.period, self.interval)] = df
-                df = df.resample("1D").last()
-
-                if df.empty:
-                    print(f"  ⚠️  No data found for {symbol}")
-                    continue
-
-                filename = f"./historic_data/{filename}"
-                df.to_csv(filename)
-
-                self.data[symbol] = df
-                self._stock_info[symbol] = ticker.info
-
-                print(f"  ✓ Downloaded {len(df)} data points")
-                print(f"  ✓ Date range: {df.index[0].date()} to {df.index[-1].date()}")
-                print(f"  ✓ Saved to {filename}")
+                    print(f"  ✓ Downloaded {len(df)} data points")
+                    print(f"  ✓ Date range: {df.index[0].date()} to {df.index[-1].date()}")
+                    print(f"  ✓ Saved to {filename}")
 
             except Exception as e:
                 print(f"  ✗ Error downloading {symbol}: {str(e)}")
