@@ -43,6 +43,7 @@ class BaseTrainingPipeline(ABC):
         self._xgb_params = None
         self._lgb_params = None
         self._test_results = None
+        self._split_idx = None
 
     def read_tickers(self):
         """
@@ -122,23 +123,23 @@ class BaseTrainingPipeline(ABC):
 
                 x_hourly = x_hourly.loc[x_daily.index]
 
-                split_idx = int(len(x_daily) * (1 - self.test_size))
+                self._split_idx = int(len(x_daily) * (1 - self.test_size))
 
-                train_daily_features.append(x_daily.iloc[:split_idx])
-                train_hourly_features.append(x_hourly.iloc[:split_idx])
-                train_targets.append(y_daily.iloc[:split_idx])
-                train_dates.append(pd.Series(dates_daily[:split_idx], index=dates_daily[:split_idx]))
-                train_prices.append(prices_daily.iloc[:split_idx])
-                train_symbols.extend([symbol] * split_idx)
+                train_daily_features.append(x_daily.iloc[: self._split_idx])
+                train_hourly_features.append(x_hourly.iloc[: self._split_idx])
+                train_targets.append(y_daily.iloc[: self._split_idx])
+                train_dates.append(pd.Series(dates_daily[: self._split_idx], index=dates_daily[: self._split_idx]))
+                train_prices.append(prices_daily.iloc[: self._split_idx])
+                train_symbols.extend([symbol] * self._split_idx)
 
-                test_daily_features.append(x_daily.iloc[split_idx:])
-                test_hourly_features.append(x_hourly.iloc[split_idx:])
-                test_targets.append(y_daily.iloc[split_idx:])
-                test_dates.append(pd.Series(dates_daily[split_idx:], index=dates_daily[split_idx:]))
-                test_prices.append(prices_daily.iloc[split_idx:])
-                test_symbols.extend([symbol] * (len(x_daily) - split_idx))
+                test_daily_features.append(x_daily.iloc[self._split_idx :])
+                test_hourly_features.append(x_hourly.iloc[self._split_idx :])
+                test_targets.append(y_daily.iloc[self._split_idx :])
+                test_dates.append(pd.Series(dates_daily[self._split_idx :], index=dates_daily[self._split_idx :]))
+                test_prices.append(prices_daily.iloc[self._split_idx :])
+                test_symbols.extend([symbol] * (len(x_daily) - self._split_idx))
 
-                print(f"  ✓ {symbol}: {split_idx} train samples, {len(x_daily) - split_idx} test samples")
+                print(f"  ✓ {symbol}: {self._split_idx} train samples, {len(x_daily) - self._split_idx} test samples")
 
             except Exception as e:
                 print(f"  ✗ Error processing {symbol}: {str(e)}")

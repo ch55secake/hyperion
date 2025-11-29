@@ -167,12 +167,17 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
                     ticker_data_reset = ticker_data.reset_index(drop=True)
 
+                    train_predictions = predictions[self._split_idx :]
+
+                    threshold = np.percentile(np.abs(train_predictions), 75)
+
                     results = simulator.simulate(
                         predictions=ticker_data_reset["prediction"],
                         actual_returns=ticker_data_reset["actual_return"],
                         prices=ticker_data_reset["price"],
                         dates=ticker_data_reset["date"],
                         strategy=strategy,
+                        threshold=threshold,
                     )
 
                     strategy_results[symbol] = results
