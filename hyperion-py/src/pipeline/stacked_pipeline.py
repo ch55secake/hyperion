@@ -1,10 +1,17 @@
+import numpy as np
+import pandas as pd
+
 from src.model import LightGBMStockPredictor
+from src.model import StackedStockPredictor
+from src.model import XGBoostStockPredictor
 from src.optimise import StockModelOptimizer
 from src.pipeline.base_pipeline import BaseTrainingPipeline
-from src.model import StackedStockPredictor
+from src.simulation import TradingSimulator
+from src.simulation.strategy.strategy_registry import StrategyRegistry
 from src.writer import save_trained_model
-from src.model import XGBoostStockPredictor
-from src.data import StockDataDownloader
+
+# Required for the usage of the strategy registry
+import src.simulation.strategy
 
 
 class StackedModelTrainingPipeline(BaseTrainingPipeline):
@@ -13,6 +20,15 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         super().__init__(*args, **kwargs)
         self._xgb_params = None
         self._lgb_params = None
+
+    def load_model(self):
+        """
+        Load a previously trained model instead of training a new one
+        :return:
+        """
+        self._model = StackedStockPredictor.load_model("ALL_STOCKS")
+
+        return self
 
     def _create_model(self):
         """
@@ -75,10 +91,123 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         self._model.train(train_data)
 
         self._x_test_dict = {"daily": x_test_daily, "hourly": x_test_hourly}
-        test_results = self._model.evaluate(self._x_test_dict, self._y_test)
+        self._test_results = self._model.evaluate(self._x_test_dict, self._y_test)
 
         model_name: str = "ALL_STOCKS"
-        save_trained_model(self._model, model_name, test_results)
+        save_trained_model(self._model, model_name, self._test_results)
+
+        return self
+
+    def simulate(self, initial_capital: float = 10000, tickers=None, strategy_name: str = None):
+        """
+        Use the stacked trained model to simulate trading day by day, per ticker
+        :return:
+        """
+        if tickers is None:
+            tickers = ["AAPL"]
+        predictions = self._test_results.get("predictions")
+        if predictions is None:
+            print(" Predictions missing, computing via predictor.predict()")
+            predictor = self._x_test_dict.get("predictor")
+            predictions = predictor.predict(self._x_test_dict)
+
+        test_df = pd.DataFrame(
+            {
+                "symbol": self._symbols_test,
+                "date": self._dates_test,
+                "price": self._prices_test,
+                "prediction": predictions,
+                "actual_return": self._y_test,
+            }
+        )
+
+        if tickers is not None:
+            test_df = test_df[test_df["symbol"].isin(tickers)]
+            print(f"Filtering to {len(tickers)} tickers: {tickers}")
+
+        unique_symbols = test_df["symbol"].unique()
+        print(f"\nSimulating {len(unique_symbols)} tickers")
+
+        available_strategies = StrategyRegistry.list()
+        if strategy_name is not None:
+            if strategy_name not in available_strategies:
+                raise ValueError(f"Strategy '{strategy_name}' not found. Available: {available_strategies}")
+            strategies_to_run = [strategy_name]
+        else:
+            strategies_to_run = available_strategies
+
+        print(f"Running strategies: {strategies_to_run}\n")
+
+        all_results = {}
+
+        for strategy_key in strategies_to_run:
+            print(f"\n{'=' * 60}")
+            print(f"Strategy: {strategy_key}")
+            print(f"{'=' * 60}")
+
+            strategy_results = {}
+
+            for symbol in unique_symbols:
+                try:
+                    ticker_data = test_df[test_df["symbol"] == symbol].sort_values("date")
+                    strategy_class = StrategyRegistry.get(strategy_key)
+
+                    if len(ticker_data) < strategy_class.get_minimum_data_points():
+                        print(f" Skipping {symbol}: insufficient data ({len(ticker_data)} rows)")
+                        continue
+
+                    print(f"\n--- {symbol} ({len(ticker_data)} samples) ---")
+
+                    additional_data = strategy_class.get_extra_params(ticker_data.set_index("date")["price"])
+
+                    simulator = TradingSimulator(initial_capital=initial_capital)
+                    strategy = StrategyRegistry.create(
+                        name=strategy_key, simulator=simulator, capital=initial_capital, **additional_data
+                    )
+
+                    ticker_data_reset = ticker_data.reset_index(drop=True)
+
+                    train_predictions = predictions[self._split_idx :]
+
+                    threshold = np.percentile(np.abs(train_predictions), 75)
+
+                    results = simulator.simulate(
+                        predictions=ticker_data_reset["prediction"],
+                        actual_returns=ticker_data_reset["actual_return"],
+                        prices=ticker_data_reset["price"],
+                        dates=ticker_data_reset["date"],
+                        strategy=strategy,
+                        threshold=threshold,
+                    )
+
+                    strategy_results[symbol] = results
+
+                    print(f"Final Value: ${results['final_value']:,.2f}")
+                    print(f"Return: {results['total_return'] * 100:.2f}%")
+
+                except Exception as e:
+                    print(f" Error running {strategy_key} on {symbol}: {e}")
+                    import traceback
+
+                    traceback.print_exc()
+
+            all_results[strategy_key] = strategy_results
+
+            print(f"\n{'=' * 60}")
+            print(f"Summary for {strategy_key}")
+            print(f"{'=' * 60}")
+
+            if strategy_results:
+                total_final_value = sum(r["final_value"] for r in strategy_results.values())
+                avg_return = np.mean([r["total_return"] for r in strategy_results.values()])
+                winning_tickers = sum(1 for r in strategy_results.values() if r["total_return"] > 0)
+
+                print(f"Tickers simulated: {len(strategy_results)}")
+                print(f"Total final value: ${total_final_value:,.2f}")
+                print(f"Average return: {avg_return * 100:.2f}%")
+                print(
+                    f"Winning tickers: {winning_tickers}/{len(strategy_results)} ({winning_tickers / len(strategy_results) * 100:.1f}%)"
+                )
 
         return self
 

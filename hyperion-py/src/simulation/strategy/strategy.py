@@ -1,6 +1,8 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Dict
+
+import pandas as pd
 
 from src.simulation.types import TradeAction, Trade
 
@@ -39,8 +41,11 @@ class Strategy(ABC):
         )
 
     def sell(self, date: int | Any, price: int | Any, pred_return: Any) -> None:
-        self.capital = self.shares * price * (1 - self.simulator.transaction_cost)
-        profit = self.capital - self.simulator.initial_capital
+        cost_basis = self.shares * self.entry_price
+        sale_proceeds = self.shares * price * (1 - self.simulator.transaction_cost)
+        profit = sale_proceeds - cost_basis
+
+        self.capital = sale_proceeds
         pnl = ((price - self.entry_price) / self.entry_price) * 100
 
         self.simulator.trades.append(
@@ -60,9 +65,16 @@ class Strategy(ABC):
 
     @staticmethod
     def simulate(strategy: Strategy, dates_test, prices_test, predictions, y_test):
-        # Use the simulator from the passed strategy instance
         sim_results = strategy.simulator.simulate(
             predictions, y_test, prices_test, dates_test, threshold=0, strategy=strategy
         )
 
         return sim_results, strategy.simulator
+
+    @staticmethod
+    def get_extra_params(price_series: pd.Series) -> Dict[str, Any]:
+        return {}
+
+    @staticmethod
+    def get_minimum_data_points() -> int:
+        return 10
