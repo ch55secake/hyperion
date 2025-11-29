@@ -1,6 +1,12 @@
-clean:
+cleanmodels:
 	@rm -rf plots/*
 	@rm -rf models/*
+	@rm -rf invalid_models/*
+	@rm -rf results/*
+	@rm -rf params/*
+
+clean:
+	@rm -rf plots/*
 	@rm -rf invalid_models/*
 	@rm -rf results/*
 	@rm -rf params/*
@@ -12,8 +18,13 @@ install:
 	@poetry lock
 	@poetry install
 
+cmtrain:
+	@make cleanmodels
+	@make run
+
 ctrain:
 	@make clean
 	@make run
+
 
 .PHONY: clean run install
