@@ -34,9 +34,7 @@ if __name__ == "__main__":
         .download_data()
         .prepare_features()
         .train()
-        .evaluate_model()
-        # .simulate()
-        .evaluate()
+        .analyze_stacker_performance()
     )
 
     # stacked_pipeline.load_model().simulate(initial_capital=10000)

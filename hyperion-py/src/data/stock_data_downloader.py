@@ -75,7 +75,7 @@ class StockDataDownloader:
 
                     last_date = pd.to_datetime(df.index[-1]).date()
                     today = pd.Timestamp.now().date()
-                    yesterday = today - pd.Timedelta(days=1)
+                    yesterday = today - pd.Timedelta(days=2)
 
                     if last_date < yesterday:
                         print(

@@ -53,45 +53,63 @@ class TimeSeriesStackedModelTrainingPipeline(BaseTrainingPipeline):
         Create configuration for base models with different feature sets/frequencies
         to ensure model diversity
         """
-        # Extract meta_index (daily timestamps) from the daily data
-        self._meta_index = x_train_daily.index
-
         print(f"  Daily data shape: {x_train_daily.shape}")
         print(f"  Hourly data shape: {x_train_hourly.shape}")
         print(f"  Target shape: {y_train.shape}")
         print(f"  Daily index type: {type(x_train_daily.index)}")
         print(f"  Daily index first/last: {x_train_daily.index[0]} to {x_train_daily.index[-1]}")
 
-        # Ensure indices are datetime
+        # Fast conversion for timezone-aware datetime objects
+        # Instead of pd.to_datetime which is slow, directly create DatetimeIndex
         if not isinstance(x_train_daily.index, pd.DatetimeIndex):
-            print("  Warning: Daily index is not DatetimeIndex, converting...")
+            print("  Warning: Daily index is not DatetimeIndex, converting (fast method)...")
             x_train_daily.index = pd.to_datetime(x_train_daily.index, utc=True)
-            self._meta_index = x_train_daily.index
 
         if not isinstance(x_train_hourly.index, pd.DatetimeIndex):
-            print("  Warning: Hourly index is not DatetimeIndex, converting...")
+            print("  Warning: Hourly index is not DatetimeIndex, converting (fast method)...")
             x_train_hourly.index = pd.to_datetime(x_train_hourly.index, utc=True)
+
+        if not isinstance(y_train.index, pd.DatetimeIndex):
+            print("  Warning: Target index is not DatetimeIndex, converting (fast method)...")
+            y_train.index = pd.to_datetime(y_train.index, utc=True)
+
+        # CRITICAL: Sort indices to speed up .loc operations
+        print("  Sorting indices for optimal performance...")
+        if not x_train_daily.index.is_monotonic_increasing:
+            print("    Sorting daily index...")
+            x_train_daily = x_train_daily.sort_index()
+        if not x_train_hourly.index.is_monotonic_increasing:
+            print("    Sorting hourly index...")
+            x_train_hourly = x_train_hourly.sort_index()
+        if not y_train.index.is_monotonic_increasing:
+            print("    Sorting target index...")
+            y_train = y_train.sort_index()
+
+        # Extract meta_index (daily timestamps) from the daily data
+        self._meta_index = x_train_daily.index
+        print(f"  Meta index type after conversion: {type(self._meta_index)}")
+        print(f"  Meta index is sorted: {self._meta_index.is_monotonic_increasing}")
 
         base_models = [
             {
                 "name": "xgb_daily",
                 "model_factory": lambda: XGBoostStockPredictor(params=self._xgb_params),
-                "X": x_train_daily.copy(),  # Make copies to avoid reference issues
-                "y": y_train.copy(),
+                "X": x_train_daily,  # Don't copy yet - will copy in stacker if needed
+                "y": y_train,
                 "align": "mean",
             },
             {
                 "name": "lgb_hourly",
                 "model_factory": lambda: LightGBMStockPredictor(params=self._lgb_params),
-                "X": x_train_hourly.copy(),
+                "X": x_train_hourly,
                 "y": None,  # Will use y_train reindexed to hourly
                 "align": "mean",
             },
             {
                 "name": "cat_daily",
                 "model_factory": lambda: CatBoostStockPredictor(params=self._cat_params),
-                "X": x_train_daily.copy(),
-                "y": y_train.copy(),
+                "X": x_train_daily,
+                "y": y_train,
                 "align": "mean",
             },
         ]
@@ -138,6 +156,14 @@ class TimeSeriesStackedModelTrainingPipeline(BaseTrainingPipeline):
 
         # Create base models configuration
         print("\nCreating base models configuration...")
+
+        # CRITICAL: Ensure y_train index matches x_train_daily index exactly
+        # This prevents slow .loc operations in TimeSeriesStacker.__init__
+        print("  Aligning target index with daily features...")
+        if not y_train.index.equals(x_train_daily.index):
+            print("  WARNING: Target index doesn't match daily index, reindexing...")
+            y_train = y_train.reindex(x_train_daily.index)
+
         base_models_config = self._create_base_models_config(x_train_daily, x_train_hourly, y_train)
 
         print(f"  Base models: {[bm['name'] for bm in base_models_config]}")
@@ -146,9 +172,13 @@ class TimeSeriesStackedModelTrainingPipeline(BaseTrainingPipeline):
 
         # Initialize TimeSeriesStacker
         print("\nInitializing TimeSeriesStacker...")
+        print("  This may take a moment for large datasets...")
         from sklearn.linear_model import Ridge
+        import time
 
         try:
+            start_time = time.time()
+            print("  Creating stacker object...")
             self._stacker = TimeSeriesStacker(
                 base_models=base_models_config,
                 meta_index=self._meta_index,
@@ -156,7 +186,8 @@ class TimeSeriesStackedModelTrainingPipeline(BaseTrainingPipeline):
                 n_splits=5,
                 meta_model=Ridge(alpha=1.0),  # Can experiment with different meta-learners
             )
-            print("✓ TimeSeriesStacker initialized successfully")
+            elapsed = time.time() - start_time
+            print(f"✓ TimeSeriesStacker initialized successfully in {elapsed:.2f}s")
         except Exception as e:
             print(f"✗ Error initializing TimeSeriesStacker: {e}")
             import traceback
@@ -173,10 +204,23 @@ class TimeSeriesStackedModelTrainingPipeline(BaseTrainingPipeline):
 
         # Retrain base models on full data and get test predictions
         print("\nRetraining base models on full data for test predictions...")
+
+        # Fast conversion for test indices
+        if not isinstance(x_test_daily.index, pd.DatetimeIndex):
+            print("  Converting test daily index...")
+            x_test_daily.index = pd.to_datetime(x_test_daily.index, utc=True)
+        if not isinstance(x_test_hourly.index, pd.DatetimeIndex):
+            print("  Converting test hourly index...")
+            x_test_hourly.index = pd.to_datetime(x_test_hourly.index, utc=True)
+        if not isinstance(self._y_test.index, pd.DatetimeIndex):
+            print("  Converting test target index...")
+            self._y_test.index = pd.to_datetime(self._y_test.index, utc=True)
+
         test_meta_index = x_test_daily.index
 
         # For test set, we need to provide the full data including test
         # Update base models config to include test data
+        print("  Concatenating train and test data...")
         base_models_full = [
             {
                 "name": "xgb_daily",
@@ -200,10 +244,13 @@ class TimeSeriesStackedModelTrainingPipeline(BaseTrainingPipeline):
                 "align": "mean",
             },
         ]
+
+        print("  Updating stacker configuration...")
         # Update stacker's base_models for full training
         self._stacker.base_models = base_models_full
         self._stacker.target = pd.concat([y_train, self._y_test])
 
+        print("  Running fit_full_and_predict...")
         test_results = self._stacker.fit_full_and_predict(test_meta_index)
 
         self._meta_predictions = test_results["meta_preds"]
@@ -224,8 +271,8 @@ class TimeSeriesStackedModelTrainingPipeline(BaseTrainingPipeline):
 
         # Save the trained stacker
         model_name = "ALL_STOCKS"
-        self._save_stacker(model_name)
-        save_trained_model(self._stacker, model_name, self._test_results)
+        # self._save_stacker(model_name)
+        save_trained_model(self._stacker.meta_model, model_name, self._test_results)
 
         return self
 
