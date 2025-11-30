@@ -75,9 +75,10 @@ class StockDataDownloader:
 
                     last_date = pd.to_datetime(df.index[-1]).date()
                     today = pd.Timestamp.now().date()
+                    yesterday = today - pd.Timedelta(days=2)
 
-                    if last_date < today:
-                        print(f" Cache is outdated (last date: {last_date}, today: {today})")
+                    if last_date < yesterday:
+                        print(f" Cache is outdated (last date: {last_date}, lookback date: {yesterday})")
                         needs_refresh = True
                     else:
                         print(f"  ✓ Using cached data for {symbol}")
@@ -94,7 +95,7 @@ class StockDataDownloader:
                     df = ticker.history(period=self.period, interval=self.interval)
 
                     self._history_data[(symbol, self.period, self.interval)] = df
-                    df = df.resample("1D").last()
+                    # df = df.resample("1D").last()
 
                     if df.empty:
                         print(f"  ⚠️  No data found for {symbol}")
