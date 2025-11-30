@@ -2,6 +2,7 @@ import os
 import pickle
 from typing import Dict, Any
 import numpy as np
+import pandas as pd
 
 from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
 from scipy.optimize import minimize
@@ -18,17 +19,20 @@ class StackedStockPredictor:
         :param weights: optional dict of weights for stacking
         """
         self.models = models
+        self.feature_importance = None
         self.weights = weights or {k: 1.0 for k in models}
 
     def _optimize_weights(self, x_val_dict, y_val):
-        """Find optimal linear combination of model predictions on validation set"""
+        """
+        Find optimal linear combination of model predictions on a validation set
+        """
 
-        val_preds = {}
+        valid_predictions = {}
         for name, model in self.models.items():
-            val_preds[name] = model.predict(x_val_dict[name])
+            valid_predictions[name] = model.predict(x_val_dict[name])
 
         def objective(weights):
-            weighted_pred = sum(w * val_preds[name] for w, name in zip(weights, self.models.keys()))
+            weighted_pred = sum(w * valid_predictions[name] for w, name in zip(weights, self.models.keys()))
             return mean_squared_error(y_val, weighted_pred)
 
         constraints = {"type": "eq", "fun": lambda w: np.sum(w) - 1}
@@ -84,25 +88,39 @@ class StackedStockPredictor:
 
         return np.asarray(stacked_preds).ravel()
 
+    def get_model_predictions(self, x_dict: Dict[str, Any]) -> Dict[str, np.ndarray]:
+        predictions = {}
+        for name, model in self.models.items():
+            p = model.predict(x_dict[name])
+            predictions[name] = np.asarray(p).ravel()
+        return predictions
+
+    def model_prediction_correlation(self, x_dict: Dict[str, Any]) -> pd.DataFrame:
+        predictions = self.get_model_predictions(x_dict)
+        df = pd.DataFrame(predictions)
+        return df.corr()
+
     def evaluate(self, x_dict: Dict[str, Any], y_true) -> dict:
         """
         Evaluate stacked model.
         """
-        preds = self.predict(x_dict)
+        predictions = self.predict(x_dict)
 
-        mse = mean_squared_error(y_true, preds)
+        prediction_correlation = self.model_prediction_correlation(x_dict)
+        mse = mean_squared_error(y_true, predictions)
         rmse = np.sqrt(mse)
-        mae = mean_absolute_error(y_true, preds)
-        r2 = r2_score(y_true, preds)
+        mae = mean_absolute_error(y_true, predictions)
+        r2 = r2_score(y_true, predictions)
 
         print("Stacked Model Performance:")
         print(f"  MSE : {mse:.8f}")
         print(f"  RMSE: {rmse:.8f}")
         print(f"  MAE : {mae:.8f}")
         print(f"  R²  : {r2:.8f}")
+        print(f"Prediction Correlation:\n {prediction_correlation}")
 
         return {
-            "predictions": preds,
+            "predictions": predictions,
             "mse": mse,
             "rmse": rmse,
             "mae": mae,

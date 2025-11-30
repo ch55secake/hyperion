@@ -11,7 +11,7 @@ from src.simulation.strategy.strategy_registry import StrategyRegistry
 from src.writer import save_trained_model
 
 # Required for the usage of the strategy registry
-import src.simulation.strategy
+import src.simulation.strategy.coinflip
 
 
 class StackedModelTrainingPipeline(BaseTrainingPipeline):
@@ -59,6 +59,8 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
         x_train_daily = self._test_train_data["train"]["daily"]
         x_train_hourly = self._test_train_data["train"]["hourly"]
+        print(f"This is x_train_hourly: {x_train_hourly}")
+        print(f"This is x_train_daily: {x_train_daily}")
         y_train = self._test_train_data["train"]["targets"]
 
         x_test_daily = self._test_train_data["test"]["daily"]

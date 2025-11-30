@@ -74,6 +74,7 @@ class BaseTrainingPipeline(ABC):
             raise Exception("Please run read_tickers(), before trying to run download_data()")
 
         self._downloader = StockDataDownloader(self.symbols, period=self.period, interval=self.interval)
+        # TODO: Split here, between daily and hourly and just download twice
         self._stock_data = self._downloader.download_data()
 
         if not self._stock_data:
@@ -372,14 +373,6 @@ class BaseTrainingPipeline(ABC):
                         "price": prices_symbol.iloc[i],
                     }
                 )
-
-            print(f"\n{symbol}:")
-            print(f"  Test Period: {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
-            print(f"  Samples: {symbol_mask.sum()}")
-            print(f"  RMSE: {rmse:.6f}")
-            print(f"  MAE: {mae:.6f}")
-            print(f"  R²: {r2:.6f}")
-            print(f"  Directional Accuracy: {directional_accuracy:.2f}%")
 
         self._print_summary_stats()
 
