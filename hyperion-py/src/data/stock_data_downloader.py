@@ -75,9 +75,12 @@ class StockDataDownloader:
 
                     last_date = pd.to_datetime(df.index[-1]).date()
                     today = pd.Timestamp.now().date()
+                    yesterday = today - pd.Timedelta(days=1)
 
-                    if last_date < today:
-                        print(f" Cache is outdated (last date: {last_date}, today: {today})")
+                    if last_date < yesterday:
+                        print(
+                            f" Cache is outdated (last date: {last_date}, yesterday(avoid timezone diff): {yesterday})"
+                        )
                         needs_refresh = True
                     else:
                         print(f"  ✓ Using cached data for {symbol}")
