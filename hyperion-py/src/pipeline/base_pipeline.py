@@ -74,7 +74,6 @@ class BaseTrainingPipeline(ABC):
             raise Exception("Please run read_tickers(), before trying to run download_data()")
 
         self._downloader = StockDataDownloader(self.symbols, period=self.period, interval=self.interval)
-        # TODO: Split here, between daily and hourly and just download twice
         self._stock_data = self._downloader.download_data()
 
         if not self._stock_data:

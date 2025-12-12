@@ -13,7 +13,7 @@ os.makedirs("./invalid_models", exist_ok=True)
 os.makedirs("./params", exist_ok=True)
 
 if __name__ == "__main__":
-    stacked_pipeline: StackedModelTrainingPipeline = StackedModelTrainingPipeline(period="30y", interval="1d")
+    stacked_pipeline: StackedModelTrainingPipeline = StackedModelTrainingPipeline(period="2y", intervals=["1d", "1h"])
 
     (stacked_pipeline.read_tickers().download_data().prepare_features().train().evaluate_model().simulate())
 

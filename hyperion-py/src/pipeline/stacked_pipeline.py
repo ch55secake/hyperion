@@ -1,6 +1,11 @@
+import traceback
+
 import numpy as np
 import pandas as pd
+from typing_extensions import override
 
+from src.data import StockDataDownloader
+from src.feature import FeatureEngineering
 from src.model import LightGBMStockPredictor
 from src.model import StackedStockPredictor
 from src.model import XGBoostStockPredictor
@@ -10,16 +15,20 @@ from src.simulation import TradingSimulator
 from src.simulation.strategy.strategy_registry import StrategyRegistry
 from src.writer import save_trained_model
 
+
 # Required for the usage of the strategy registry
 import src.simulation.strategy
 
 
 class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, intervals: list[str], *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.intervals = intervals
         self._xgb_params = None
         self._lgb_params = None
+
+        self.default_interval = self.intervals[0]
 
     def load_model(self):
         """
@@ -37,10 +46,155 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         """
         return StackedStockPredictor(
             {
-                "daily": XGBoostStockPredictor(params=self._xgb_params),
-                "hourly": LightGBMStockPredictor(params=self._lgb_params),
+                "1d": XGBoostStockPredictor(params=self._xgb_params),
+                "1h": LightGBMStockPredictor(params=self._lgb_params),
             }
         )
+
+    @override
+    def download_data(self):
+        """
+        Download both hourly and daily data instead of populating just daily data
+        :return:
+        """
+        print("\n" + "=" * 60)
+        print("Downloading and Preparing Data for All Stocks")
+        print("=" * 60)
+
+        if self.symbols is None:
+            raise Exception("Please run read_tickers(), before trying to run download_data()")
+
+        self._stock_data = {}
+        for interval in self.intervals:
+            self._downloader = StockDataDownloader(self.symbols, period=self.period, interval=interval)
+            self._stock_data[interval] = self._downloader.download_data()
+
+        if not self._stock_data:
+            print("⚠️  No data downloaded. Exiting.")
+            return None
+
+        return self
+
+    def __create_categorical_features(self, train, test):
+        """
+        fuck this
+        :param train:
+        :param test:
+        :return:
+        """
+        categorical_cols: list[str] = ["ticker", "sector", "industry"]
+        for interval in self.intervals:
+            for col in categorical_cols:
+                if col in train[interval].columns:
+                    train[interval][col] = train[interval][col].astype("category")
+                    test[interval][col] = test[interval][col].astype("category")
+                    print(f" {interval} {col}: {train[interval][col].nunique()} unique values")
+
+        return self, train, test
+
+    @override
+    def prepare_features(self):
+        """
+        Blalalalalalal
+        :return:
+        """
+
+        if self._stock_data is None:
+            raise Exception("Please run download_data(), before trying to run prepare_features()")
+
+        train_features = {interval: [] for interval in self.intervals}
+        train_targets = {interval: [] for interval in self.intervals}
+        train_dates = {interval: [] for interval in self.intervals}
+        train_prices = {interval: [] for interval in self.intervals}
+        train_symbols = {interval: [] for interval in self.intervals}
+
+        test_features = {interval: [] for interval in self.intervals}
+        test_targets = {interval: [] for interval in self.intervals}
+        test_dates = {interval: [] for interval in self.intervals}
+        test_prices = {interval: [] for interval in self.intervals}
+        test_symbols = {interval: [] for interval in self.intervals}
+
+        for interval in self.intervals:
+            for symbol in self.symbols:
+                try:
+                    print(f"\nProcessing {symbol}...")
+
+                    features = FeatureEngineering(self._stock_data[interval][symbol])
+                    features.create_target_features()
+                    x, y, dates, prices, _ = features.prepare_features()
+
+                    x = self._add_stock_features(x, symbol)
+
+                    self._split_idx = int(len(x) * (1 - self.test_size))
+
+                    train_features[interval].append(x.iloc[: self._split_idx])
+                    train_targets[interval].append(y.iloc[: self._split_idx])
+                    train_dates[interval].append(pd.Series(dates[: self._split_idx], index=dates[: self._split_idx]))
+                    train_prices[interval].append(prices.iloc[: self._split_idx])
+                    train_symbols[interval].extend([symbol] * self._split_idx)
+
+                    test_features[interval].append(x.iloc[self._split_idx :])
+                    test_targets[interval].append(y.iloc[self._split_idx :])
+                    test_dates[interval].append(pd.Series(dates[self._split_idx :], index=dates[self._split_idx :]))
+                    test_prices[interval].append(prices.iloc[self._split_idx :])
+                    test_symbols[interval].extend([symbol] * (len(x) - self._split_idx))
+
+                    print(f"  ✓ {symbol}: {self._split_idx} train samples, {len(x) - self._split_idx} test samples")
+
+                except Exception as e:
+                    print(f"  ✗ Error processing {symbol}: {str(e)}")
+                    traceback.print_exc()
+                    continue
+
+        print("\n" + "=" * 60)
+        print("Combining Training Data")
+        print("=" * 60)
+        train_intervals = dict()
+        for interval in self.intervals:
+            train_intervals[interval] = pd.concat(train_features[interval], axis=0, ignore_index=False)
+        train_targets = pd.concat(train_targets[self.default_interval], axis=0, ignore_index=False)
+        train_dates = pd.concat(train_dates[self.default_interval], axis=0, ignore_index=False)
+        train_prices = pd.concat(train_prices[self.default_interval], axis=0, ignore_index=False)
+
+        train_symbols_series = pd.Series(train_symbols, index=train_intervals[self.default_interval].index)
+
+        print("Combining Test Data")
+        test_intervals = dict()
+        for interval in self.intervals:
+            test_intervals[interval] = pd.concat(test_features[interval], axis=0, ignore_index=False)
+        test_targets = pd.concat(test_targets[self.default_interval], axis=0, ignore_index=False)
+        test_dates = pd.concat(test_dates[self.default_interval], axis=0, ignore_index=False)
+        test_prices = pd.concat(test_prices[self.default_interval], axis=0, ignore_index=False)
+
+        test_symbols_series = pd.Series(test_symbols, index=test_intervals[self.default_interval].index)
+
+        print("\nConverting categorical columns...")
+        _, train_intervals, test_intervals = self.__create_categorical_features(train_intervals, test_intervals)
+
+        print(f"✓ Total train samples: {len(train_intervals[self.default_interval])}")
+        print(f"✓ Total test samples: {len(test_intervals[self.default_interval])}")
+        print(f"✓ Number of stocks: {len(self.symbols)}")
+        print(f"✓ Stocks in test set: {test_symbols_series.nunique()}")
+        print(f"✓ Features per timeframe: {len(train_intervals[self.default_interval].columns)}")
+
+        self._test_train_data = {
+            "train": {
+                **{interval: train_intervals[interval] for interval in self.intervals},
+                "targets": train_targets,
+                "dates": train_dates,
+                "prices": train_prices,
+                "symbols": train_symbols_series,
+            },
+            "test": {
+                **{interval: test_intervals[interval] for interval in self.intervals},
+                "targets": test_targets,
+                "dates": test_dates,
+                "prices": test_prices,
+                "symbols": test_symbols_series,
+            },
+        }
+
+        return self
 
     def _get_predictions(self):
         """
@@ -57,42 +211,44 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         if self._test_train_data is None:
             raise Exception("Please run prepare_features(), before trying to run train()")
 
-        x_train_daily = self._test_train_data["train"]["daily"]
-        x_train_hourly = self._test_train_data["train"]["hourly"]
-        print(f"This is x_train_hourly: {x_train_hourly}")
-        print(f"This is x_train_daily: {x_train_daily}")
-        y_train = self._test_train_data["train"]["targets"]
+        x_train = dict()
+        x_test = dict()
 
-        x_test_daily = self._test_train_data["test"]["daily"]
-        x_test_hourly = self._test_train_data["test"]["hourly"]
+        for interval in self.intervals:
+            x_train[interval] = self._test_train_data["train"][interval]
+            # TODO: this is debug print can be removed soon
+            print(f"This is x_train[{interval}]: {x_train[interval]}")
+            x_test[interval] = self._test_train_data["test"][interval]
+            print(f"This is x_test[{interval}]: {x_train[interval]}")
+
+        y_train = self._test_train_data["train"]["targets"]
         self._populate_test_train_data()
 
         print("\n" + "=" * 60)
         print("Training Single Model")
         print("=" * 60)
-        print(f"Training samples: {len(x_train_daily)}")
-        print(f"Testing samples: {len(x_test_daily)}")
+        print(f"Training samples: {len(x_train[self.default_interval])}")
+        print(f"Testing samples: {len(x_test[self.default_interval])}")
         print(f"Unique stocks in test set: {self._symbols_test.nunique()}")
 
         if self.should_optimise:
             print("Running hyperparameter optimisation, this will take a while...")
-            self._optimize_hyperparameters(x_train_daily, y_train, x_test_daily, self._y_test)
+            # self._optimize_hyperparameters(x_train_daily, y_train, x_test_daily, self._y_test)
 
         self._model = StackedStockPredictor(
             {
-                "daily": XGBoostStockPredictor(params=self._xgb_params),
-                "hourly": LightGBMStockPredictor(params=self._lgb_params),
+                "1d": XGBoostStockPredictor(params=self._xgb_params),
+                "1h": LightGBMStockPredictor(params=self._lgb_params),
             }
         )
 
         train_data = {
-            "daily": (x_train_daily, y_train, x_test_daily, self._y_test),
-            "hourly": (x_train_hourly, y_train, x_test_hourly, self._y_test),
+            interval: (x_train[interval], y_train, x_test[interval], self._y_test) for interval in self.intervals
         }
 
         self._model.train(train_data)
 
-        self._x_test_dict = {"daily": x_test_daily, "hourly": x_test_hourly}
+        self._x_test_dict = {interval: x_test[interval] for interval in self.intervals}
         self._test_results = self._model.evaluate(self._x_test_dict, self._y_test)
 
         model_name: str = "ALL_STOCKS"
