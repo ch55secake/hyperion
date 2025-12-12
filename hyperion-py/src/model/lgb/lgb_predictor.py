@@ -56,12 +56,16 @@ class LightGBMStockPredictor(Model):
             )
             valid_sets.append(val_data)
             valid_names.append("valid")
+            print(f"x_val_processed shape: {x_val_processed.shape}")
+            print(f"y_val shape: {y_val.shape}")
+            print(f"x_val_processed length: {len(x_val_processed)}")
+            print(f"y_val length: {len(y_val)}")
 
         self.model = lgb.train(
             self.params,
             train_data,
-            valid_sets=valid_sets,
-            valid_names=valid_names,
+            # valid_sets=valid_sets,
+            # valid_names=valid_names,
             num_boost_round=self.params.get("n_estimators", 1500),
         )
 
