@@ -95,7 +95,6 @@ class StockDataDownloader:
                     df = ticker.history(period=self.period, interval=self.interval)
 
                     self._history_data[(symbol, self.period, self.interval)] = df
-                    # df = df.resample("1D").last()
 
                     if df.empty:
                         print(f"  ⚠️  No data found for {symbol}")
