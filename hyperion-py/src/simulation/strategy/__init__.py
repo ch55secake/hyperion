@@ -10,3 +10,4 @@ from . import sltp
 from . import sma_trend
 from . import time_stop
 from . import volatility_adjusted_threshold
+from . import coinflip

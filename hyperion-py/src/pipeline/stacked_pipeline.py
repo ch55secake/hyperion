@@ -11,7 +11,7 @@ from src.simulation.strategy.strategy_registry import StrategyRegistry
 from src.writer import save_trained_model
 
 # Required for the usage of the strategy registry
-import src.simulation.strategy.coinflip
+import src.simulation.strategy
 
 
 class StackedModelTrainingPipeline(BaseTrainingPipeline):
