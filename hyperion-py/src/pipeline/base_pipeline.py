@@ -319,15 +319,22 @@ class BaseTrainingPipeline(ABC):
         unique_symbols = sorted(symbols_reset.unique())
 
         print(f"\nEvaluating {len(unique_symbols)} stocks...")
+        print(f"Symbols in test data: {unique_symbols[:5]}...")  # Show first 5 symbols
+        print(f"Total test samples: {len(symbols_reset)}")
+        print(f"Total predictions: {len(predictions)}")
 
         self._results = []
         detailed_predictions = []
 
         for symbol in unique_symbols:
+            print(f"Processing symbol: {symbol}")
             symbol_mask = symbols_reset == symbol
 
             if symbol_mask.sum() == 0:
+                print(f"  No data found for {symbol}")
                 continue
+            else:
+                print(f"  Found {symbol_mask.sum()} samples for {symbol}")
 
             y_true_symbol = y_test_reset[symbol_mask]
             y_pred_symbol = predictions[symbol_mask]
@@ -387,6 +394,11 @@ class BaseTrainingPipeline(ABC):
         results_df = pd.DataFrame(self._results)
 
         print(f"\nNumber of stocks evaluated: {len(results_df)}")
+
+        if len(results_df) == 0:
+            print("⚠️  No stocks were evaluated. Check test data and symbols.")
+            return
+
         print(f"Average RMSE: {results_df['rmse'].mean():.6f}")
         print(f"Average MAE: {results_df['mae'].mean():.6f}")
         print(f"Average R²: {results_df['r2'].mean():.6f}")

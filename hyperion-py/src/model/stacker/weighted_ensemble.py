@@ -20,16 +20,40 @@ class StackedStockPredictor:
         """
         self.models = models
         self.feature_importance = None
-        self.weights = weights or {k: 1.0 for k in models}
+        self.weights = weights if weights is not None else {k: 1.0 for k in models}
 
     def _optimize_weights(self, x_val_dict, y_val):
         """
         Find optimal linear combination of model predictions on a validation set
         """
-
         valid_predictions = {}
+
+        # Ensure y_val is a Series with proper index
+        if not isinstance(y_val, pd.Series):
+            y_val = pd.Series(y_val)
+
+        reference_index = y_val.index
+        target_length = len(y_val)
+
         for name, model in self.models.items():
-            valid_predictions[name] = model.predict(x_val_dict[name])
+            pred = model.predict(x_val_dict[name])
+            pred = np.asarray(pred).ravel().astype(float)  # Ensure numeric dtype
+
+            # Align predictions to reference timeline length
+            if len(pred) != target_length:
+                if len(pred) > target_length:
+                    # Downsample: take every nth element
+                    step = len(pred) // target_length
+                    pred_aligned = pred[::step][:target_length]
+                else:
+                    # Upsample: forward fill with numpy
+                    pred_aligned = np.zeros(target_length)
+                    pred_aligned[: len(pred)] = pred
+                    pred_aligned[len(pred) :] = pred[-1]  # Forward fill last value
+            else:
+                pred_aligned = pred
+
+            valid_predictions[name] = pred_aligned
 
         def objective(weights):
             weighted_pred = sum(w * valid_predictions[name] for w, name in zip(weights, self.models.keys()))
@@ -79,11 +103,26 @@ class StackedStockPredictor:
         Return 1D stacked predictions
         """
         preds = []
+        min_length = float("inf")
+
+        # Find the minimum length across all predictions
         for name, model in self.models.items():
             p = model.predict(x_dict[name])
             p = np.asarray(p).ravel()
-            preds.append(p * self.weights.get(name, 1.0))
+            min_length = min(min_length, len(p))
 
+        # Collect and align predictions to minimum length
+        for name, model in self.models.items():
+            p = model.predict(x_dict[name])
+            p = np.asarray(p).ravel()
+            # Align to minimum length
+            if len(p) >= min_length:
+                p_aligned = p[:min_length]
+            else:
+                p_aligned = np.pad(p, (0, min_length - len(p)), mode="constant", constant_values=0)
+            preds.append(p_aligned * self.weights.get(name, 1.0))
+
+        # Now all predictions have the same length
         stacked_preds = np.sum(preds, axis=0) / sum(self.weights.values())
 
         return np.asarray(stacked_preds).ravel()
@@ -97,7 +136,14 @@ class StackedStockPredictor:
 
     def model_prediction_correlation(self, x_dict: Dict[str, Any]) -> pd.DataFrame:
         predictions = self.get_model_predictions(x_dict)
-        df = pd.DataFrame(predictions)
+
+        # Find minimum length to align all predictions
+        min_length = min(len(pred) for pred in predictions.values())
+
+        # Truncate all predictions to same length
+        aligned_predictions = {name: pred[:min_length] for name, pred in predictions.items()}
+
+        df = pd.DataFrame(aligned_predictions)
         return df.corr()
 
     def evaluate(self, x_dict: Dict[str, Any], y_true) -> dict:

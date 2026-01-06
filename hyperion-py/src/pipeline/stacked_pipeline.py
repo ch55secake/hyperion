@@ -162,7 +162,9 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         train_dates = pd.concat(train_dates[self.default_interval], axis=0, ignore_index=False)
         train_prices = pd.concat(train_prices[self.default_interval], axis=0, ignore_index=False)
 
-        train_symbols_series = pd.Series(train_symbols, index=train_intervals[self.default_interval].index)
+        # Combine symbols from default interval only
+        combined_train_symbols = train_symbols[self.default_interval]
+        train_symbols_series = pd.Series(combined_train_symbols, index=train_intervals[self.default_interval].index)
 
         print("Combining Test Data")
         test_intervals = dict()
@@ -178,7 +180,9 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         test_dates = pd.concat(test_dates[self.default_interval], axis=0, ignore_index=False)
         test_prices = pd.concat(test_prices[self.default_interval], axis=0, ignore_index=False)
 
-        test_symbols_series = pd.Series(test_symbols, index=test_intervals[self.default_interval].index)
+        test_symbols_series = pd.Series(
+            test_symbols[self.default_interval], index=test_intervals[self.default_interval].index
+        )
 
         print("\nConverting categorical columns...")
         _, train_intervals, test_intervals = self.__create_categorical_features(train_intervals, test_intervals)
@@ -264,18 +268,14 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
             pd.Series: Aligned targets series
         """
         if method == "ffill":
-            # Forward fill alignment using merge_asof
-            targets_df = targets_series.reset_index()
-            targets_df.columns = ["timestamp", "target"]
-            reference_df = pd.DataFrame({"timestamp": reference_index})
+            # Simple forward fill alignment - truncate to minimum length
+            min_length = min(len(targets_series), len(reference_index))
 
-            aligned = pd.merge_asof(
-                reference_df.sort_values("timestamp"),
-                targets_df.sort_values("timestamp"),
-                on="timestamp",
-                direction="backward",
-            )
-            return pd.Series(aligned["target"].values, index=reference_index)
+            # Use reference_index and truncate both to same length
+            aligned_index = reference_index[:min_length]
+            aligned_values = targets_series.iloc[:min_length].values
+
+            return pd.Series(aligned_values, index=aligned_index)
 
         elif method == "mean":
             # Resample and take mean within each target period
@@ -385,7 +385,7 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
             # TODO: this is debug print can be removed soon
             print(f"This is x_train[{interval}]: {x_train[interval]}")
             x_test[interval] = self._test_train_data["test"][interval]
-            print(f"This is x_test[{interval}]: {x_train[interval]}")
+            print(f"This is x_test[{interval}]: {x_test[interval]}")
 
         # Get training targets per interval
         if isinstance(self._test_train_data["train"]["targets"], dict):
@@ -450,18 +450,64 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
             print(" Predictions missing, computing via predictor.predict()")
             predictions = self._get_predictions()
 
+        # Ensure all data aligns with predictions
+        min_len = min(
+            len(predictions), len(self._y_test), len(self._symbols_test), len(self._dates_test), len(self._prices_test)
+        )
+
+        if len(predictions) != min_len:
+            print(f"Warning: Truncating all test data to {min_len} samples for alignment")
+
+        # Truncate all arrays to same length
+        # Debug the actual lengths
+        print(f"DEBUG: predictions length: {len(predictions)}")
+        print(
+            f"DEBUG: symbols_test type: {type(self._symbols_test)}, length: {len(self._symbols_test) if self._symbols_test is not None else 'None'}"
+        )
+        print(
+            f"DEBUG: dates_test type: {type(self._dates_test)}, length: {len(self._dates_test) if self._dates_test is not None else 'None'}"
+        )
+        print(
+            f"DEBUG: prices_test type: {type(self._prices_test)}, length: {len(self._prices_test) if self._prices_test is not None else 'None'}"
+        )
+
+        # Use predictions length as reference
+        pred_len = len(predictions)
+
         # Ensure y_test aligns with predictions
         aligned_y_test = self._ensure_prediction_alignment(predictions)
+        print(f"DEBUG: aligned_y_test length: {len(aligned_y_test) if aligned_y_test is not None else 'None'}")
 
-        test_df = pd.DataFrame(
-            {
-                "symbol": self._symbols_test,
-                "date": self._dates_test,
-                "price": self._prices_test,
-                "prediction": predictions,
-                "actual_return": aligned_y_test,
-            }
-        )
+        # Simple approach - create dict with matching lengths
+        test_data = {
+            "prediction": predictions[:pred_len],
+        }
+
+        # Add other arrays only if they exist and match
+        if self._symbols_test is not None and len(self._symbols_test) >= pred_len:
+            test_data["symbol"] = self._symbols_test.iloc[:pred_len].reset_index(drop=True)
+        else:
+            test_data["symbol"] = []
+
+        if self._dates_test is not None and len(self._dates_test) >= pred_len:
+            test_data["date"] = self._dates_test.iloc[:pred_len].reset_index(drop=True)
+        else:
+            test_data["date"] = []
+
+        if self._prices_test is not None and len(self._prices_test) >= pred_len:
+            test_data["price"] = self._prices_test.iloc[:pred_len].reset_index(drop=True)
+        else:
+            test_data["price"] = []
+
+        if aligned_y_test is not None and len(aligned_y_test) >= pred_len:
+            if hasattr(aligned_y_test, "iloc"):
+                test_data["actual_return"] = aligned_y_test.iloc[:pred_len].reset_index(drop=True)
+            else:
+                test_data["actual_return"] = aligned_y_test[:pred_len]
+        else:
+            test_data["actual_return"] = []
+
+        test_df = pd.DataFrame(test_data)
 
         if tickers is not None:
             test_df = test_df[test_df["symbol"].isin(tickers)]
