@@ -1,4 +1,5 @@
 import traceback
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -77,10 +78,10 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
     def __create_categorical_features(self, train, test):
         """
-        fuck this
-        :param train:
-        :param test:
-        :return:
+        Create categorical features for specified columns in the dataset.
+        :param train: train split of the data
+        :param test: test split of the data
+        :return: train and test
         """
         categorical_cols: list[str] = ["ticker", "sector", "industry"]
         for interval in self.intervals:
@@ -95,10 +96,9 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
     @override
     def prepare_features(self):
         """
-        Blalalalalalal
+        Prepare all features for both daily and hourly data, as well as the test and train split
         :return:
         """
-
         if self._stock_data is None:
             raise Exception("Please run download_data(), before trying to run prepare_features()")
 
@@ -153,7 +153,6 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         for interval in self.intervals:
             train_intervals[interval] = pd.concat(train_features[interval], axis=0, ignore_index=False)
 
-        # Store targets per interval for proper y_test organization
         train_targets_dict = dict()
         for interval in self.intervals:
             train_targets_dict[interval] = pd.concat(train_targets[interval], axis=0, ignore_index=False)
@@ -162,7 +161,6 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         train_dates = pd.concat(train_dates[self.default_interval], axis=0, ignore_index=False)
         train_prices = pd.concat(train_prices[self.default_interval], axis=0, ignore_index=False)
 
-        # Combine symbols from default interval only
         combined_train_symbols = train_symbols[self.default_interval]
         train_symbols_series = pd.Series(combined_train_symbols, index=train_intervals[self.default_interval].index)
 
@@ -171,7 +169,6 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         for interval in self.intervals:
             test_intervals[interval] = pd.concat(test_features[interval], axis=0, ignore_index=False)
 
-        # Store targets per interval for proper y_test organization
         test_targets_dict = dict()
         for interval in self.intervals:
             test_targets_dict[interval] = pd.concat(test_targets[interval], axis=0, ignore_index=False)
@@ -196,14 +193,14 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         self._test_train_data = {
             "train": {
                 **{interval: train_intervals[interval] for interval in self.intervals},
-                "targets": train_targets_dict,  # Now stores targets per interval
+                "targets": train_targets_dict,
                 "dates": train_dates,
                 "prices": train_prices,
                 "symbols": train_symbols_series,
             },
             "test": {
                 **{interval: test_intervals[interval] for interval in self.intervals},
-                "targets": test_targets_dict,  # Now stores targets per interval
+                "targets": test_targets_dict,
                 "dates": test_dates,
                 "prices": test_prices,
                 "symbols": test_symbols_series,
@@ -218,12 +215,11 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         Override base method to handle interval-specific targets
         :return:
         """
-        # Store targets per interval for proper multi-interval handling
         if isinstance(self._test_train_data["test"]["targets"], dict):
             self._y_test_dict = self._test_train_data["test"]["targets"]
-            self._y_test = self._y_test_dict[self.default_interval]  # Keep for compatibility
+            self._y_test = self._y_test_dict[self.default_interval]
         else:
-            # Backward compatibility: targets is a single series (old format)
+            # Backwards compatibility: targets is a single series (old format)
             self._y_test = self._test_train_data["test"]["targets"]
             self._y_test_dict = {interval: self._y_test for interval in self.intervals}
 
@@ -235,52 +231,43 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         """
         Align y_test targets across different time intervals to ensure consistency.
         Uses the default interval as the reference timeline.
-
-        Returns:
-            dict: Aligned targets per interval
+        :return: the aligned targets per interval
         """
         aligned_targets = {}
 
-        # Use default interval as the reference timeline
+        # Use the default interval as the reference timeline
         reference_index = self._y_test_dict[self.default_interval].index
 
         for interval in self.intervals:
             if interval == self.default_interval:
                 aligned_targets[interval] = self._y_test_dict[interval]
             else:
-                # Align other intervals to reference using appropriate method
+                # Align other intervals to reference using the appropriate method
                 aligned_targets[interval] = self._align_to_reference(
                     self._y_test_dict[interval], reference_index, method="ffill"
                 )
 
         return aligned_targets
 
-    def _align_to_reference(self, targets_series, reference_index, method="ffill"):
+    @staticmethod
+    def _align_to_reference(targets_series, reference_index, method="ffill"):
         """
-        Align targets from one interval to reference index.
-
-        Args:
-            targets_series (pd.Series): Target series to align
-            reference_index (pd.Index): Reference index to align to
-            method (str): Alignment method ("ffill", "mean")
-
-        Returns:
-            pd.Series: Aligned targets series
+        Align targets from one interval to a reference index.
+        :param targets_series: Target series to align
+        :param reference_index: Reference index to align to
+        :param method: Alignment method ("ffill", "mean")
+        :return: Aligned targets series
         """
         if method == "ffill":
-            # Simple forward fill alignment - truncate to minimum length
             min_length = min(len(targets_series), len(reference_index))
 
-            # Use reference_index and truncate both to same length
             aligned_index = reference_index[:min_length]
             aligned_values = targets_series.iloc[:min_length].values
 
             return pd.Series(aligned_values, index=aligned_index)
 
         elif method == "mean":
-            # Resample and take mean within each target period
             try:
-                # Try to infer frequency from reference index
                 freq = pd.infer_freq(reference_index)
                 if freq is not None:
                     resampled = targets_series.resample(freq).mean()
@@ -289,7 +276,6 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
             except Exception:
                 resampled = targets_series.resample("D").mean()
 
-            # Reindex to exact reference_index and forward-fill
             aligned = resampled.reindex(reference_index, method="ffill")
             return aligned
 
@@ -299,9 +285,7 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
     def _validate_data_consistency(self):
         """
         Validate that all test data components are properly aligned.
-
-        Returns:
-            list: Validation results for each interval
+        :return: list of validation results
         """
         validations = []
 
@@ -343,12 +327,8 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
     def _ensure_prediction_alignment(self, predictions):
         """
         Ensure y_test aligns with prediction array indices.
-
-        Args:
-            predictions: Model predictions array
-
-        Returns:
-            pd.Series: Aligned y_test series
+        :param predictions: predictions array that we want to align
+        :return:
         """
         if len(predictions) != len(self._y_test):
             min_len = min(len(predictions), len(self._y_test))
@@ -372,7 +352,7 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         """
         Train both the daily and hourly models on the combined training data using interval-specific targets.
         Uses multi-interval target organization and alignment for proper model training.
-        :return: self
+        :return:
         """
         if self._test_train_data is None:
             raise Exception("Please run prepare_features(), before trying to run train()")
@@ -419,7 +399,6 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
             }
         )
 
-        # Use interval-specific targets for training data
         train_data = {
             interval: (x_train[interval], y_train_dict[interval], x_test[interval], self._y_test_dict[interval])
             for interval in self.intervals
@@ -429,7 +408,6 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
         self._x_test_dict = {interval: x_test[interval] for interval in self.intervals}
 
-        # Align targets for evaluation
         aligned_targets = self._align_targets_across_intervals()
         self._test_results = self._model.evaluate(self._x_test_dict, aligned_targets[self.default_interval])
 
@@ -450,7 +428,6 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
             print(" Predictions missing, computing via predictor.predict()")
             predictions = self._get_predictions()
 
-        # Ensure all data aligns with predictions
         min_len = min(
             len(predictions), len(self._y_test), len(self._symbols_test), len(self._dates_test), len(self._prices_test)
         )
@@ -458,46 +435,15 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         if len(predictions) != min_len:
             print(f"Warning: Truncating all test data to {min_len} samples for alignment")
 
-        # Truncate all arrays to same length
-        # Debug the actual lengths
-        print(f"DEBUG: predictions length: {len(predictions)}")
-        print(
-            f"DEBUG: symbols_test type: {type(self._symbols_test)}, length: {len(self._symbols_test) if self._symbols_test is not None else 'None'}"
-        )
-        print(
-            f"DEBUG: dates_test type: {type(self._dates_test)}, length: {len(self._dates_test) if self._dates_test is not None else 'None'}"
-        )
-        print(
-            f"DEBUG: prices_test type: {type(self._prices_test)}, length: {len(self._prices_test) if self._prices_test is not None else 'None'}"
-        )
-
-        # Use predictions length as reference
         pred_len = len(predictions)
 
-        # Ensure y_test aligns with predictions
         aligned_y_test = self._ensure_prediction_alignment(predictions)
-        print(f"DEBUG: aligned_y_test length: {len(aligned_y_test) if aligned_y_test is not None else 'None'}")
 
-        # Simple approach - create dict with matching lengths
         test_data = {
             "prediction": predictions[:pred_len],
         }
 
-        # Add other arrays only if they exist and match
-        if self._symbols_test is not None and len(self._symbols_test) >= pred_len:
-            test_data["symbol"] = self._symbols_test.iloc[:pred_len].reset_index(drop=True)
-        else:
-            test_data["symbol"] = []
-
-        if self._dates_test is not None and len(self._dates_test) >= pred_len:
-            test_data["date"] = self._dates_test.iloc[:pred_len].reset_index(drop=True)
-        else:
-            test_data["date"] = []
-
-        if self._prices_test is not None and len(self._prices_test) >= pred_len:
-            test_data["price"] = self._prices_test.iloc[:pred_len].reset_index(drop=True)
-        else:
-            test_data["price"] = []
+        test_data = self.validate_data_required_for_simulation(pred_len, test_data)
 
         if aligned_y_test is not None and len(aligned_y_test) >= pred_len:
             if hasattr(aligned_y_test, "iloc"):
@@ -598,6 +544,24 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
                 )
 
         return self
+
+    def validate_data_required_for_simulation(self, pred_len: int, test_data: dict[str, Any]):
+        if self._symbols_test is not None and len(self._symbols_test) >= pred_len:
+            test_data["symbol"] = self._symbols_test.iloc[:pred_len].reset_index(drop=True)
+        else:
+            test_data["symbol"] = []
+
+        if self._dates_test is not None and len(self._dates_test) >= pred_len:
+            test_data["date"] = self._dates_test.iloc[:pred_len].reset_index(drop=True)
+        else:
+            test_data["date"] = []
+
+        if self._prices_test is not None and len(self._prices_test) >= pred_len:
+            test_data["price"] = self._prices_test.iloc[:pred_len].reset_index(drop=True)
+        else:
+            test_data["price"] = []
+
+        return test_data
 
     def _optimize_hyperparameters(self, x_train_daily=None, y_train=None, x_test_daily=None, y_test=None):
         """
