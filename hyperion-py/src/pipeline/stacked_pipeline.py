@@ -157,7 +157,6 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         for interval in self.intervals:
             train_targets_dict[interval] = pd.concat(train_targets[interval], axis=0, ignore_index=False)
 
-        train_targets = train_targets_dict[self.default_interval]  # Keep for compatibility
         train_dates = pd.concat(train_dates[self.default_interval], axis=0, ignore_index=False)
         train_prices = pd.concat(train_prices[self.default_interval], axis=0, ignore_index=False)
 
@@ -173,7 +172,6 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         for interval in self.intervals:
             test_targets_dict[interval] = pd.concat(test_targets[interval], axis=0, ignore_index=False)
 
-        test_targets = test_targets_dict[self.default_interval]  # Keep for compatibility
         test_dates = pd.concat(test_dates[self.default_interval], axis=0, ignore_index=False)
         test_prices = pd.concat(test_prices[self.default_interval], axis=0, ignore_index=False)
 
@@ -218,10 +216,6 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         if isinstance(self._test_train_data["test"]["targets"], dict):
             self._y_test_dict = self._test_train_data["test"]["targets"]
             self._y_test = self._y_test_dict[self.default_interval]
-        else:
-            # Backwards compatibility: targets is a single series (old format)
-            self._y_test = self._test_train_data["test"]["targets"]
-            self._y_test_dict = {interval: self._y_test for interval in self.intervals}
 
         self._dates_test = self._test_train_data["test"]["dates"]
         self._prices_test = self._test_train_data["test"]["prices"]
@@ -235,14 +229,12 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         """
         aligned_targets = {}
 
-        # Use the default interval as the reference timeline
         reference_index = self._y_test_dict[self.default_interval].index
 
         for interval in self.intervals:
             if interval == self.default_interval:
                 aligned_targets[interval] = self._y_test_dict[interval]
             else:
-                # Align other intervals to reference using the appropriate method
                 aligned_targets[interval] = self._align_to_reference(
                     self._y_test_dict[interval], reference_index, method="ffill"
                 )
@@ -302,7 +294,6 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
                 "y_test_index": self._y_test_dict[interval].index[:5].tolist() if y_test_len > 0 else [],
             }
 
-            # Check index alignment if lengths match
             if validation["lengths_match"] and x_test_len > 0:
                 x_index = self._test_train_data["test"][interval].index
                 y_index = self._y_test_dict[interval].index
@@ -310,7 +301,6 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
             validations.append(validation)
 
-        # Log validation results
         print("\n" + "=" * 60)
         print("Data Consistency Validation")
         print("=" * 60)
@@ -362,23 +352,13 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
         for interval in self.intervals:
             x_train[interval] = self._test_train_data["train"][interval]
-            # TODO: this is debug print can be removed soon
-            print(f"This is x_train[{interval}]: {x_train[interval]}")
             x_test[interval] = self._test_train_data["test"][interval]
-            print(f"This is x_test[{interval}]: {x_test[interval]}")
 
-        # Get training targets per interval
         if isinstance(self._test_train_data["train"]["targets"], dict):
             y_train_dict = self._test_train_data["train"]["targets"]
-            y_train = y_train_dict[self.default_interval]  # For compatibility
-        else:
-            # Backward compatibility
-            y_train_dict = {interval: self._test_train_data["train"]["targets"] for interval in self.intervals}
-            y_train = self._test_train_data["train"]["targets"]
 
         self._populate_test_train_data()
 
-        # Validate data consistency
         self._validate_data_consistency()
 
         print("\n" + "=" * 60)
