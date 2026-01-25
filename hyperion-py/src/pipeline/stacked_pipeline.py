@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 from typing_extensions import override
 
+from src.align import align_targets_across_intervals, ensure_prediction_alignment
 from src.data import StockDataDownloader
 from src.feature import FeatureEngineering
 from src.model import LightGBMStockPredictor
@@ -221,59 +222,6 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         self._prices_test = self._test_train_data["test"]["prices"]
         self._symbols_test = self._test_train_data["test"]["symbols"]
 
-    def _align_targets_across_intervals(self):
-        """
-        Align y_test targets across different time intervals to ensure consistency.
-        Uses the default interval as the reference timeline.
-        :return: the aligned targets per interval
-        """
-        aligned_targets = {}
-
-        reference_index = self._y_test_dict[self.default_interval].index
-
-        for interval in self.intervals:
-            if interval == self.default_interval:
-                aligned_targets[interval] = self._y_test_dict[interval]
-            else:
-                aligned_targets[interval] = self._align_to_reference(
-                    self._y_test_dict[interval], reference_index, method="ffill"
-                )
-
-        return aligned_targets
-
-    @staticmethod
-    def _align_to_reference(targets_series, reference_index, method="ffill"):
-        """
-        Align targets from one interval to a reference index.
-        :param targets_series: Target series to align
-        :param reference_index: Reference index to align to
-        :param method: Alignment method ("ffill", "mean")
-        :return: Aligned targets series
-        """
-        if method == "ffill":
-            min_length = min(len(targets_series), len(reference_index))
-
-            aligned_index = reference_index[:min_length]
-            aligned_values = targets_series.iloc[:min_length].values
-
-            return pd.Series(aligned_values, index=aligned_index)
-
-        elif method == "mean":
-            try:
-                freq = pd.infer_freq(reference_index)
-                if freq is not None:
-                    resampled = targets_series.resample(freq).mean()
-                else:
-                    resampled = targets_series.resample("D").mean()
-            except Exception:
-                resampled = targets_series.resample("D").mean()
-
-            aligned = resampled.reindex(reference_index, method="ffill")
-            return aligned
-
-        else:
-            raise ValueError(f"Unknown alignment method: {method}")
-
     def _validate_data_consistency(self):
         """
         Validate that all test data components are properly aligned.
@@ -313,23 +261,6 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
                 print(f"  Indices equal: {val['indices_equal']}")
 
         return validations
-
-    def _ensure_prediction_alignment(self, predictions):
-        """
-        Ensure y_test aligns with prediction array indices.
-        :param predictions: predictions array that we want to align
-        :return:
-        """
-        if len(predictions) != len(self._y_test):
-            min_len = min(len(predictions), len(self._y_test))
-            print(
-                f"Warning: Prediction length ({len(predictions)}) and y_test length ({len(self._y_test)}) mismatch. Using {min_len} samples."
-            )
-            aligned_y_test = self._y_test.iloc[:min_len].reset_index(drop=True)
-        else:
-            aligned_y_test = self._y_test.reset_index(drop=True)
-
-        return aligned_y_test
 
     def _get_predictions(self):
         """
@@ -388,7 +319,7 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
         self._x_test_dict = {interval: x_test[interval] for interval in self.intervals}
 
-        aligned_targets = self._align_targets_across_intervals()
+        aligned_targets = align_targets_across_intervals(self._y_test_dict, self.default_interval, self.intervals)
         self._test_results = self._model.evaluate(self._x_test_dict, aligned_targets[self.default_interval])
 
         model_name: str = "ALL_STOCKS"
@@ -417,7 +348,7 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
         pred_len = len(predictions)
 
-        aligned_y_test = self._ensure_prediction_alignment(predictions)
+        aligned_y_test = ensure_prediction_alignment(predictions, self._y_test)
 
         test_data = {
             "prediction": predictions[:pred_len],
