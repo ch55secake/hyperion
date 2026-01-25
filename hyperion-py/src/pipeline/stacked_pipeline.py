@@ -16,21 +16,36 @@ from src.pipeline.base_pipeline import BaseTrainingPipeline
 from src.simulation import TradingSimulator
 from src.simulation.strategy.strategy_registry import StrategyRegistry
 from src.writer import save_trained_model
+from src.feature.feature_split import FeaturePartition, derive_feature_split
 
 
 # Required for the usage of the strategy registry
-import src.simulation.strategy
 
 
 class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
-    def __init__(self, intervals: list[str], *args, **kwargs):
+    def __init__(
+        self,
+        intervals: list[str],
+        interval_roles: dict[str, str] | None = None,
+        short_term_threshold: int = 20,
+        *args,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
         self.intervals = intervals
         self._xgb_params = None
         self._lgb_params = None
 
         self.default_interval = self.intervals[0]
+        self.short_term_threshold = short_term_threshold
+        self.interval_roles = dict(interval_roles) if interval_roles is not None else {}
+        self.interval_roles.setdefault(self.default_interval, "daily")
+        for interval in self.intervals:
+            self.interval_roles.setdefault(interval, "hourly")
+
+        self.interval_feature_sets: dict[str, list[str]] = {}
+        self.feature_partitions: dict[str, FeaturePartition] = {}
 
     def load_model(self):
         """
@@ -206,7 +221,53 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
             },
         }
 
+        self.feature_partitions = {}
+        self.interval_feature_sets = {}
+        for interval in self.intervals:
+            partition = derive_feature_split(
+                train_intervals[interval].columns.tolist(), short_term_threshold=self.short_term_threshold
+            )
+            self.feature_partitions[interval] = partition
+            role = self.interval_roles.get(interval, "hourly")
+            selected_columns = set(partition.get("shared", []))
+            selected_columns.update(partition.get(role, []))
+            self.interval_feature_sets[interval] = sorted(selected_columns)
+
         return self
+
+    def describe_feature_splits(self) -> dict[str, dict[str, int | str]]:
+        """
+        Return feature counts broken down by role, shared, and total.
+        :return: Summary dictionary with feature counts
+        """
+        summary: dict[str, dict[str, int | str]] = {}
+        for interval, columns in self.interval_feature_sets.items():
+            role = self.interval_roles.get(interval, "hourly")
+            partition = self.feature_partitions.get(interval, {"daily": [], "hourly": [], "shared": []})
+            summary[interval] = {
+                "role": role,
+                "role_specific": len(partition.get(role, [])),
+                "shared": len(partition.get("shared", [])),
+                "total": len(columns),
+            }
+        return summary
+
+    def _select_interval_features(self, interval: str, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Restrict a frame to the columns assigned to the interval.
+        :return: Restricted DataFrame with interval-specific features
+        """
+        columns = self.interval_feature_sets.get(interval)
+        if not columns:
+            return df
+        return df.loc[:, columns]
+
+    def _log_feature_split_summary(self) -> None:
+        print("\nFeature split per interval:")
+        for interval, info in self.describe_feature_splits().items():
+            print(
+                f"  {interval} ({info['role']}): {info['role_specific']} {info['role']} + {info['shared']} shared = {info['total']} total"
+            )
 
     def _populate_test_train_data(self):
         """
@@ -285,12 +346,21 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
             x_train[interval] = self._test_train_data["train"][interval]
             x_test[interval] = self._test_train_data["test"][interval]
 
+        x_train_selected = {
+            interval: self._select_interval_features(interval, x_train[interval]) for interval in self.intervals
+        }
+        x_test_selected = {
+            interval: self._select_interval_features(interval, x_test[interval]) for interval in self.intervals
+        }
+
         if isinstance(self._test_train_data["train"]["targets"], dict):
             y_train_dict = self._test_train_data["train"]["targets"]
 
         self._populate_test_train_data()
 
         self._validate_data_consistency()
+
+        self._log_feature_split_summary()
 
         print("\n" + "=" * 60)
         print("Training Stacked Model")
@@ -311,13 +381,18 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         )
 
         train_data = {
-            interval: (x_train[interval], y_train_dict[interval], x_test[interval], self._y_test_dict[interval])
+            interval: (
+                x_train_selected[interval],
+                y_train_dict[interval],
+                x_test_selected[interval],
+                self._y_test_dict[interval],
+            )
             for interval in self.intervals
         }
 
         self._model.train(train_data)
 
-        self._x_test_dict = {interval: x_test[interval] for interval in self.intervals}
+        self._x_test_dict = {interval: x_test_selected[interval] for interval in self.intervals}
 
         aligned_targets = align_targets_across_intervals(self._y_test_dict, self.default_interval, self.intervals)
         self._test_results = self._model.evaluate(self._x_test_dict, aligned_targets[self.default_interval])
