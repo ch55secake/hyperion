@@ -4,6 +4,7 @@ from src.model import LightGBMStockPredictor
 from src.model.catboost.catboost_predictor import CatBoostStockPredictor
 from src.optimise import StockModelOptimizer
 from src.pipeline.base_pipeline import BaseTrainingPipeline
+from src.util import logger
 from src.writer import save_trained_model
 from src.model import XGBoostStockPredictor
 
@@ -35,7 +36,7 @@ class SingleModelTrainingPipeline(BaseTrainingPipeline):
 
         :return:
         """
-        print(f"Running {self.model_type} hyperparameter optimization...")
+        logger.info(f"Running {self.model_type} hyperparameter optimization...")
 
         x_train_daily = self._test_train_data["train"]["daily"]
         y_train = self._test_train_data["train"]["targets"]
@@ -73,9 +74,9 @@ class SingleModelTrainingPipeline(BaseTrainingPipeline):
         x_test_daily = self._test_train_data["test"]["daily"]
         self._populate_test_train_data()
 
-        print("\n" + "=" * 60)
-        print(f"Training Single {self.model_type.upper()} Model")
-        print("=" * 60)
+        logger.info("=" * 60)
+        logger.info(f"Training Single {self.model_type.upper()} Model")
+        logger.info("=" * 60)
 
         if self.should_optimise:
             self._optimize_hyperparameters()
@@ -87,6 +88,6 @@ class SingleModelTrainingPipeline(BaseTrainingPipeline):
         test_results = self._model.evaluate(x_test_daily, self._y_test)
 
         save_trained_model(self._model, f"{self.model_type.upper()}_MODEL", test_results)
-        print(f"\n✓ {self.model_type.upper()} model training complete!")
+        logger.info(f"{self.model_type.upper()} model training complete!")
 
         return self

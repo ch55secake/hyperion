@@ -11,6 +11,7 @@ from src.feature import FeatureEngineering
 from src.model import XGBoostStockPredictor, LightGBMStockPredictor
 from src.optimise import StockModelOptimizer
 from src.model import StackedStockPredictor
+from src.util import logger
 from src.visualisation import generate_plots, Visualizer
 from src.writer import save_trained_model, persist_results, output_best_strategy
 from src.simulation import TradingSimulator
@@ -88,9 +89,9 @@ def train_model(symbols=None, period: str = "5y", interval: str = "1h", visualiz
             for line in f:
                 symbols.append(line.strip())
         # symbols = ["AAPL"]
-    print("\n" + "=" * 60)
-    print("Stacked Stock Price Prediction (Daily + Hourly)")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("Stacked Stock Price Prediction (Daily + Hourly)")
+    logger.info("=" * 60)
 
     # Download data hourly (interval='1h')
     stock_data_downloader = StockDataDownloader(symbols, period="2y", interval=interval)
@@ -98,16 +99,16 @@ def train_model(symbols=None, period: str = "5y", interval: str = "1h", visualiz
     stock_data_hourly = stock_data_downloader.download_data()
 
     if not stock_data_hourly:
-        print("⚠️  No data downloaded. Exiting.")
+        logger.warning("No data downloaded. Exiting.")
         return False
 
     for symbol in symbols:
         if visualization:
             os.makedirs("./plots/" + symbol, exist_ok=True)
         try:
-            print("\n" + "=" * 60)
-            print(f"Processing {symbol}")
-            print("=" * 60)
+            logger.info("=" * 60)
+            logger.info(f"Processing {symbol}")
+            logger.info("=" * 60)
 
             # Sector, market cap, industry and avg_volume
 
@@ -125,7 +126,7 @@ def train_model(symbols=None, period: str = "5y", interval: str = "1h", visualiz
             x_daily["avg_volume_log"] = np.log(stock_data_downloader.get_avg_volume(symbol))
             x_daily["market_cap"] = np.log(stock_data_downloader.get_market_cap(symbol))
 
-            print(x_daily.head())
+            logger.debug(str(x_daily.head()))
 
             # Hourly features
             features_hourly = FeatureEngineering(stock_data_hourly[symbol])
@@ -168,12 +169,12 @@ def train_model(symbols=None, period: str = "5y", interval: str = "1h", visualiz
             )
 
         except Exception as e:
-            print(f"\n✗ Error processing {symbol}: {str(e)}")
+            logger.error(f"Error processing {symbol}: {str(e)}")
             traceback.print_exc()
             return False
 
-    print("\n" + "=" * 60)
-    print("✓ All processing complete!")
+    logger.info("=" * 60)
+    logger.info("All processing complete!")
     return True
 
 
@@ -189,13 +190,13 @@ def run_trade_simulation(
     x_train_dict: dict,
     y_test,
 ):
-    print("\n" + "=" * 60)
-    print("Testing Multiple Trading Strategies")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("Testing Multiple Trading Strategies")
+    logger.info("=" * 60)
 
     preds = test_results.get("predictions")
     if preds is None:
-        print("⚠️  Predictions missing, computing via predictor.predict()")
+        logger.warning("Predictions missing, computing via predictor.predict()")
         predictor = x_test_dict.get("predictor")
         preds = predictor.predict(x_test_dict)
 
@@ -207,8 +208,8 @@ def run_trade_simulation(
     initial_capital = 10000
 
     # Run directional strategy
-    print("\n--- Strategy 1: Directional Trading ---")
-    print("Buys when prediction > 0, sells when prediction <= 0")
+    logger.info("--- Strategy 1: Directional Trading ---")
+    logger.info("Buys when prediction > 0, sells when prediction <= 0")
     directional_simulator = TradingSimulator(initial_capital=initial_capital)
     directional_strategy = DirectionalTradingStrategy(directional_simulator, initial_capital)
     directional_trading_results, directional_simulator = Strategy.simulate(
@@ -216,8 +217,8 @@ def run_trade_simulation(
     )
 
     # Run adaptive threshold strategy
-    print("\n--- Strategy 2: Adaptive Threshold ---")
-    print("Uses statistical threshold based on prediction distribution")
+    logger.info("--- Strategy 2: Adaptive Threshold ---")
+    logger.info("Uses statistical threshold based on prediction distribution")
     adaptive_simulator = TradingSimulator(initial_capital=initial_capital)
     adaptive_strategy = AdaptiveThresholdStrategy(
         adaptive_simulator, initial_capital, threshold=0.3 * np.std(np.array(preds))
@@ -227,8 +228,8 @@ def run_trade_simulation(
     )
 
     # Run hold days strategy
-    print("\n--- Strategy 3: Hold Days Strategy ---")
-    print("Holds positions for multiple days")
+    logger.info("--- Strategy 3: Hold Days Strategy ---")
+    logger.info("Holds positions for multiple days")
     hold_days_simulator = TradingSimulator(initial_capital=initial_capital)
     hold_days_strategy = HoldDaysStrategy(
         hold_days_simulator, initial_capital, hold_days=5, threshold=0.3 * np.std(np.array(preds))
@@ -263,7 +264,7 @@ def run_trade_simulation(
                 valid_strategies,
             )
     else:
-        print("⚠️  No strategy generated trades, using directional as fallback")
+        logger.warning("No strategy generated trades, using directional as fallback")
         sim_results = directional_trading_results
 
     if visualization:

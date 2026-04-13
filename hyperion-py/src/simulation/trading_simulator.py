@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 
 from src.simulation.types import PortfolioHistory, TradeAction, Trade
+from src.util import logger
 from .strategy.directional import DirectionalTradingStrategy
 
 
@@ -31,22 +32,22 @@ class TradingSimulator:
         if strategy is None:
             strategy = DirectionalTradingStrategy(self, self.initial_capital)
 
-        print("\n" + "=" * 60)
-        print("Running Trading Simulation")
-        print("=" * 60)
+        logger.info("=" * 60)
+        logger.info("Running Trading Simulation")
+        logger.info("=" * 60)
 
         pred_array = np.array(predictions)
 
         if threshold == "auto":
             threshold = np.percentile(np.abs(pred_array), 25)
-            print(f"\nAuto threshold (25th percentile): {threshold:.6f}")
-            print(f"\nSignals above threshold: {(np.abs(pred_array) > threshold).mean():.1%}")
+            logger.debug(f"Auto threshold (25th percentile): {threshold:.6f}")
+            logger.debug(f"Signals above threshold: {(np.abs(pred_array) > threshold).mean():.1%}")
         elif threshold == "adaptive":
             threshold = 0.3 * np.std(pred_array)
-            print(f"\nAdaptive threshold (0.3 std): {threshold:.6f}")
+            logger.debug(f"Adaptive threshold (0.3 std): {threshold:.6f}")
         else:
             threshold = float(threshold)
-            print(f"\nFixed threshold: {threshold:.6f}")
+            logger.debug(f"Fixed threshold: {threshold:.6f}")
 
         # Use the strategy's state - no need to track separately
         for i, pred_return in enumerate(predictions):
@@ -111,16 +112,16 @@ class TradingSimulator:
             buy_hold_return = (last_price - first_price) / first_price
 
         if total_return - buy_hold_return > 0:
-            print("\n" + "=" * 60)
-            print("Trading Simulation Results")
-            print("=" * 60)
-            print(f"Initial Capital:       ${self.initial_capital:,.2f}")
-            print(f"Final Portfolio Value: ${final_value:,.2f}")
-            print(f"Total Return:          {total_return * 100:.2f}%")
+            logger.info("=" * 60)
+            logger.info("Trading Simulation Results")
+            logger.info("=" * 60)
+            logger.info(f"Initial Capital:       ${self.initial_capital:,.2f}")
+            logger.info(f"Final Portfolio Value: ${final_value:,.2f}")
+            logger.info(f"Total Return:          {total_return * 100:.2f}%")
             if buy_hold_return is not None:
-                print(f"Buy & Hold Return:     {buy_hold_return * 100:.2f}%")
-                print(f"Strategy Alpha:        {(total_return - buy_hold_return) * 100:.2f}%")
-            print(f"Number of Trades:      {len(self.trades)}")
+                logger.info(f"Buy & Hold Return:     {buy_hold_return * 100:.2f}%")
+                logger.info(f"Strategy Alpha:        {(total_return - buy_hold_return) * 100:.2f}%")
+            logger.info(f"Number of Trades:      {len(self.trades)}")
 
         return {
             "portfolio_history": pd.DataFrame(self.portfolio_history),

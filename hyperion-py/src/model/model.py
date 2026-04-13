@@ -8,6 +8,8 @@ import pandas as pd
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from sklearn.preprocessing import StandardScaler
 
+from src.util import logger
+
 
 class Model(ABC):
     def __init__(self, model_name: str, params=None):
@@ -37,11 +39,11 @@ class Model(ABC):
         mae = mean_absolute_error(y, predictions)
         r2 = r2_score(y, predictions)
 
-        print(f"\n{dataset_name} Set Performance:")
-        print(f"  MSE:  {mse:.8f}")
-        print(f"  RMSE: {rmse:.8f}")
-        print(f"  MAE:  {mae:.8f}")
-        print(f"  R²:   {r2:.8f}")
+        logger.info(f"\n{dataset_name} Set Performance:")
+        logger.info(f"  MSE:  {mse:.8f}")
+        logger.info(f"  RMSE: {rmse:.8f}")
+        logger.info(f"  MAE:  {mae:.8f}")
+        logger.info(f"  R\u00b2:   {r2:.8f}")
 
         return {"predictions": predictions, "mse": mse, "rmse": rmse, "mae": mae, "r2": r2}
 
@@ -66,7 +68,7 @@ class Model(ABC):
         with open(filename, "wb") as f:
             pickle.dump(model_data, f)
 
-        print(f"\n✓ Model saved to: {filename}")
+        logger.info(f"Model saved to: {filename}")
         return filename
 
     @classmethod
@@ -88,39 +90,39 @@ class Model(ABC):
         instance.numeric_columns = model_data.get("numeric_columns")
         instance.categorical_columns = model_data.get("categorical_columns")
 
-        print(f"\n✓ Model loaded from: {filename}")
-        print(f"  Trained on: {model_data['trained_date']}")
+        logger.info(f"Model loaded from: {filename}")
+        logger.info(f"  Trained on: {model_data['trained_date']}")
         if instance.feature_columns:
-            print(f"  Features: {len(instance.feature_columns)} columns stored")
+            logger.debug(f"  Features: {len(instance.feature_columns)} columns stored")
         if instance.categorical_columns:
-            print(f"  Categorical features: {instance.categorical_columns}")
+            logger.debug(f"  Categorical features: {instance.categorical_columns}")
 
         return instance
 
     def _prepare_columns(self, x_train):
         if isinstance(x_train, pd.DataFrame):
             self.feature_columns = list(x_train.columns)
-            print(f"Stored {len(self.feature_columns)} feature columns")
+            logger.debug(f"Stored {len(self.feature_columns)} feature columns")
 
         self.categorical_columns = x_train.select_dtypes(include=["category"]).columns.tolist()
         self.numeric_columns = x_train.select_dtypes(include=["number"]).columns.tolist()
 
-        print(f"Numeric columns: {len(self.numeric_columns)}")
-        print(f"Categorical columns: {len(self.categorical_columns)}")
+        logger.debug(f"Numeric columns: {len(self.numeric_columns)}")
+        logger.debug(f"Categorical columns: {len(self.categorical_columns)}")
         if self.categorical_columns:
-            print(f"  Categories: {self.categorical_columns}")
+            logger.debug(f"  Categories: {self.categorical_columns}")
 
         object_cols = x_train.select_dtypes(include=["object"]).columns.tolist()
         if object_cols:
-            print(f"⚠️ Warning: Found {len(object_cols)} object columns that should be categorical: {object_cols}")
-            print("Converting them to category dtype...")
+            logger.warning(f"Found {len(object_cols)} object columns that should be categorical: {object_cols}")
+            logger.info("Converting them to category dtype...")
             x_train = x_train.copy()
             for col in object_cols:
                 x_train[col] = x_train[col].astype("category")
             self.categorical_columns = x_train.select_dtypes(include=["category"]).columns.tolist()
-            print(f"  Updated categorical columns: {self.categorical_columns}")
+            logger.debug(f"  Updated categorical columns: {self.categorical_columns}")
 
-        print("Scaling numeric features...")
+        logger.debug("Scaling numeric features...")
         x_train_processed = x_train.copy()
 
         if self.numeric_columns:

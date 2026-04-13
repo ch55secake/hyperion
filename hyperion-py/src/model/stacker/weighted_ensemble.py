@@ -7,6 +7,8 @@ import pandas as pd
 from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
 from scipy.optimize import minimize
 
+from src.util import logger
+
 
 class StackedStockPredictor:
     """
@@ -84,7 +86,7 @@ class StackedStockPredictor:
             y_pred = model.predict(x_val)
             r2 = r2_score(y_val, y_pred)
             model_r2_scores[name] = r2
-            print(f"✓ {name} model trained | R² (val): {r2:.4f}")
+            logger.info(f"{name} model trained | R\u00b2 (val): {r2:.4f}")
 
             x_val_dict[name] = x_val
             if y_val_combined is None:
@@ -92,9 +94,9 @@ class StackedStockPredictor:
 
         self.weights = self._optimize_weights(x_val_dict, y_val_combined)
 
-        print("\nFinal model weights (optimized on validation set):")
+        logger.info("Final model weights (optimized on validation set):")
         for k, w in self.weights.items():
-            print(f"  {k}: {w:.3f}")
+            logger.info(f"  {k}: {w:.3f}")
 
         self.feature_importance = self._compute_feature_importance()
 
@@ -158,12 +160,12 @@ class StackedStockPredictor:
         mae = mean_absolute_error(y_true, predictions)
         r2 = r2_score(y_true, predictions)
 
-        print("Stacked Model Performance:")
-        print(f"  MSE : {mse:.8f}")
-        print(f"  RMSE: {rmse:.8f}")
-        print(f"  MAE : {mae:.8f}")
-        print(f"  R²  : {r2:.8f}")
-        print(f"Prediction Correlation:\n {prediction_correlation}")
+        logger.info("Stacked Model Performance:")
+        logger.info(f"  MSE : {mse:.8f}")
+        logger.info(f"  RMSE: {rmse:.8f}")
+        logger.info(f"  MAE : {mae:.8f}")
+        logger.info(f"  R\u00b2  : {r2:.8f}")
+        logger.debug(f"Prediction Correlation:\n {prediction_correlation}")
 
         return {
             "predictions": predictions,
@@ -187,9 +189,9 @@ class StackedStockPredictor:
         with open(filename, "wb") as f:
             pickle.dump(model_data, f)
 
-        print(f"✓ Saved full stacked model to {filename}")
+        logger.info(f"Saved full stacked model to {filename}")
         for name, cols in feature_columns_per_model.items():
-            print(f"✓ Saved {len(cols)} feature columns for '{name}' model")
+            logger.info(f"Saved {len(cols)} feature columns for '{name}' model")
 
     @staticmethod
     def load_model(symbol, save_path="models"):
@@ -200,12 +202,12 @@ class StackedStockPredictor:
         if isinstance(model_data, dict) and "stacked_predictor" in model_data:
             predictor = model_data["stacked_predictor"]
             feature_columns_per_model = model_data.get("feature_columns_per_model", {})
-            print(f"✓ Loaded stacked model from {filename}")
+            logger.info(f"Loaded stacked model from {filename}")
             for name, cols in feature_columns_per_model.items():
-                print(f"✓ Model '{name}' expects {len(cols)} features in specific order")
+                logger.debug(f"Model '{name}' expects {len(cols)} features in specific order")
         else:
             predictor = model_data
-            print(f"✓ Loaded stacked model from {filename} (old format)")
+            logger.info(f"Loaded stacked model from {filename} (old format)")
 
         return predictor
 

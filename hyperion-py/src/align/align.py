@@ -1,5 +1,7 @@
 import pandas as pd
 
+from src.util import logger
+
 
 def align_to_reference(targets_series, reference_index, method="ffill"):
     """
@@ -42,8 +44,8 @@ def ensure_prediction_alignment(predictions, y_test):
     """
     if len(predictions) != len(y_test):
         min_len = min(len(predictions), len(y_test))
-        print(
-            f"Warning: Prediction length ({len(predictions)}) and y_test length ({len(y_test)}) mismatch. Using {min_len} samples."
+        logger.warning(
+            f"Prediction length ({len(predictions)}) and y_test length ({len(y_test)}) mismatch. Using {min_len} samples."
         )
         aligned_y_test = y_test.iloc[:min_len].reset_index(drop=True)
     else:

@@ -8,6 +8,7 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
 from src.data import StockDataDownloader
 from src.feature import FeatureEngineering
+from src.util import logger
 
 
 class BaseTrainingPipeline(ABC):
@@ -57,7 +58,7 @@ class BaseTrainingPipeline(ABC):
                     symbols.append(line.strip())
 
             self.symbols = symbols
-            print(f"Read {len(symbols)} tickers from resources/tickers.txt")
+            logger.info(f"Read {len(symbols)} tickers from resources/tickers.txt")
 
         return self
 
@@ -66,9 +67,9 @@ class BaseTrainingPipeline(ABC):
         Download the historical stock data for all tickers provided in the resources/tickers.txt
         :return: pipeline instance but should also update the _stock_data attribute
         """
-        print("\n" + "=" * 60)
-        print("Downloading and Preparing Data for All Stocks")
-        print("=" * 60)
+        logger.info("=" * 60)
+        logger.info("Downloading and Preparing Data for All Stocks")
+        logger.info("=" * 60)
 
         if self.symbols is None:
             raise Exception("Please run read_tickers(), before trying to run download_data()")
@@ -77,7 +78,7 @@ class BaseTrainingPipeline(ABC):
         self._stock_data = self._downloader.download_data()
 
         if not self._stock_data:
-            print("⚠️  No data downloaded. Exiting.")
+            logger.warning("No data downloaded. Exiting.")
             return None
 
         return self
@@ -107,7 +108,7 @@ class BaseTrainingPipeline(ABC):
 
         for symbol in self.symbols:
             try:
-                print(f"\nProcessing {symbol}...")
+                logger.info(f"Processing {symbol}...")
 
                 features_daily = FeatureEngineering(self._stock_data[symbol])
                 features_daily.create_target_features()
@@ -139,16 +140,16 @@ class BaseTrainingPipeline(ABC):
                 test_prices.append(prices_daily.iloc[self._split_idx :])
                 test_symbols.extend([symbol] * (len(x_daily) - self._split_idx))
 
-                print(f"  ✓ {symbol}: {self._split_idx} train samples, {len(x_daily) - self._split_idx} test samples")
+                logger.info(f"{symbol}: {self._split_idx} train samples, {len(x_daily) - self._split_idx} test samples")
 
             except Exception as e:
-                print(f"  ✗ Error processing {symbol}: {str(e)}")
+                logger.error(f"Error processing {symbol}: {str(e)}")
                 traceback.print_exc()
                 continue
 
-        print("\n" + "=" * 60)
-        print("Combining Training Data")
-        print("=" * 60)
+        logger.info("=" * 60)
+        logger.info("Combining Training Data")
+        logger.info("=" * 60)
 
         train_daily, train_hourly, train_targets, train_dates, train_prices = self._combine_features(
             daily_features=train_daily_features,
@@ -160,7 +161,7 @@ class BaseTrainingPipeline(ABC):
 
         train_symbols_series = pd.Series(train_symbols, index=train_daily.index)
 
-        print("Combining Test Data")
+        logger.info("Combining Test Data")
         test_daily, test_hourly, test_targets, test_dates, test_prices = self._combine_features(
             daily_features=test_daily_features,
             hourly_features=test_hourly_features,
@@ -171,16 +172,16 @@ class BaseTrainingPipeline(ABC):
 
         test_symbols_series = pd.Series(test_symbols, index=test_daily.index)
 
-        print("\nConverting categorical columns...")
+        logger.info("Converting categorical columns...")
         _, train_daily, train_hourly, test_daily, test_hourly = self._create_categorical_features(
             train_daily, train_hourly, test_daily, test_hourly
         )
 
-        print(f"✓ Total train samples: {len(train_daily)}")
-        print(f"✓ Total test samples: {len(test_daily)}")
-        print(f"✓ Number of stocks: {len(self.symbols)}")
-        print(f"✓ Stocks in test set: {test_symbols_series.nunique()}")
-        print(f"✓ Features per timeframe: {len(train_daily.columns)}")
+        logger.info(f"Total train samples: {len(train_daily)}")
+        logger.info(f"Total test samples: {len(test_daily)}")
+        logger.info(f"Number of stocks: {len(self.symbols)}")
+        logger.info(f"Stocks in test set: {test_symbols_series.nunique()}")
+        logger.info(f"Features per timeframe: {len(train_daily.columns)}")
 
         self._test_train_data = {
             "train": {
@@ -230,7 +231,7 @@ class BaseTrainingPipeline(ABC):
             if col in train_daily.columns:
                 train_daily[col] = train_daily[col].astype("category")
                 test_daily[col] = test_daily[col].astype("category")
-                print(f"  {col}: {train_daily[col].nunique()} unique values")
+                logger.debug(f"{col}: {train_daily[col].nunique()} unique values")
             if col in train_hourly.columns:
                 train_hourly[col] = train_hourly[col].astype("category")
                 test_hourly[col] = test_hourly[col].astype("category")
@@ -305,9 +306,9 @@ class BaseTrainingPipeline(ABC):
         if self._model is None:
             raise Exception("Please run train(), before trying to run evaluate_model()")
 
-        print("\n" + "=" * 60)
-        print("Per-Stock Performance Analysis")
-        print("=" * 60)
+        logger.info("=" * 60)
+        logger.info("Per-Stock Performance Analysis")
+        logger.info("=" * 60)
 
         predictions = self._get_predictions()
 
@@ -318,23 +319,23 @@ class BaseTrainingPipeline(ABC):
 
         unique_symbols = sorted(symbols_reset.unique())
 
-        print(f"\nEvaluating {len(unique_symbols)} stocks...")
-        print(f"Symbols in test data: {unique_symbols[:5]}...")  # Show first 5 symbols
-        print(f"Total test samples: {len(symbols_reset)}")
-        print(f"Total predictions: {len(predictions)}")
+        logger.info(f"Evaluating {len(unique_symbols)} stocks...")
+        logger.debug(f"Symbols in test data: {unique_symbols[:5]}...")
+        logger.debug(f"Total test samples: {len(symbols_reset)}")
+        logger.debug(f"Total predictions: {len(predictions)}")
 
         self._results = []
         detailed_predictions = []
 
         for symbol in unique_symbols:
-            print(f"Processing symbol: {symbol}")
+            logger.debug(f"Processing symbol: {symbol}")
             symbol_mask = symbols_reset == symbol
 
             if symbol_mask.sum() == 0:
-                print(f"  No data found for {symbol}")
+                logger.warning(f"No data found for {symbol}")
                 continue
             else:
-                print(f"  Found {symbol_mask.sum()} samples for {symbol}")
+                logger.debug(f"Found {symbol_mask.sum()} samples for {symbol}")
 
             y_true_symbol = y_test_reset[symbol_mask]
             y_pred_symbol = predictions[symbol_mask]
@@ -387,40 +388,40 @@ class BaseTrainingPipeline(ABC):
         return self
 
     def _print_summary_stats(self):
-        print("\n" + "=" * 60)
-        print("Summary Statistics Across All Stocks")
-        print("=" * 60)
+        logger.info("=" * 60)
+        logger.info("Summary Statistics Across All Stocks")
+        logger.info("=" * 60)
 
         results_df = pd.DataFrame(self._results)
 
-        print(f"\nNumber of stocks evaluated: {len(results_df)}")
+        logger.info(f"Number of stocks evaluated: {len(results_df)}")
 
         if len(results_df) == 0:
-            print("⚠️  No stocks were evaluated. Check test data and symbols.")
+            logger.warning("No stocks were evaluated. Check test data and symbols.")
             return
 
-        print(f"Average RMSE: {results_df['rmse'].mean():.6f}")
-        print(f"Average MAE: {results_df['mae'].mean():.6f}")
-        print(f"Average R²: {results_df['r2'].mean():.6f}")
-        print(f"Average Directional Accuracy: {results_df['directional_accuracy'].mean():.2f}%")
-        print(
-            f"\nBest performing stock (by R²): {results_df.loc[results_df['r2'].idxmax(), 'symbol']} (R²: {results_df['r2'].max():.6f})"
+        logger.info(f"Average RMSE: {results_df['rmse'].mean():.6f}")
+        logger.info(f"Average MAE: {results_df['mae'].mean():.6f}")
+        logger.info(f"Average R\u00b2: {results_df['r2'].mean():.6f}")
+        logger.info(f"Average Directional Accuracy: {results_df['directional_accuracy'].mean():.2f}%")
+        logger.info(
+            f"Best performing stock (by R\u00b2): {results_df.loc[results_df['r2'].idxmax(), 'symbol']} (R\u00b2: {results_df['r2'].max():.6f})"
         )
-        print(
-            f"Worst performing stock (by R²): {results_df.loc[results_df['r2'].idxmin(), 'symbol']} (R²: {results_df['r2'].min():.6f})"
+        logger.info(
+            f"Worst performing stock (by R\u00b2): {results_df.loc[results_df['r2'].idxmin(), 'symbol']} (R\u00b2: {results_df['r2'].min():.6f})"
         )
-        print(
+        logger.info(
             f"Best directional accuracy: {results_df.loc[results_df['directional_accuracy'].idxmax(), 'symbol']} ({results_df['directional_accuracy'].max():.2f}%)"
         )
 
     def _save_results_and_predictions(self, detailed_predictions):
         results_df = pd.DataFrame(self._results)
         results_df.to_csv("results/per_stock_performance.csv", index=False)
-        print("\n✓ Per-stock results saved to: results/per_stock_performance.csv")
+        logger.info(f"Per-stock results saved to: results/per_stock_performance.csv")
 
         detailed_df = pd.DataFrame(detailed_predictions)
         detailed_df.to_csv("results/detailed_predictions.csv", index=False)
-        print("✓ Detailed predictions saved to: results/detailed_predictions.csv")
+        logger.info(f"Detailed predictions saved to: results/detailed_predictions.csv")
 
     def visualize(self):
         """

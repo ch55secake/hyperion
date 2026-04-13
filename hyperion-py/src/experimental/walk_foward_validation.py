@@ -6,6 +6,7 @@ from pandas import Series
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
 from src.model import XGBoostStockPredictor
+from src.util import logger
 from src.visualisation import generate_walk_forward_plots
 
 WALK_FORWARD_TRAIN_WINDOW = 180  # ~9 months of training data (reduced from 252)
@@ -97,15 +98,15 @@ class WalkForwardValidator:
         Returns:
             Dictionary with combined predictions and fold information
         """
-        print("\n" + "=" * 60)
-        print("Walk-Forward Analysis")
-        print("=" * 60)
-        print(f"Train Window: {self.train_window} days (~{self.train_window / 252:.1f} years)")
-        print(f"Test Window: {self.test_window} days")
-        print(f"Retrain Frequency: {self.retrain_frequency} days")
+        logger.info("=" * 60)
+        logger.info("Walk-Forward Analysis")
+        logger.info("=" * 60)
+        logger.info(f"Train Window: {self.train_window} days (~{self.train_window / 252:.1f} years)")
+        logger.info(f"Test Window: {self.test_window} days")
+        logger.info(f"Retrain Frequency: {self.retrain_frequency} days")
 
         splits = self.split(x, dates)
-        print(f"Number of folds: {len(splits)}")
+        logger.info(f"Number of folds: {len(splits)}")
 
         all_predictions = []
         all_actuals = []
@@ -118,9 +119,9 @@ class WalkForwardValidator:
             train_idx = split["train_indices"]
             test_idx = split["test_indices"]
 
-            print(f"\nFold {fold}/{len(splits)}:")
-            print(f"  Train: {split['train_dates'][0]} to {split['train_dates'][1]} ({len(train_idx)} samples)")
-            print(f"  Test:  {split['test_dates'][0]} to {split['test_dates'][1]} ({len(test_idx)} samples)")
+            logger.info(f"Fold {fold}/{len(splits)}:")
+            logger.info(f"  Train: {split['train_dates'][0]} to {split['train_dates'][1]} ({len(train_idx)} samples)")
+            logger.info(f"  Test:  {split['test_dates'][0]} to {split['test_dates'][1]} ({len(test_idx)} samples)")
 
             # Get train/test data
             x_train = x.iloc[train_idx]
@@ -140,8 +141,8 @@ class WalkForwardValidator:
             fold_rmse = np.sqrt(fold_mse)
             fold_mae = mean_absolute_error(y_test, predictions)
 
-            print(f"  Fold RMSE: {fold_rmse:.6f}")
-            print(f"  Fold MAE:  {fold_mae:.6f}")
+            logger.info(f"  Fold RMSE: {fold_rmse:.6f}")
+            logger.info(f"  Fold MAE:  {fold_mae:.6f}")
 
             # Store results
             all_predictions.extend(predictions)
@@ -174,12 +175,12 @@ class WalkForwardValidator:
         overall_mae = mean_absolute_error(all_actuals, all_predictions)
         overall_r2 = r2_score(all_actuals, all_predictions)
 
-        print(f"\n{'=' * 60}")
-        print("Walk-Forward Overall Performance:")
-        print(f"  RMSE: {overall_rmse:.8f}")
-        print(f"  MAE:  {overall_mae:.8f}")
-        print(f"  R²:   {overall_r2:.8f}")
-        print(f"{'=' * 60}")
+        logger.info("=" * 60)
+        logger.info("Walk-Forward Overall Performance:")
+        logger.info(f"  RMSE: {overall_rmse:.8f}")
+        logger.info(f"  MAE:  {overall_mae:.8f}")
+        logger.info(f"  R\u00b2:   {overall_r2:.8f}")
+        logger.info("=" * 60)
 
         return {
             "predictions": np.array(all_predictions),
@@ -194,9 +195,9 @@ class WalkForwardValidator:
 def do_walk_forward_validation(
     x, dates, prices, use_walk_forward: bool, y
 ) -> tuple[bool, dict[str, np.ndarray[Any, np.dtype[Any]] | list[Any] | dict[str, float | Any]]]:
-    print("\n" + "=" * 60)
-    print("Using Walk-Forward Analysis")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("Using Walk-Forward Analysis")
+    logger.info("=" * 60)
 
     try:
         # Initialize walk-forward validator
@@ -211,8 +212,8 @@ def do_walk_forward_validation(
             x, y, dates, prices, XGBoostStockPredictor, predictor_params=None  # Uses default params
         )
     except ValueError as e:
-        print(f"\n⚠️  Walk-forward analysis failed: {e}")
-        print("   Falling back to simple train/test split")
+        logger.warning(f"Walk-forward analysis failed: {e}")
+        logger.warning("Falling back to simple train/test split")
         use_walk_forward = False
 
     return use_walk_forward, wf_results
@@ -245,7 +246,7 @@ def second_pass_walk_forward(
     prices_test = pd.Series(wf_results["prices"], index=wf_results["dates"])
 
     # Create a final model for feature importance (trained on all data)
-    print("\nTraining final model on all data for feature importance...")
+    logger.info("Training final model on all data for feature importance...")
     predictor = XGBoostStockPredictor()
     split_idx = int(len(x) * 0.9)
     predictor.train(x.iloc[:split_idx], y.iloc[:split_idx], x.iloc[split_idx:], y.iloc[split_idx:])
