@@ -9,6 +9,8 @@ matplotlib.use("Agg")
 from matplotlib import pyplot as plt
 from pandas import Series
 
+from src.util import logger
+
 
 class Visualizer:
     """Creates visualizations for predictions and trading results"""
@@ -38,7 +40,7 @@ class Visualizer:
 
         plt.tight_layout()
         plt.savefig(f"{save_path}/{symbol}/predictions.png", dpi=300, bbox_inches="tight")
-        print(f"  ✓ Saved predictions plot: {save_path}/{symbol}_predictions.png")
+        logger.info(f"Saved predictions plot: {save_path}/{symbol}_predictions.png")
         plt.close()
 
     @staticmethod
@@ -61,13 +63,13 @@ class Visualizer:
                 dpi=300,
                 bbox_inches="tight",
             )
-            print(
-                f"  ✓ Saved feature importance plot: {save_path}/{symbol.split("_")[0]}/{symbol.split("_")[1]}"
+            logger.info(
+                f"Saved feature importance plot: {save_path}/{symbol.split('_')[0]}/{symbol.split('_')[1]}"
                 f"_feature_importance.png"
             )
         else:
             plt.savefig(f"{save_path}/{symbol}/feature_importance.png", dpi=300, bbox_inches="tight")
-            print(f"  ✓ Saved feature importance plot: {save_path}/{symbol}/feature_importance.png")
+            logger.info(f"Saved feature importance plot: {save_path}/{symbol}/feature_importance.png")
         plt.close()
 
     @staticmethod
@@ -226,7 +228,7 @@ class Visualizer:
 
         plt.tight_layout()
         plt.savefig(f"{save_path}/{symbol}/trading_simulation.png", dpi=300, bbox_inches="tight")
-        print(f"  ✓ Saved trading simulation plot: {save_path}/{symbol}_trading_simulation.png")
+        logger.info(f"Saved trading simulation plot: {save_path}/{symbol}_trading_simulation.png")
         plt.close()
 
     @staticmethod
@@ -314,7 +316,7 @@ class Visualizer:
 
         plt.tight_layout()
         plt.savefig(f"{save_path}/{symbol}/walk_forward.png", dpi=300, bbox_inches="tight")
-        print(f"  ✓ Saved walk-forward plot: {save_path}/{symbol}_walk_forward.png")
+        logger.info(f"Saved walk-forward plot: {save_path}/{symbol}_walk_forward.png")
         plt.close()
 
     @staticmethod
@@ -431,7 +433,7 @@ class Visualizer:
         plt.tight_layout()
         filename = f"{save_path}/{symbol}/180day_forecast.png"
         plt.savefig(filename, dpi=300, bbox_inches="tight")
-        print(f"  ✓ Saved forecast plot: {filename}")
+        logger.info(f"Saved forecast plot: {filename}")
         plt.close()
 
     @staticmethod
@@ -473,7 +475,7 @@ class Visualizer:
 
         plt.tight_layout()
         plt.savefig(f"{save_path}/{symbol}/technical_indicators.png", dpi=300, bbox_inches="tight")
-        print(f"  ✓ Saved technical indicators plot: {save_path}/{symbol}_technical_indicators.png")
+        logger.info(f"Saved technical indicators plot: {save_path}/{symbol}_technical_indicators.png")
         plt.close()
 
     @staticmethod
@@ -531,7 +533,7 @@ class Visualizer:
         plt.xticks(rotation=45)
         plt.tight_layout()
         plt.savefig(f"{save_path}/{symbol}/rolling_portfolio_metrics.png", dpi=300)
-        print(f"  ✓ Saved rolling portfolio metrics plot: {save_path}/{symbol}/rolling_portfolio_metrics.png")
+        logger.info(f"Saved rolling portfolio metrics plot: {save_path}/{symbol}/rolling_portfolio_metrics.png")
         plt.close()
 
     @staticmethod
@@ -570,7 +572,7 @@ class Visualizer:
     @staticmethod
     def plot_win_loss_over_time(trades_df, symbol, save_path="plots"):
         if trades_df.empty:
-            print(f"⚠️ No trades to plot win/loss ratio for {symbol}")
+            logger.warning(f"No trades to plot win/loss ratio for {symbol}")
             return
         trades_df["win"] = trades_df["profit"] > 0
         trades_df["cumulative_wins"] = trades_df["win"].cumsum()
@@ -620,7 +622,7 @@ def generate_plots(
     y_test: Series | Any,
 ):
     # Step 7: Generate plots
-    print("\nGenerating visualizations...")
+    logger.info("Generating visualizations...")
     for name, model in predictor.models.items():
         if hasattr(model, "feature_importance") and model.feature_importance is not None:
             Visualizer.plot_feature_importance(model.feature_importance, f"{symbol}_{name}")
@@ -640,5 +642,5 @@ def generate_plots(
 
 def generate_walk_forward_plots(wf_results, symbol):
     # Generate walk-forward specific plots
-    print("\nGenerating walk-forward visualizations...")
+    logger.info("Generating walk-forward visualizations...")
     Visualizer.plot_walk_forward_results(wf_results, symbol)

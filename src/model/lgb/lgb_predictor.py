@@ -2,6 +2,7 @@ import pandas as pd
 import lightgbm as lgb
 
 from ..model import Model
+from src.util import logger
 
 
 class LightGBMStockPredictor(Model):
@@ -31,9 +32,9 @@ class LightGBMStockPredictor(Model):
 
     def train(self, x_train, y_train, x_val=None, y_val=None):
         """Train the LightGBM model"""
-        print("\n" + "=" * 60)
-        print("Training LightGBM Model")
-        print("=" * 60)
+        logger.info("=" * 60)
+        logger.info("Training LightGBM Model")
+        logger.info("=" * 60)
 
         x_train_processed, object_cols = self._prepare_columns(x_train)
 
@@ -56,10 +57,10 @@ class LightGBMStockPredictor(Model):
             )
             valid_sets.append(val_data)
             valid_names.append("valid")
-            print(f"x_val_processed shape: {x_val_processed.shape}")
-            print(f"y_val shape: {y_val.shape}")
-            print(f"x_val_processed length: {len(x_val_processed)}")
-            print(f"y_val length: {len(y_val)}")
+            logger.debug(f"x_val_processed shape: {x_val_processed.shape}")
+            logger.debug(f"y_val shape: {y_val.shape}")
+            logger.debug(f"x_val_processed length: {len(x_val_processed)}")
+            logger.debug(f"y_val length: {len(y_val)}")
 
         self.model = lgb.train(
             self.params,
@@ -73,8 +74,8 @@ class LightGBMStockPredictor(Model):
         feature_importances = self.model.feature_importance()
 
         if len(feature_names) != len(feature_importances):
-            print(
-                f"⚠️ Warning: Feature name count ({len(feature_names)}) "
+            logger.warning(
+                f"Feature name count ({len(feature_names)}) "
                 + f"doesn't match importance count ({len(feature_importances)})"
             )
             feature_names = [f"feature_{i}" for i in range(len(feature_importances))]
@@ -86,12 +87,12 @@ class LightGBMStockPredictor(Model):
             }
         ).sort_values("importance", ascending=False)
 
-        print("✓ Model trained successfully")
-        print(f"✓ Number of trees: {self.model.best_iteration or self.params['n_estimators']}")
-        print(f"✓ Max depth: {self.params['max_depth']}")
+        logger.info("Model trained successfully")
+        logger.info(f"Number of trees: {self.model.best_iteration or self.params['n_estimators']}")
+        logger.info(f"Max depth: {self.params['max_depth']}")
 
-        print("\nTop 10 Most Important Features:")
-        print(self.feature_importance.head(10).to_string(index=False))
+        logger.debug("Top 10 Most Important Features:")
+        logger.debug(self.feature_importance.head(10).to_string(index=False))
 
     def predict(self, x):
         """Make predictions"""

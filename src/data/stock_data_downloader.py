@@ -1,13 +1,11 @@
 import json
-import logging
 import os
 from typing import Any
 
 import pandas as pd
 import yfinance as yf
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from src.util import logger
 
 
 class StockDataDownloader:
@@ -39,9 +37,9 @@ class StockDataDownloader:
             try:
                 with open(path, "r", encoding="UTF-8") as f:
                     cls._stock_info = json.load(f)
-                print(f"✓ Loaded cached stock info ({len(cls._stock_info)} entries)")
+                logger.info(f"Loaded cached stock info ({len(cls._stock_info)} entries)")
             except Exception as e:
-                print(f"⚠️ Failed to load cached stock info: {e}")
+                logger.warning(f"Failed to load cached stock info: {e}")
 
     @classmethod
     def save_stock_info(cls, path="./historic_data/stock_info.json"):
@@ -51,22 +49,22 @@ class StockDataDownloader:
         try:
             with open(path, "w", encoding="UTF-8") as f:
                 json.dump(cls._stock_info, f, indent=4)
-            print(f"\n✓ Saved stock info ({len(cls._stock_info)} entries)")
+            logger.info(f"Saved stock info ({len(cls._stock_info)} entries)")
         except Exception as e:
-            print(f"\n⚠️ Failed to save stock info: {e}")
+            logger.warning(f"Failed to save stock info: {e}")
 
     def download_data(self):
         """Download data for all symbols"""
-        print("=" * 60)
-        print("Downloading Stock Data from yfinance")
-        print("=" * 60)
+        logger.info("=" * 60)
+        logger.info("Downloading Stock Data from yfinance")
+        logger.info("=" * 60)
 
         for symbol in self.symbols:
             try:
                 default_path: str = "./historic_data/"
                 filename = f"{symbol}_{self.period}_{self.interval}.csv"
                 complete_path: str = os.path.join(default_path, filename)
-                print(f"\nChecking for existing data for {complete_path}...")
+                logger.debug(f"Checking for existing data for {complete_path}...")
 
                 needs_refresh = False
 
@@ -78,10 +76,10 @@ class StockDataDownloader:
                     yesterday = today - pd.Timedelta(days=2)
 
                     if last_date < yesterday:
-                        print(f" Cache is outdated (last date: {last_date}, lookback date: {yesterday})")
+                        logger.warning(f"Cache is outdated (last date: {last_date}, lookback date: {yesterday})")
                         needs_refresh = True
                     else:
-                        print(f"  ✓ Using cached data for {symbol}")
+                        logger.info(f"Using cached data for {symbol}")
                         self._history_data[(symbol, self.period, self.interval)] = df
                         self.data[symbol] = df
                         if symbol not in self._stock_info:
@@ -89,15 +87,14 @@ class StockDataDownloader:
                         continue
 
                 if not os.path.isfile(complete_path) or needs_refresh:
-                    print(f"\nDownloading {symbol}...")
-                    print(f"\n{self.period} {self.interval} data for {symbol}")
+                    logger.info(f"Downloading {symbol} ({self.period} {self.interval} data)...")
                     ticker = yf.Ticker(symbol)
                     df = ticker.history(period=self.period, interval=self.interval)
 
                     self._history_data[(symbol, self.period, self.interval)] = df
 
                     if df.empty:
-                        print(f"  ⚠️  No data found for {symbol}")
+                        logger.warning(f"No data found for {symbol}")
                         continue
 
                     filename = f"./historic_data/{filename}"
@@ -106,12 +103,12 @@ class StockDataDownloader:
                     self.data[symbol] = df
                     self._stock_info[symbol] = ticker.info
 
-                    print(f"  ✓ Downloaded {len(df)} data points")
-                    print(f"  ✓ Date range: {df.index[0].date()} to {df.index[-1].date()}")
-                    print(f"  ✓ Saved to {filename}")
+                    logger.info(f"Downloaded {len(df)} data points for {symbol}")
+                    logger.info(f"Date range: {df.index[0].date()} to {df.index[-1].date()}")
+                    logger.info(f"Saved to {filename}")
 
             except Exception as e:
-                print(f"  ✗ Error downloading {symbol}: {str(e)}")
+                logger.error(f"Error downloading {symbol}: {str(e)}")
 
         self.save_stock_info()
         return self.data

@@ -2,6 +2,7 @@ import pandas as pd
 import xgboost
 
 from ..model import Model
+from src.util import logger
 
 
 class XGBoostStockPredictor(Model):
@@ -30,22 +31,22 @@ class XGBoostStockPredictor(Model):
 
     def train(self, x_train, y_train, x_val=None, y_val=None):
         """Train the XGBoost model"""
-        print("\n" + "=" * 60)
-        print("Training XGBoost Model")
-        print("=" * 60)
+        logger.info("=" * 60)
+        logger.info("Training XGBoost Model")
+        logger.info("=" * 60)
 
         x_train_processed, object_cols = self._prepare_columns(x_train)
 
-        print("\nDataFrame dtypes before fitting:")
+        logger.debug("DataFrame dtypes before fitting:")
         for col in x_train_processed.columns:
             if x_train_processed[col].dtype.name in ["object", "category"]:
-                print(f"  {col}: {x_train_processed[col].dtype}")
+                logger.debug(f"  {col}: {x_train_processed[col].dtype}")
 
         early_stopping = self.params.pop("early_stopping_rounds", None)
 
         enable_categorical = self.params.get("enable_categorical", False)
         if self.categorical_columns and not enable_categorical:
-            print("⚠️ Warning: Categorical columns detected but enable_categorical not set. Enabling it.")
+            logger.warning("Categorical columns detected but enable_categorical not set. Enabling it.")
             self.params["enable_categorical"] = True
 
         self.model = xgboost.XGBRegressor(**self.params)
@@ -62,8 +63,8 @@ class XGBoostStockPredictor(Model):
         feature_importances = self.model.feature_importances_
 
         if len(feature_names) != len(feature_importances):
-            print(
-                f"⚠️ Warning: Feature name count ({len(feature_names)}) doesn't match importance count "
+            logger.warning(
+                f"Feature name count ({len(feature_names)}) doesn't match importance count "
                 f"({len(feature_importances)})"
             )
             feature_names = [f"feature_{i}" for i in range(len(feature_importances))]
@@ -72,13 +73,13 @@ class XGBoostStockPredictor(Model):
             {"feature": feature_names, "importance": feature_importances}
         ).sort_values("importance", ascending=False)
 
-        print("✓ Model trained successfully")
-        print(f"✓ Number of trees: {self.model.n_estimators}")
-        print(f"✓ Best iteration: {self.model.best_iteration if hasattr(self.model, 'best_iteration') else 'N/A'}")
-        print(f"✓ Max depth: {self.params['max_depth']}")
+        logger.info("Model trained successfully")
+        logger.info(f"Number of trees: {self.model.n_estimators}")
+        logger.info(f"Best iteration: {self.model.best_iteration if hasattr(self.model, 'best_iteration') else 'N/A'}")
+        logger.info(f"Max depth: {self.params['max_depth']}")
 
-        print("\nTop 10 Most Important Features:")
-        print(self.feature_importance.head(10).to_string(index=False))
+        logger.debug("Top 10 Most Important Features:")
+        logger.debug(self.feature_importance.head(10).to_string(index=False))
 
     def predict(self, x):
         """Make predictions"""

@@ -7,6 +7,8 @@ from sklearn.linear_model import Ridge
 from sklearn.metrics import r2_score, mean_squared_error
 from sklearn.base import clone
 
+from src.util import logger
+
 
 class TimeSeriesStacker:
     """
@@ -162,9 +164,9 @@ class TimeSeriesStacker:
         """
         meta_df = pd.DataFrame(index=self.meta_index)
 
-        print("Producing OOF predictions for base models...")
+        logger.info("Producing OOF predictions for base models...")
         for base in self.base_models:
-            print(f"  -> OOF for {base['name']} ...")
+            logger.info(f"  -> OOF for {base['name']} ...")
             oof_aligned = self._oof_for_base(base)
             meta_df[base["name"]] = oof_aligned
 
@@ -172,13 +174,13 @@ class TimeSeriesStacker:
         meta_df = meta_df.dropna()
         y_meta = self.target.reindex(meta_df.index)
 
-        print(f"Training meta model on {len(meta_df)} rows")
+        logger.info(f"Training meta model on {len(meta_df)} rows")
         self.meta_features = meta_df
         self.oof_predictions = pd.Series(self.meta_model.fit(meta_df, y_meta).predict(meta_df), index=meta_df.index)
         self.fitted_meta = clone(self.meta_model)
         self.fitted_meta.fit(meta_df, y_meta)  # store fitted meta learner
 
-        print("Meta OOF R²:", r2_score(y_meta, self.oof_predictions))
+        logger.info(f"Meta OOF R\u00b2: {r2_score(y_meta, self.oof_predictions)}")
         return {"meta_oof_df": meta_df, "meta_oof_preds": self.oof_predictions}
 
     # ---------------------------
@@ -196,7 +198,7 @@ class TimeSeriesStacker:
         base_preds_df = pd.DataFrame(index=test_meta_index)
         for base in self.base_models:
             name = base["name"]
-            print(f"Retraining base model '{name}' on full data...")
+            logger.info(f"Retraining base model '{name}' on full data...")
             model = base["model_factory"]()
             x_full = base["X"].sort_index()
             # base may or may not have y at its frequency; if missing, use meta target reindexed to base X index

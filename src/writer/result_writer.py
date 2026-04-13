@@ -1,6 +1,8 @@
 from typing import Any, Dict
 from pandas import DataFrame, Series
 
+from src.util import logger
+
 
 def persist_results(
     x: DataFrame,
@@ -67,7 +69,7 @@ def persist_results(
             f.write(f"    Total Return: {best_strategy[1]['total_return'] * 100:.2f}%\n")
             f.write(f"    Number of Trades: {best_strategy[1]['num_trades']}\n")
 
-    print(f"✓ Saved detailed results: {results_file}")
+    logger.info(f"Saved detailed results: {results_file}")
 
 
 def output_best_strategy(
@@ -76,10 +78,10 @@ def output_best_strategy(
     dict[str, DataFrame | float | int | Any], tuple[str, dict[str, DataFrame | float | int | Any], "TradingSimulator"]
 ]:
     best_strategy = max(valid_strategies, key=lambda x: (x[1]["total_return"], x[1]["num_trades"]))
-    print(f"\n{'=' * 60}")
-    print(f"🏆 Best Strategy: {best_strategy[0]}")
-    print(f"   Trades: {best_strategy[1]['num_trades']}")
-    print(f"   Return: {best_strategy[1]['total_return'] * 100:.2f}%")
-    print(f"{'=' * 60}")
+    logger.info("=" * 60)
+    logger.info(f"Best Strategy: {best_strategy[0]}")
+    logger.info(f"   Trades: {best_strategy[1]['num_trades']}")
+    logger.info(f"   Return: {best_strategy[1]['total_return'] * 100:.2f}%")
+    logger.info("=" * 60)
     sim_results = best_strategy[1]
     return best_strategy, sim_results

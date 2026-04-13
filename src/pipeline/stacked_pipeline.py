@@ -15,6 +15,7 @@ from src.optimise import StockModelOptimizer
 from src.pipeline.base_pipeline import BaseTrainingPipeline
 from src.simulation import TradingSimulator
 from src.simulation.strategy.strategy_registry import StrategyRegistry
+from src.util import logger
 from src.writer import save_trained_model
 from src.feature.feature_split import FeaturePartition, derive_feature_split
 
@@ -73,9 +74,9 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         Download both hourly and daily data instead of populating just daily data
         :return:
         """
-        print("\n" + "=" * 60)
-        print("Downloading and Preparing Data for All Stocks")
-        print("=" * 60)
+        logger.info("=" * 60)
+        logger.info("Downloading and Preparing Data for All Stocks")
+        logger.info("=" * 60)
 
         if self.symbols is None:
             raise Exception("Please run read_tickers(), before trying to run download_data()")
@@ -86,7 +87,7 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
             self._stock_data[interval] = self._downloader.download_data()
 
         if not self._stock_data:
-            print("⚠️  No data downloaded. Exiting.")
+            logger.warning("No data downloaded. Exiting.")
             return None
 
         return self
@@ -104,7 +105,7 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
                 if col in train[interval].columns:
                     train[interval][col] = train[interval][col].astype("category")
                     test[interval][col] = test[interval][col].astype("category")
-                    print(f" {interval} {col}: {train[interval][col].nunique()} unique values")
+                    logger.debug(f"{interval} {col}: {train[interval][col].nunique()} unique values")
 
         return self, train, test
 
@@ -132,7 +133,7 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         for interval in self.intervals:
             for symbol in self.symbols:
                 try:
-                    print(f"\nProcessing {symbol}...")
+                    logger.info(f"Processing {symbol}...")
 
                     features = FeatureEngineering(self._stock_data[interval][symbol])
                     features.create_target_features()
@@ -154,16 +155,16 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
                     test_prices[interval].append(prices.iloc[self._split_idx :])
                     test_symbols[interval].extend([symbol] * (len(x) - self._split_idx))
 
-                    print(f"  ✓ {symbol}: {self._split_idx} train samples, {len(x) - self._split_idx} test samples")
+                    logger.info(f"{symbol}: {self._split_idx} train samples, {len(x) - self._split_idx} test samples")
 
                 except Exception as e:
-                    print(f"  ✗ Error processing {symbol}: {str(e)}")
+                    logger.error(f"Error processing {symbol}: {str(e)}")
                     traceback.print_exc()
                     continue
 
-        print("\n" + "=" * 60)
-        print("Combining Training Data")
-        print("=" * 60)
+        logger.info("=" * 60)
+        logger.info("Combining Training Data")
+        logger.info("=" * 60)
         train_intervals = dict()
         for interval in self.intervals:
             train_intervals[interval] = pd.concat(train_features[interval], axis=0, ignore_index=False)
@@ -178,7 +179,7 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         combined_train_symbols = train_symbols[self.default_interval]
         train_symbols_series = pd.Series(combined_train_symbols, index=train_intervals[self.default_interval].index)
 
-        print("Combining Test Data")
+        logger.info("Combining Test Data")
         test_intervals = dict()
         for interval in self.intervals:
             test_intervals[interval] = pd.concat(test_features[interval], axis=0, ignore_index=False)
@@ -194,14 +195,14 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
             test_symbols[self.default_interval], index=test_intervals[self.default_interval].index
         )
 
-        print("\nConverting categorical columns...")
+        logger.info("Converting categorical columns...")
         _, train_intervals, test_intervals = self.__create_categorical_features(train_intervals, test_intervals)
 
-        print(f"✓ Total train samples: {len(train_intervals[self.default_interval])}")
-        print(f"✓ Total test samples: {len(test_intervals[self.default_interval])}")
-        print(f"✓ Number of stocks: {len(self.symbols)}")
-        print(f"✓ Stocks in test set: {test_symbols_series.nunique()}")
-        print(f"✓ Features per timeframe: {len(train_intervals[self.default_interval].columns)}")
+        logger.info(f"Total train samples: {len(train_intervals[self.default_interval])}")
+        logger.info(f"Total test samples: {len(test_intervals[self.default_interval])}")
+        logger.info(f"Number of stocks: {len(self.symbols)}")
+        logger.info(f"Stocks in test set: {test_symbols_series.nunique()}")
+        logger.info(f"Features per timeframe: {len(train_intervals[self.default_interval].columns)}")
 
         self._test_train_data = {
             "train": {
@@ -262,9 +263,9 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         return df.loc[:, columns]
 
     def _log_feature_split_summary(self) -> None:
-        print("\nFeature split per interval:")
+        logger.info("Feature split per interval:")
         for interval, info in self.describe_feature_splits().items():
-            print(
+            logger.info(
                 f"  {interval} ({info['role']}): {info['role_specific']} {info['role']} + {info['shared']} shared = {info['total']} total"
             )
 
@@ -309,16 +310,16 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
             validations.append(validation)
 
-        print("\n" + "=" * 60)
-        print("Data Consistency Validation")
-        print("=" * 60)
+        logger.info("=" * 60)
+        logger.info("Data Consistency Validation")
+        logger.info("=" * 60)
         for val in validations:
-            print(f"Interval: {val['interval']}")
-            print(f"  X_test length: {val['x_test_length']}")
-            print(f"  Y_test length: {val['y_test_length']}")
-            print(f"  Lengths match: {val['lengths_match']}")
+            logger.debug(f"Interval: {val['interval']}")
+            logger.debug(f"  X_test length: {val['x_test_length']}")
+            logger.debug(f"  Y_test length: {val['y_test_length']}")
+            logger.debug(f"  Lengths match: {val['lengths_match']}")
             if "indices_equal" in val:
-                print(f"  Indices equal: {val['indices_equal']}")
+                logger.debug(f"  Indices equal: {val['indices_equal']}")
 
         return validations
 
@@ -361,15 +362,15 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
         self._log_feature_split_summary()
 
-        print("\n" + "=" * 60)
-        print("Training Stacked Model")
-        print("=" * 60)
-        print(f"Training samples: {len(x_train[self.default_interval])}")
-        print(f"Testing samples: {len(x_test[self.default_interval])}")
-        print(f"Unique stocks in test set: {self._symbols_test.nunique()}")
+        logger.info("=" * 60)
+        logger.info("Training Stacked Model")
+        logger.info("=" * 60)
+        logger.info(f"Training samples: {len(x_train[self.default_interval])}")
+        logger.info(f"Testing samples: {len(x_test[self.default_interval])}")
+        logger.info(f"Unique stocks in test set: {self._symbols_test.nunique()}")
 
         if self.should_optimise:
-            print("Running hyperparameter optimisation, this will take a while...")
+            logger.info("Running hyperparameter optimisation, this will take a while...")
             # self._optimize_hyperparameters(x_train_daily, y_train, x_test_daily, self._y_test)
 
         self._model = StackedStockPredictor(
@@ -410,7 +411,7 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
             tickers = ["AAPL"]
         predictions = self._test_results.get("predictions")
         if predictions is None:
-            print(" Predictions missing, computing via predictor.predict()")
+            logger.warning("Predictions missing, computing via predictor.predict()")
             predictions = self._get_predictions()
 
         min_len = min(
@@ -418,7 +419,7 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         )
 
         if len(predictions) != min_len:
-            print(f"Warning: Truncating all test data to {min_len} samples for alignment")
+            logger.warning(f"Truncating all test data to {min_len} samples for alignment")
 
         pred_len = len(predictions)
 
@@ -442,10 +443,10 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
         if tickers is not None:
             test_df = test_df[test_df["symbol"].isin(tickers)]
-            print(f"Filtering to {len(tickers)} tickers: {tickers}")
+            logger.info(f"Filtering to {len(tickers)} tickers: {tickers}")
 
         unique_symbols = test_df["symbol"].unique()
-        print(f"\nSimulating {len(unique_symbols)} tickers")
+        logger.info(f"Simulating {len(unique_symbols)} tickers")
 
         available_strategies = StrategyRegistry.list()
         if strategy_name is not None:
@@ -455,14 +456,14 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         else:
             strategies_to_run = available_strategies
 
-        print(f"Running strategies: {strategies_to_run}\n")
+        logger.info(f"Running strategies: {strategies_to_run}")
 
         all_results = {}
 
         for strategy_key in strategies_to_run:
-            print(f"\n{'=' * 60}")
-            print(f"Strategy: {strategy_key}")
-            print(f"{'=' * 60}")
+            logger.info("=" * 60)
+            logger.info(f"Strategy: {strategy_key}")
+            logger.info("=" * 60)
 
             strategy_results = {}
 
@@ -472,10 +473,10 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
                     strategy_class = StrategyRegistry.get(strategy_key)
 
                     if len(ticker_data) < strategy_class.get_minimum_data_points():
-                        print(f" Skipping {symbol}: insufficient data ({len(ticker_data)} rows)")
+                        logger.warning(f"Skipping {symbol}: insufficient data ({len(ticker_data)} rows)")
                         continue
 
-                    print(f"\n--- {symbol} ({len(ticker_data)} samples) ---")
+                    logger.info(f"--- {symbol} ({len(ticker_data)} samples) ---")
 
                     additional_data = strategy_class.get_extra_params(ticker_data.set_index("date")["price"])
 
@@ -501,30 +502,30 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
                     strategy_results[symbol] = results
 
-                    print(f"Final Value: ${results['final_value']:,.2f}")
-                    print(f"Return: {results['total_return'] * 100:.2f}%")
+                    logger.info(f"Final Value: ${results['final_value']:,.2f}")
+                    logger.info(f"Return: {results['total_return'] * 100:.2f}%")
 
                 except Exception as e:
-                    print(f" Error running {strategy_key} on {symbol}: {e}")
+                    logger.error(f"Error running {strategy_key} on {symbol}: {e}")
                     import traceback
 
                     traceback.print_exc()
 
             all_results[strategy_key] = strategy_results
 
-            print(f"\n{'=' * 60}")
-            print(f"Summary for {strategy_key}")
-            print(f"{'=' * 60}")
+            logger.info("=" * 60)
+            logger.info(f"Summary for {strategy_key}")
+            logger.info("=" * 60)
 
             if strategy_results:
                 total_final_value = sum(r["final_value"] for r in strategy_results.values())
                 avg_return = np.mean([r["total_return"] for r in strategy_results.values()])
                 winning_tickers = sum(1 for r in strategy_results.values() if r["total_return"] > 0)
 
-                print(f"Tickers simulated: {len(strategy_results)}")
-                print(f"Total final value: ${total_final_value:,.2f}")
-                print(f"Average return: {avg_return * 100:.2f}%")
-                print(
+                logger.info(f"Tickers simulated: {len(strategy_results)}")
+                logger.info(f"Total final value: ${total_final_value:,.2f}")
+                logger.info(f"Average return: {avg_return * 100:.2f}%")
+                logger.info(
                     f"Winning tickers: {winning_tickers}/{len(strategy_results)} ({winning_tickers / len(strategy_results) * 100:.1f}%)"
                 )
 
