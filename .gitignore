@@ -45,9 +45,6 @@ hyperion-py/**/__pycache__/
 # .venv
 hyperion-py/.venv/
 
-# AGENTS.md file
-AGENTS.md
-
 # .DS_STORE I FUCKING HATE YOU
 **/.DS_Store
 .DS_Store
