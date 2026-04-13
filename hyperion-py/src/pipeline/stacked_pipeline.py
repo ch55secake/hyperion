@@ -42,6 +42,7 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         self.intervals = intervals
         self._xgb_params = None
         self._lgb_params = None
+        self._catboost_params = None
 
         self.default_interval = self.intervals[0]
         self.short_term_threshold = short_term_threshold
@@ -77,7 +78,7 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
             {
                 "technical": XGBoostStockPredictor(params=self._xgb_params),
                 "price_action": LightGBMStockPredictor(params=self._lgb_params),
-                "momentum": CatBoostStockPredictor(),
+                "momentum": CatBoostStockPredictor(params=self._catboost_params),
             }
         )
 
@@ -420,7 +421,6 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         x_train_selected = {key: self._select_model_features(key, x_train_default) for key in model_keys}
         x_test_selected = {key: self._select_model_features(key, x_test_default) for key in model_keys}
 
-        y_train_dict: dict
         if isinstance(self._test_train_data["train"]["targets"], dict):
             y_train_dict = self._test_train_data["train"]["targets"]
 
@@ -446,7 +446,7 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
             {
                 "technical": XGBoostStockPredictor(params=self._xgb_params),
                 "price_action": LightGBMStockPredictor(params=self._lgb_params),
-                "momentum": CatBoostStockPredictor(),
+                "momentum": CatBoostStockPredictor(params=self._catboost_params),
             }
         )
 
