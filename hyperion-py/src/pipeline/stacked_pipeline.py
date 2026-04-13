@@ -5,9 +5,10 @@ import numpy as np
 import pandas as pd
 from typing_extensions import override
 
-from src.align import align_targets_across_intervals, ensure_prediction_alignment
+from src.align import ensure_prediction_alignment
 from src.data import StockDataDownloader
 from src.feature import FeatureEngineering
+from src.model import CatBoostStockPredictor
 from src.model import LightGBMStockPredictor
 from src.model import StackedStockPredictor
 from src.model import XGBoostStockPredictor
@@ -16,7 +17,12 @@ from src.pipeline.base_pipeline import BaseTrainingPipeline
 from src.simulation import TradingSimulator
 from src.simulation.strategy.strategy_registry import StrategyRegistry
 from src.writer import save_trained_model
-from src.feature.feature_split import FeaturePartition, derive_feature_split
+from src.feature.feature_split import (
+    FeaturePartition,
+    ModelFeatureSplit,
+    derive_feature_split,
+    derive_model_feature_split,
+)
 
 
 # Required for the usage of the strategy registry
@@ -46,6 +52,9 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
         self.interval_feature_sets: dict[str, list[str]] = {}
         self.feature_partitions: dict[str, FeaturePartition] = {}
+        # Per-model feature sets derived from semantic feature groups
+        self.model_feature_sets: dict[str, list[str]] = {}
+        self._model_feature_split: ModelFeatureSplit | None = None
 
     def load_model(self):
         """
@@ -58,13 +67,17 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
     def _create_model(self):
         """
-        Create a stacked model from both XGBoost and LightGBM models
+        Create a stacked model from XGBoost, LightGBM, and CatBoost models.
+        Each model is trained on a semantically distinct feature subset to maximise
+        ensemble diversity: XGBoost uses technical indicators, LightGBM uses price-action
+        features, and CatBoost uses momentum/microstructure features.
         :return:
         """
         return StackedStockPredictor(
             {
-                "1d": XGBoostStockPredictor(params=self._xgb_params),
-                "1h": LightGBMStockPredictor(params=self._lgb_params),
+                "technical": XGBoostStockPredictor(params=self._xgb_params),
+                "price_action": LightGBMStockPredictor(params=self._lgb_params),
+                "momentum": CatBoostStockPredictor(),
             }
         )
 
@@ -233,6 +246,18 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
             selected_columns.update(partition.get(role, []))
             self.interval_feature_sets[interval] = sorted(selected_columns)
 
+        # Compute semantic feature groups (technical / price-action / momentum) from
+        # the default interval so each model receives a distinct, non-overlapping
+        # feature set (plus the shared metadata columns).
+        default_columns = train_intervals[self.default_interval].columns.tolist()
+        self._model_feature_split = derive_model_feature_split(default_columns)
+        shared_cols = self._model_feature_split.get("shared", [])
+        self.model_feature_sets = {
+            "technical": sorted(set(self._model_feature_split.get("technical_indicators", [])) | set(shared_cols)),
+            "price_action": sorted(set(self._model_feature_split.get("price_action", [])) | set(shared_cols)),
+            "momentum": sorted(set(self._model_feature_split.get("momentum", [])) | set(shared_cols)),
+        }
+
         return self
 
     def describe_feature_splits(self) -> dict[str, dict[str, int | str]]:
@@ -252,6 +277,32 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
             }
         return summary
 
+    def describe_model_feature_splits(self) -> dict[str, dict[str, int]]:
+        """
+        Return feature counts for the three semantic model groups.
+        :return: Summary dictionary with feature counts per model
+        """
+        if self._model_feature_split is None:
+            return {}
+        shared_count = len(self._model_feature_split.get("shared", []))
+        return {
+            "technical": {
+                "group_features": len(self._model_feature_split.get("technical_indicators", [])),
+                "shared": shared_count,
+                "total": len(self.model_feature_sets.get("technical", [])),
+            },
+            "price_action": {
+                "group_features": len(self._model_feature_split.get("price_action", [])),
+                "shared": shared_count,
+                "total": len(self.model_feature_sets.get("price_action", [])),
+            },
+            "momentum": {
+                "group_features": len(self._model_feature_split.get("momentum", [])),
+                "shared": shared_count,
+                "total": len(self.model_feature_sets.get("momentum", [])),
+            },
+        }
+
     def _select_interval_features(self, interval: str, df: pd.DataFrame) -> pd.DataFrame:
         """
         Restrict a frame to the columns assigned to the interval.
@@ -262,11 +313,31 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
             return df
         return df.loc[:, columns]
 
+    def _select_model_features(self, model_key: str, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Restrict a frame to the columns assigned to the given semantic model group.
+        :param model_key: one of 'technical', 'price_action', 'momentum'
+        :param df: source DataFrame
+        :return: Restricted DataFrame with model-specific features
+        """
+        columns = self.model_feature_sets.get(model_key)
+        if not columns:
+            return df
+        available = [c for c in columns if c in df.columns]
+        return df.loc[:, available]
+
     def _log_feature_split_summary(self) -> None:
         print("\nFeature split per interval:")
         for interval, info in self.describe_feature_splits().items():
             print(
                 f"  {interval} ({info['role']}): {info['role_specific']} {info['role']} + {info['shared']} shared = {info['total']} total"
+            )
+
+    def _log_model_feature_split_summary(self) -> None:
+        print("\nSemantic feature split per model:")
+        for model_key, info in self.describe_model_feature_splits().items():
+            print(
+                f"  {model_key}: {info['group_features']} group-specific + {info['shared']} shared = {info['total']} total"
             )
 
     def _populate_test_train_data(self):
@@ -332,27 +403,24 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
     def train(self):
         """
-        Train both the daily and hourly models on the combined training data using interval-specific targets.
-        Uses multi-interval target organization and alignment for proper model training.
+        Train three models – XGBoost (technical indicators), LightGBM (price-action features),
+        and CatBoost (momentum features) – on the combined training data.  Each model receives a
+        semantically distinct feature subset derived from the default interval to maximise
+        ensemble diversity while still sharing metadata columns.
         :return:
         """
         if self._test_train_data is None:
             raise Exception("Please run prepare_features(), before trying to run train()")
 
-        x_train = dict()
-        x_test = dict()
+        x_train_default = self._test_train_data["train"][self.default_interval]
+        x_test_default = self._test_train_data["test"][self.default_interval]
 
-        for interval in self.intervals:
-            x_train[interval] = self._test_train_data["train"][interval]
-            x_test[interval] = self._test_train_data["test"][interval]
+        # Apply semantic feature split: each model sees a different feature group
+        model_keys = ["technical", "price_action", "momentum"]
+        x_train_selected = {key: self._select_model_features(key, x_train_default) for key in model_keys}
+        x_test_selected = {key: self._select_model_features(key, x_test_default) for key in model_keys}
 
-        x_train_selected = {
-            interval: self._select_interval_features(interval, x_train[interval]) for interval in self.intervals
-        }
-        x_test_selected = {
-            interval: self._select_interval_features(interval, x_test[interval]) for interval in self.intervals
-        }
-
+        y_train_dict: dict
         if isinstance(self._test_train_data["train"]["targets"], dict):
             y_train_dict = self._test_train_data["train"]["targets"]
 
@@ -361,12 +429,13 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         self._validate_data_consistency()
 
         self._log_feature_split_summary()
+        self._log_model_feature_split_summary()
 
         print("\n" + "=" * 60)
-        print("Training Stacked Model")
+        print("Training Stacked Model (3 models with distinct feature sets)")
         print("=" * 60)
-        print(f"Training samples: {len(x_train[self.default_interval])}")
-        print(f"Testing samples: {len(x_test[self.default_interval])}")
+        print(f"Training samples: {len(x_train_default)}")
+        print(f"Testing samples: {len(x_test_default)}")
         print(f"Unique stocks in test set: {self._symbols_test.nunique()}")
 
         if self.should_optimise:
@@ -375,27 +444,21 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
         self._model = StackedStockPredictor(
             {
-                "1d": XGBoostStockPredictor(params=self._xgb_params),
-                "1h": LightGBMStockPredictor(params=self._lgb_params),
+                "technical": XGBoostStockPredictor(params=self._xgb_params),
+                "price_action": LightGBMStockPredictor(params=self._lgb_params),
+                "momentum": CatBoostStockPredictor(),
             }
         )
 
-        train_data = {
-            interval: (
-                x_train_selected[interval],
-                y_train_dict[interval],
-                x_test_selected[interval],
-                self._y_test_dict[interval],
-            )
-            for interval in self.intervals
-        }
+        y_train = y_train_dict[self.default_interval]
+        y_test = self._y_test_dict[self.default_interval]
+        train_data = {key: (x_train_selected[key], y_train, x_test_selected[key], y_test) for key in model_keys}
 
         self._model.train(train_data)
 
-        self._x_test_dict = {interval: x_test_selected[interval] for interval in self.intervals}
+        self._x_test_dict = x_test_selected
 
-        aligned_targets = align_targets_across_intervals(self._y_test_dict, self.default_interval, self.intervals)
-        self._test_results = self._model.evaluate(self._x_test_dict, aligned_targets[self.default_interval])
+        self._test_results = self._model.evaluate(self._x_test_dict, y_test)
 
         model_name: str = "ALL_STOCKS"
         save_trained_model(self._model, model_name, self._test_results)
