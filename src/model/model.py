@@ -39,7 +39,7 @@ class Model(ABC):
         mae = mean_absolute_error(y, predictions)
         r2 = r2_score(y, predictions)
 
-        logger.info(f"\n{dataset_name} Set Performance:")
+        logger.info(f"{dataset_name} Set Performance:")
         logger.info(f"  MSE:  {mse:.8f}")
         logger.info(f"  RMSE: {rmse:.8f}")
         logger.info(f"  MAE:  {mae:.8f}")
