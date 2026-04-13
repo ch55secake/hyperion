@@ -11,19 +11,6 @@
 # Test binary, built with `go test -c`
 *.test
 
-# Code coverage profiles and other test artifacts
-hyperion-go/*.out
-hyperion-go/coverage.*
-hyperion-go/*.coverprofile
-hyperion-go/profile.cov
-
-# Dependency directories (remove the comment below to include it)
-# vendor/
-
-# Go workspace file
-hyperion-go/go.work
-hyperion-go/go.work.sum
-
 # env file
 .env
 
