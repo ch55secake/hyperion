@@ -188,7 +188,7 @@ class TimeSeriesStackedModelTrainingPipeline(BaseTrainingPipeline):
         oof_results = self._stacker.fit_meta()
 
         print("\nMeta-model OOF Performance:")
-        print(f"  R² Score: {oof_results['meta_oof_df'].shape}")
+        print(f"  OOF DataFrame shape: {oof_results['meta_oof_df'].shape}")
 
         print("\nRetraining base models on full data for test predictions...")
 

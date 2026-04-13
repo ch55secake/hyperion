@@ -2,7 +2,6 @@ import os
 import warnings
 
 from src.pipeline import TimeSeriesStackedModelTrainingPipeline
-from src.pipeline.stacked_pipeline import StackedModelTrainingPipeline
 
 warnings.filterwarnings("ignore")
 
@@ -14,17 +13,6 @@ os.makedirs("./invalid_models", exist_ok=True)
 os.makedirs("./params", exist_ok=True)
 
 if __name__ == "__main__":
-    stacked_pipeline: StackedModelTrainingPipeline = StackedModelTrainingPipeline(period="2y", intervals=["1d", "1h"])
-
-    # (
-    #     stacked_pipeline.read_tickers()
-    #     .download_data()
-    #     .prepare_features()
-    #     .train()
-    #     .evaluate_model()
-    #     .simulate()
-    # )
-
     time_series_stacked_pipeline: TimeSeriesStackedModelTrainingPipeline = TimeSeriesStackedModelTrainingPipeline(
         period="2y", interval="1h"
     )
