@@ -677,12 +677,10 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         print(f"Stocks ranked: {len(ranked_df)}\n")
 
         col_fmt = "{:<8} {:>14} {:>12} {:>12} {:>14} {:>5} {:>14}"
-        print(
-            col_fmt.format(
-                "Symbol", "Exp Return", "Confidence", "Volatility", "Priority", "Rank", "Allocation ($)"
-            )
-        )
-        print("-" * 83)
+        header = col_fmt.format("Symbol", "Exp Return", "Confidence", "Volatility", "Priority", "Rank", "Allocation ($)")
+        separator = "-" * len(header)
+        print(header)
+        print(separator)
         for _, row in ranked_df.iterrows():
             print(
                 col_fmt.format(

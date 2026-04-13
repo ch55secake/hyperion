@@ -11,7 +11,7 @@ class StockRanker:
 
     The pipeline follows these steps:
     1. Compute expected return from model predictions and current prices.
-    2. Compute a normalised confidence score (0–1).
+    2. Compute a normalized confidence score (0–1).
     3. Filter out low-confidence candidates.
     4. Estimate historical volatility as a risk proxy.
     5. Compute a priority score = (expected_return * confidence) / volatility.
@@ -79,7 +79,7 @@ class StockRanker:
 
     @staticmethod
     def compute_confidence_score(expected_returns: pd.Series) -> pd.Series:
-        """Compute a normalised confidence score (0–1) for regression models.
+        """Compute a normalized confidence score (0–1) for regression models.
 
         Larger absolute predicted returns imply higher confidence.  The score
         is normalised by the maximum absolute return in the batch so that the
@@ -111,7 +111,7 @@ class StockRanker:
     # ------------------------------------------------------------------
 
     def compute_volatility(self, prices_by_symbol: dict[str, pd.Series]) -> dict[str, float]:
-        """Compute annualised historical volatility for each symbol.
+        """Compute historical volatility for each symbol.
 
         :param prices_by_symbol: Mapping of symbol → price Series (chronological order).
         :return: Mapping of symbol → volatility scalar.
@@ -122,10 +122,11 @@ class StockRanker:
             if len(returns) < 2:
                 vol = self.min_volatility
             else:
-                vol = max(
-                    returns.rolling(self.volatility_window).std().iloc[-1],
-                    self.min_volatility,
-                )
+                rolling_std = returns.rolling(self.volatility_window).std().dropna()
+                if rolling_std.empty:
+                    vol = max(returns.std(), self.min_volatility)
+                else:
+                    vol = max(rolling_std.iloc[-1], self.min_volatility)
                 if np.isnan(vol):
                     vol = max(returns.std(), self.min_volatility)
             volatilities[symbol] = vol
@@ -209,7 +210,7 @@ class StockRanker:
 
             capped_idx = remaining_scores.index[overflow_mask]
             allocations.loc[capped_idx] = max_alloc
-            remaining_funds -= max_alloc * int(overflow_mask.sum())
+            remaining_funds -= max_alloc * overflow_mask.sum()
             remaining_scores = remaining_scores[~overflow_mask]
 
         result.loc[positive_mask, "allocation"] = allocations.values
