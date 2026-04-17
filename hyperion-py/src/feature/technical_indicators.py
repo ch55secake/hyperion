@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 
-
 EMA_FAST_PERIOD = 12
 EMA_SLOW_PERIOD = 26
 
