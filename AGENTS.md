@@ -122,4 +122,4 @@ pre-commit install
 
 ### Testing
 
-There are currently no automated test suites. Validate changes manually using the Makefile commands and the Flask server endpoints described above.
+There are currently no automated test suites. Validate changes manually using the Makefile commands above.
