@@ -18,7 +18,6 @@ from src.simulation.strategy.strategy_registry import StrategyRegistry
 from src.writer import save_trained_model
 from src.feature.feature_split import FeaturePartition, derive_feature_split
 
-
 # Required for the usage of the strategy registry
 
 
