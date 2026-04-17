@@ -27,4 +27,10 @@ ctrain:
 	@make run
 
 
-.PHONY: clean run install
+test:
+	@poetry run pytest tests/ -v --tb=short
+
+test-cov:
+	@poetry run pytest tests/ -v --tb=short --cov=src --cov-report=term-missing
+
+.PHONY: clean run install test test-cov

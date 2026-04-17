@@ -295,8 +295,8 @@ class FeatureEngineering:
 
         # Cleanup - Replace inf with NaN, then fill or drop
         self.df.replace([np.inf, -np.inf], np.nan, inplace=True)
-        self.df.fillna(method="ffill", inplace=True)
-        self.df.fillna(method="bfill", inplace=True)
+        self.df.ffill(inplace=True)
+        self.df.bfill(inplace=True)
 
         self.__calculated = True
 

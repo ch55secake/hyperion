@@ -145,15 +145,14 @@ class StockDataDownloader:
         market_cap = data.get("marketCap", None)
 
         if market_cap is None or market_cap == 0:
-            logger.warning("Failed to get market cap for " + symbol)
+            logger.warning(f"Failed to get market cap for {symbol}")
             shares = data.get("sharesOutstanding", None)
             price = data.get("currentPrice", None)
             if shares and price:
                 market_cap = shares * price
             else:
-                # TODO: Also be cautious of this, defaulting to a billion will be slightly dangerous, might lead to
-                # some ropey preds
-                return 1e9  # Default to 1 billion
+                logger.warning(f"Unable to compute market cap for {symbol}, returning None")
+                return None
 
         return market_cap
 

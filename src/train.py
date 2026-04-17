@@ -124,7 +124,8 @@ def train_model(symbols=None, period: str = "5y", interval: str = "1h", visualiz
             x_daily["industry"] = x_daily["industry"].astype("category")
             x_daily["beta"] = stock_data_downloader.get_beta(symbol)
             x_daily["avg_volume_log"] = np.log(stock_data_downloader.get_avg_volume(symbol))
-            x_daily["market_cap"] = np.log(stock_data_downloader.get_market_cap(symbol))
+            raw_market_cap = stock_data_downloader.get_market_cap(symbol)
+            x_daily["market_cap"] = np.log(raw_market_cap) if raw_market_cap is not None else np.nan
 
             logger.debug(str(x_daily.head()))
 
@@ -140,7 +141,8 @@ def train_model(symbols=None, period: str = "5y", interval: str = "1h", visualiz
             x_hourly["industry"] = x_hourly["industry"].astype("category")
             x_hourly["beta"] = stock_data_downloader.get_beta(symbol)
             x_hourly["avg_volume_log"] = np.log(stock_data_downloader.get_avg_volume(symbol))
-            x_hourly["market_cap"] = np.log(stock_data_downloader.get_market_cap(symbol))
+            raw_market_cap = stock_data_downloader.get_market_cap(symbol)
+            x_hourly["market_cap"] = np.log(raw_market_cap) if raw_market_cap is not None else np.nan
 
             # Align hourly target with daily (optional: forward-fill or aggregate)
             # Here we just slice to daily index for stacking
