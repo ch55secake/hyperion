@@ -1,23 +1,49 @@
-# Hyperion 
+# hyperion-py
 
-The name is cool, don't hate. 
+Responsible for training and testing the XBoost model built on stock data. 
 
-> [!NOTE]
-> This project is under development.
+## Endpoints 
 
-## Overview 
+The server package exposes two endpoints:
 
-Attempt to make trades based on the predictions of models trained on historical using the XGBoost algorithm. We are trying 
-to aim for a 5-10% ROI on the portfolio.
+- `/train` - Trains the model provided in the body of the request
+- `/predict/<ticker>` - Predicts the next 180 days of stock data for the given ticker
+- `/trading_results/<ticker>` - Fetches the trading results from a given ticker
 
-## Features 
+## Example requests 
 
-We currently have the following features implemented: 
+Collection of example requests that can be fired at the service from the command line. 
 
-- XGBoost algorithm
-- LightGBM algorithm
-- Stacked multi-timeframe model (daily + hourly, experimental)
-- Data plots based on the predictions
-- Prediction analysis
-- Experimental walk-foward validation, might be removed in the future
-- Trading simulation
+### Train
+
+Kicks off the training process for the ticker inside the request body. 
+
+```bash
+curl -vv -X POST http://localhost:8080/train -H 'Content-Type: application/json' -d @ticker_body.json
+```
+
+Ticker body example: 
+
+```json 
+{
+  "ticker": "AAPL", 
+  "period": "5y", 
+  "interval": "1d"
+}
+```
+
+### Predict 
+
+Fetches the next 180 days of stock data for the given ticker, based on a previously trained model. 
+
+```bash
+curl -vv -X GET http://localhost:8080/predict/TSLA -H 'Content-Type: application/json'
+```
+
+### Trading results 
+
+Fetches the trading results from a given ticker but requires that the model was previously trained. 
+
+```bash 
+curl -vv -X GET http://localhost:8080/trading_results/TSLA -H 'Content-Type: application/json'
+```

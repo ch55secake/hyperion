@@ -18,19 +18,19 @@
 .idea/
 
 # Training files
-hyperion-py/historic_data
-hyperion-py/models
-hyperion-py/invalid_models
-hyperion-py/plots
-hyperion-py/results
-hyperion-py/params
-hyperion-py/catboost_info
+historic_data
+models
+invalid_models
+plots
+results
+params
+catboost_info
 
 # Pycaches
-hyperion-py/**/__pycache__/
+**/__pycache__/
 
 # .venv
-hyperion-py/.venv/
+.venv/
 
 # AGENTS.md file
 AGENTS.md
