@@ -21,7 +21,6 @@ Hyperion is a stock trading prediction system that trains machine-learning model
 Python **3.12** and [Poetry](https://python-poetry.org/) are required.
 
 ```bash
-cd hyperion-py
 make install   # poetry lock && poetry install
 make run       # poetry run python3 src/main.py
 ```
