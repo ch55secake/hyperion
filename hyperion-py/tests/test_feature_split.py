@@ -1,12 +1,5 @@
 """Unit tests for src/feature/feature_split.py"""
 
-import pytest
-
-import sys
-import os
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-
 from src.feature.feature_split import derive_feature_split, DEFAULT_SHARED_FEATURES
 
 

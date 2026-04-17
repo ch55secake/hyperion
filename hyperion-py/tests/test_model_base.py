@@ -7,12 +7,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import sys
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-
 from src.model.model import Model
-
 
 # ---------------------------------------------------------------------------
 # Minimal concrete implementation of the abstract Model
@@ -25,11 +20,13 @@ class _DummyModel(Model):
     def __init__(self, params=None):
         super().__init__("dummy", params=params)
         self._constant = None
+        self.model = None
 
     def train(self, x_train, y_train, x_val=None, y_val=None):
         self._prepare_columns(x_train)
         self.model = True  # mark as trained
         self._constant = float(np.mean(y_train))
+        return x_val, y_val  # suppress unused-argument warning
 
     def predict(self, x):
         x_processed = self._prepare_prediction(x)

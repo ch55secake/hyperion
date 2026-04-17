@@ -4,11 +4,6 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import sys
-import os
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-
 from src.feature.feature_engineering import FeatureEngineering
 
 
@@ -118,7 +113,7 @@ class TestPrepareFeatures:
         df = _make_df(n=120)
         fe = FeatureEngineering(df)
         fe.create_target_features(target_days=5)
-        x, y, dates, prices, feature_cols = fe.prepare_features()
+        x, y, *_ = fe.prepare_features()
         assert isinstance(x, pd.DataFrame)
         assert isinstance(y, pd.Series)
         assert len(x) == len(y)

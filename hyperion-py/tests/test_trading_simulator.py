@@ -2,12 +2,6 @@
 
 import numpy as np
 import pandas as pd
-import pytest
-
-import sys
-import os
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from src.simulation.trading_simulator import TradingSimulator
 
@@ -74,25 +68,19 @@ class TestSimulate:
     def test_auto_threshold(self):
         sim = TradingSimulator()
         predictions, actual_returns, prices, dates = _make_inputs()
-        result = sim.simulate(
-            predictions, actual_returns, prices=prices, dates=dates, threshold="auto"
-        )
+        result = sim.simulate(predictions, actual_returns, prices=prices, dates=dates, threshold="auto")
         assert "final_value" in result
 
     def test_adaptive_threshold(self):
         sim = TradingSimulator()
         predictions, actual_returns, prices, dates = _make_inputs()
-        result = sim.simulate(
-            predictions, actual_returns, prices=prices, dates=dates, threshold="adaptive"
-        )
+        result = sim.simulate(predictions, actual_returns, prices=prices, dates=dates, threshold="adaptive")
         assert "final_value" in result
 
     def test_fixed_threshold(self):
         sim = TradingSimulator()
         predictions, actual_returns, prices, dates = _make_inputs()
-        result = sim.simulate(
-            predictions, actual_returns, prices=prices, dates=dates, threshold=0.005
-        )
+        result = sim.simulate(predictions, actual_returns, prices=prices, dates=dates, threshold=0.005)
         assert "final_value" in result
 
     def test_portfolio_history_is_dataframe(self):

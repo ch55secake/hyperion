@@ -1,13 +1,7 @@
 """Unit tests for src/feature/technical_indicators.py"""
 
-import numpy as np
 import pandas as pd
 import pytest
-
-import sys
-import os
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import src.feature.technical_indicators as ti
 
@@ -15,8 +9,28 @@ import src.feature.technical_indicators as ti
 @pytest.fixture
 def close_series():
     """A simple deterministic close price series."""
-    prices = [10.0, 11.0, 10.5, 12.0, 11.5, 13.0, 12.5, 14.0, 13.5, 15.0,
-              14.5, 16.0, 15.5, 17.0, 16.5, 18.0, 17.5, 19.0, 18.5, 20.0]
+    prices = [
+        10.0,
+        11.0,
+        10.5,
+        12.0,
+        11.5,
+        13.0,
+        12.5,
+        14.0,
+        13.5,
+        15.0,
+        14.5,
+        16.0,
+        15.5,
+        17.0,
+        16.5,
+        18.0,
+        17.5,
+        19.0,
+        18.5,
+        20.0,
+    ]
     return pd.Series(prices, dtype=float)
 
 
@@ -35,6 +49,7 @@ def ohlcv():
 # ---------------------------------------------------------------------------
 # Moving averages
 # ---------------------------------------------------------------------------
+
 
 class TestSMA:
     def test_basic_values(self, close_series):
@@ -85,6 +100,7 @@ class TestHMA:
 # ---------------------------------------------------------------------------
 # Oscillators
 # ---------------------------------------------------------------------------
+
 
 class TestRSI:
     def test_range(self, close_series):
@@ -182,6 +198,7 @@ class TestTSI:
 # Bollinger Bands
 # ---------------------------------------------------------------------------
 
+
 class TestBollingerBands:
     def test_upper_greater_than_lower(self, close_series):
         upper, lower, _, _, _, _ = ti.bollinger_bands(close_series)
@@ -209,6 +226,7 @@ class TestBollingerBands:
 # ---------------------------------------------------------------------------
 # Price / Volume helpers
 # ---------------------------------------------------------------------------
+
 
 class TestPriceChange:
     def test_single_period(self):
@@ -257,6 +275,7 @@ class TestLaggedReturn:
 # Directional indicators
 # ---------------------------------------------------------------------------
 
+
 class TestDirectionalIndicators:
     def test_returns_three_series(self, ohlcv):
         _, high, low, close, _ = ohlcv
@@ -271,6 +290,7 @@ class TestDirectionalIndicators:
 # Sharpe
 # ---------------------------------------------------------------------------
 
+
 class TestSharpe:
     def test_returns_series(self, close_series):
         returns = ti.price_change(close_series, 1)
@@ -281,6 +301,7 @@ class TestSharpe:
 # ---------------------------------------------------------------------------
 # Candlestick patterns
 # ---------------------------------------------------------------------------
+
 
 class TestCandlestickPatterns:
     def test_binary_output(self, ohlcv):
@@ -309,6 +330,7 @@ class TestCandlestickPatterns:
 # ---------------------------------------------------------------------------
 # Ratio helper
 # ---------------------------------------------------------------------------
+
 
 class TestRatio:
     def test_basic(self):
