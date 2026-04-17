@@ -32,9 +32,6 @@ catboost_info
 # .venv
 .venv/
 
-# AGENTS.md file
-AGENTS.md
-
 # .DS_STORE I FUCKING HATE YOU
 **/.DS_Store
 .DS_Store

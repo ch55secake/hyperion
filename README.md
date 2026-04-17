@@ -1,49 +1,37 @@
-# hyperion-py
+# Hyperion
 
-Responsible for training and testing the XBoost model built on stock data. 
+> [!NOTE]
+> This project is under active development.
 
-## Endpoints 
+## Overview
 
-The server package exposes two endpoints:
+Hyperion is a stock trading prediction system that trains machine-learning models on historical price data and uses them to simulate trades. The target return on the portfolio is **5–10% ROI**.
 
-- `/train` - Trains the model provided in the body of the request
-- `/predict/<ticker>` - Predicts the next 180 days of stock data for the given ticker
-- `/trading_results/<ticker>` - Fetches the trading results from a given ticker
+## Features
 
-## Example requests 
+- XGBoost and LightGBM model training on historical stock data
+- Stacked multi-timeframe model (daily + hourly, experimental)
+- Hyperparameter optimisation via Optuna
+- Prediction analysis and data visualisation
+- Walk-forward validation (experimental)
+- Trading simulation
 
-Collection of example requests that can be fired at the service from the command line. 
+## Getting Started
 
-### Train
-
-Kicks off the training process for the ticker inside the request body. 
-
-```bash
-curl -vv -X POST http://localhost:8080/train -H 'Content-Type: application/json' -d @ticker_body.json
-```
-
-Ticker body example: 
-
-```json 
-{
-  "ticker": "AAPL", 
-  "period": "5y", 
-  "interval": "1d"
-}
-```
-
-### Predict 
-
-Fetches the next 180 days of stock data for the given ticker, based on a previously trained model. 
+Python **3.12** and [Poetry](https://python-poetry.org/) are required.
 
 ```bash
-curl -vv -X GET http://localhost:8080/predict/TSLA -H 'Content-Type: application/json'
+make install   # poetry lock && poetry install
+make run       # poetry run python3 src/main.py
 ```
 
-### Trading results 
+## Makefile Commands
 
-Fetches the trading results from a given ticker but requires that the model was previously trained. 
-
-```bash 
-curl -vv -X GET http://localhost:8080/trading_results/TSLA -H 'Content-Type: application/json'
-```
+| Command | Effect |
+|---|---|
+| `make install` | Install dependencies via Poetry |
+| `make run` | Run the application |
+| `make clean` | Remove plots, invalid models, results and params |
+| `make cleanmodels` | Remove plots, models, invalid models, results and params |
+| `make ctrain` | `clean` then `run` |
+| `make cmtrain` | `cleanmodels` then `run` |
