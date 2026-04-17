@@ -122,4 +122,7 @@ pre-commit install
 
 ### Testing
 
-There are currently no automated test suites. Validate changes manually using the Makefile commands above.
+```bash
+make test       # poetry run pytest tests/ -v --tb=short
+make test-cov   # run tests with coverage report
+```
