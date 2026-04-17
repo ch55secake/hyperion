@@ -5,12 +5,12 @@ on:
     branches:
       - main
     paths:
-      - hyperion-py/src/**
-      - hyperion-py/tests/**
+      - src/**
+      - tests/**
   push:
     paths:
-      - hyperion-py/src/**
-      - hyperion-py/tests/**
+      - src/**
+      - tests/**
     branches:
       - main
 
@@ -20,9 +20,6 @@ concurrency:
 
 jobs:
   pylint:
-    defaults:
-      run:
-        working-directory: hyperion-py
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -55,9 +52,6 @@ jobs:
           poetry run pylint --fail-under=9 $(git ls-files '*.py')
 
   black:
-    defaults:
-      run:
-        working-directory: hyperion-py
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -97,9 +91,6 @@ jobs:
     
 
   build:
-    defaults:
-      run:
-        working-directory: hyperion-py
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -128,9 +119,6 @@ jobs:
           poetry install
 
   test:
-    defaults:
-      run:
-        working-directory: hyperion-py
     runs-on: ubuntu-latest
     permissions:
       contents: read
