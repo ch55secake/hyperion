@@ -4,12 +4,11 @@
 
 Hyperion is a stock trading prediction system that trains machine-learning models on historical price data and uses them to simulate or execute trades. The target return on the portfolio is 5–10% ROI.
 
-The repository is split into two sub-projects:
+The main sub-project is:
 
 | Sub-project | Language | Status | Purpose |
 |---|---|---|---|
 | `hyperion-py` | Python 3.12 | Active | XGBoost / LightGBM model training, prediction, trading simulation, and a Flask HTTP server |
-| `hyperion-go` | Go 1.23.3+ | Partially deprecated | Random forest implementation (deprecated), trading212 API client, trading simulation |
 
 ---
 
@@ -36,17 +35,6 @@ hyperion/
 │   ├── pyproject.toml    # Poetry project definition
 │   ├── Makefile          # Developer commands (see below)
 │   └── .pre-commit-config.yaml
-│
-├── hyperion-go/          # Go sub-project
-│   ├── cmd/main.go       # CLI entry-point
-│   ├── pkg/
-│   │   ├── client/       # trading212 API client
-│   │   ├── data/         # Data fetching
-│   │   ├── features/     # Feature engineering
-│   │   ├── indicators/   # Technical indicators
-│   │   └── ml/           # Machine-learning logic
-│   ├── go.mod / go.sum
-│   └── Makefile          # Developer commands (see below)
 │
 └── AGENTS.md             # This file
 ```
@@ -111,37 +99,6 @@ pre-commit install
 
 ---
 
-## Go Sub-project (`hyperion-go`)
-
-### Requirements
-
-- Go **1.23.3** or later
-- [`golangci-lint`](https://golangci-lint.run/) for linting
-
-### Setup
-
-```bash
-cd hyperion-go
-go mod download   # or: make tidy
-```
-
-### Running
-
-```bash
-make run    # go run cmd/main.go
-```
-
-### Code Style
-
-- **Formatter:** `gofmt` (simplify = true) + `goimports`.
-- **Linter:** `golangci-lint` — enabled linters: `govet`, `errcheck`, `staticcheck`, `unused`, `ineffassign`, `gocritic`, `gocyclo` (min-complexity 15), `revive`, `dupl` (threshold 150), `gosec`.
-
-```bash
-make fmt    # golangci-lint run
-```
-
----
-
 ## General Conventions
 
 ### Git & Pull Requests
@@ -155,15 +112,13 @@ make fmt    # golangci-lint run
 
 ### Adding Features
 
-1. Implement new Python features under the appropriate `src/` sub-package, or create a new sub-package if none fits.
-2. Implement new Go features under the appropriate `pkg/` sub-package.
-3. Keep the alignment logic in `hyperion-py/src/align/` (Go counterpart was extracted into its own pkg).
-4. Experimental features go under `hyperion-py/src/experimental/` and must be clearly documented as such.
+1. Implement new features under the appropriate `src/` sub-package, or create a new sub-package if none fits.
+2. Keep the alignment logic in `hyperion-py/src/align/`.
+3. Experimental features go under `hyperion-py/src/experimental/` and must be clearly documented as such.
 
 ### Dependencies
 
 - Python: add dependencies via `poetry add <package>` — never edit `pyproject.toml` by hand for dependencies.
-- Go: add dependencies via `go get <module>` then `make tidy`.
 
 ### Testing
 
