@@ -215,7 +215,8 @@ class BaseTrainingPipeline(ABC):
         df["industry"] = self._downloader.get_industry(symbol)
         df["beta"] = self._downloader.get_beta(symbol)
         df["avg_volume_log"] = np.log(self._downloader.get_avg_volume(symbol) + 1)
-        df["market_cap_log"] = np.log(self._downloader.get_market_cap(symbol) + 1)
+        raw_market_cap = self._downloader.get_market_cap(symbol)
+        df["market_cap_log"] = np.log(raw_market_cap + 1) if raw_market_cap is not None else np.nan
 
         return df
 
