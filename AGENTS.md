@@ -8,7 +8,7 @@ The main sub-project is:
 
 | Sub-project | Language | Status | Purpose |
 |---|---|---|---|
-| `hyperion-py` | Python 3.12 | Active | XGBoost / LightGBM model training, prediction, trading simulation, and a Flask HTTP server |
+| `hyperion-py` | Python 3.12 | Active | XGBoost / LightGBM model training, prediction, and trading simulation |
 
 ---
 
@@ -16,37 +16,34 @@ The main sub-project is:
 
 ```
 hyperion/
-├── hyperion-py/          # Python sub-project
-│   ├── src/
-│   │   ├── align/        # Alignment / data-alignment logic
-│   │   ├── data/         # Data fetching and preprocessing
-│   │   ├── experimental/ # Walk-forward validation (experimental)
-│   │   ├── feature/      # Feature engineering
-│   │   ├── model/        # Model training and evaluation
-│   │   ├── optimise/     # Hyperparameter optimisation (Optuna)
-│   │   ├── pipeline/     # End-to-end training/prediction pipelines
-│   │   ├── server/       # Flask HTTP server (train / predict endpoints)
-│   │   ├── simulation/   # Trading simulation
-│   │   ├── visualisation/# Plots and charts
-│   │   ├── writer/       # Results / model persistence
-│   │   ├── main.py       # CLI entry-point
-│   │   └── train.py      # Training entry-point
-│   ├── resources/        # Static assets / ticker lists
-│   ├── pyproject.toml    # Poetry project definition
-│   ├── Makefile          # Developer commands (see below)
-│   └── .pre-commit-config.yaml
-│
-└── AGENTS.md             # This file
+├── src/
+│   ├── align/        # Alignment / data-alignment logic
+│   ├── data/         # Data fetching and preprocessing
+│   ├── experimental/ # Walk-forward validation (experimental)
+│   ├── feature/      # Feature engineering
+│   ├── model/        # Model training and evaluation
+│   ├── optimise/     # Hyperparameter optimisation (Optuna)
+│   ├── pipeline/     # End-to-end training/prediction pipelines
+│   ├── simulation/   # Trading simulation
+│   ├── util/         # Shared utilities (logger singleton)
+│   ├── visualisation/# Plots and charts
+│   ├── writer/       # Results / model persistence
+│   ├── main.py       # CLI entry-point
+│   └── train.py      # Training entry-point
+├── resources/        # Static assets / ticker lists
+├── pyproject.toml    # Poetry project definition
+├── Makefile          # Developer commands (see below)
+├── .pre-commit-config.yaml
+└── AGENTS.md         # This file
 ```
 
 ---
 
-## Python Sub-project (`hyperion-py`)
+## Python Sub-project
 
 ### Setup
 
 ```bash
-cd hyperion-py
 make install   # poetry lock && poetry install
 ```
 
@@ -56,30 +53,6 @@ Python **3.12** is required. Dependencies are managed with [Poetry](https://pyth
 
 ```bash
 make run       # poetry run python3 src/main.py
-```
-
-### Cleaning
-
-| Command | Effect |
-|---|---|
-| `make clean` | Remove plots, invalid_models, results, params |
-| `make cleanmodels` | Remove plots, models, invalid_models, results, params |
-| `make ctrain` | `clean` then `run` |
-| `make cmtrain` | `cleanmodels` then `run` |
-
-### HTTP Server Endpoints
-
-The `server` package exposes a Flask server on port **8080**:
-
-| Method | Path | Description |
-|---|---|---|
-| POST | `/train` | Train a model for the given ticker |
-| GET | `/predict/<ticker>` | Predict the next 180 days for a ticker |
-| GET | `/trading_results/<ticker>` | Fetch trading simulation results |
-
-Example request body for `/train`:
-```json
-{ "ticker": "AAPL", "period": "5y", "interval": "1d" }
 ```
 
 ### Code Style
@@ -93,9 +66,32 @@ Example request body for `/train`:
 
 Install hooks once after cloning:
 ```bash
-cd hyperion-py
 pre-commit install
 ```
+
+### Logging
+
+**Never use `print()` for diagnostic or informational output.** All output must go through the shared `Logger` singleton in `src/util/logger.py`.
+
+Import and use it like this:
+
+```python
+from src.util import logger
+
+logger.info("Training started for %s", ticker)
+logger.warning("R² is below threshold: %.4f", r2)
+logger.error("Failed to load data for %s", ticker)
+logger.debug("Feature matrix shape: %s", X.shape)
+```
+
+| Method | When to use |
+|---|---|
+| `logger.info()` | Normal progress messages (pipeline steps, results summaries) |
+| `logger.warning()` | Recoverable anomalies (low R², missing data, skipped tickers) |
+| `logger.error()` | Unexpected failures that affect output |
+| `logger.debug()` | Verbose internals useful for troubleshooting only |
+
+The logger is a singleton — importing it from any module always returns the same instance, so no additional configuration is needed.
 
 ---
 
@@ -113,8 +109,8 @@ pre-commit install
 ### Adding Features
 
 1. Implement new features under the appropriate `src/` sub-package, or create a new sub-package if none fits.
-2. Keep the alignment logic in `hyperion-py/src/align/`.
-3. Experimental features go under `hyperion-py/src/experimental/` and must be clearly documented as such.
+2. Keep the alignment logic in `src/align/`.
+3. Experimental features go under `src/experimental/` and must be clearly documented as such.
 
 ### Dependencies
 
