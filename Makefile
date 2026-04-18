@@ -1,0 +1,36 @@
+cleanmodels:
+	@rm -rf plots/*
+	@rm -rf models/*
+	@rm -rf invalid_models/*
+	@rm -rf results/*
+	@rm -rf params/*
+
+clean:
+	@rm -rf plots/*
+	@rm -rf invalid_models/*
+	@rm -rf results/*
+	@rm -rf params/*
+
+run:
+	@poetry run python3 src/main.py
+
+install:
+	@poetry lock
+	@poetry install
+
+cmtrain:
+	@make cleanmodels
+	@make run
+
+ctrain:
+	@make clean
+	@make run
+
+
+test:
+	@poetry run pytest tests/ -v --tb=short
+
+test-cov:
+	@poetry run pytest tests/ -v --tb=short --cov=src --cov-report=term-missing
+
+.PHONY: clean run install test test-cov

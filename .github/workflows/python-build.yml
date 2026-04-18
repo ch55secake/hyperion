@@ -5,12 +5,12 @@ on:
     branches:
       - main
     paths:
-      - hyperion-py/src/**
-      - hyperion-py/tests/**
+      - src/**
+      - tests/**
   push:
     paths:
-      - hyperion-py/src/**
-      - hyperion-py/tests/**
+      - src/**
+      - tests/**
     branches:
       - main
 
@@ -20,9 +20,6 @@ concurrency:
 
 jobs:
   pylint:
-    defaults:
-      run:
-        working-directory: hyperion-py
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -55,9 +52,6 @@ jobs:
           poetry run pylint --fail-under=9 $(git ls-files '*.py')
 
   black:
-    defaults:
-      run:
-        working-directory: hyperion-py
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -97,9 +91,6 @@ jobs:
     
 
   build:
-    defaults:
-      run:
-        working-directory: hyperion-py
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -126,3 +117,37 @@ jobs:
       - name: Install dependencies
         run: |
           poetry install
+
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v3
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+
+      - name: Cache Poetry dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pypoetry
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-poetry-
+
+      - name: Install dependencies
+        run: |
+          poetry install
+
+      - name: Run unit tests
+        run: |
+          poetry run pytest tests/ -v --tb=short --cov=src --cov-report=term-missing
