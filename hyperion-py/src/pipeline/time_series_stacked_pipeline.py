@@ -1,3 +1,4 @@
+import logging
 import pickle
 import time
 import traceback
@@ -5,6 +6,8 @@ import traceback
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import Ridge
+
+logger = logging.getLogger(__name__)
 
 from src.model import CatBoostStockPredictor
 from src.model import LightGBMStockPredictor
@@ -56,38 +59,38 @@ class TimeSeriesStackedModelTrainingPipeline(BaseTrainingPipeline):
         Create configuration for base models with different feature sets/frequencies
         to ensure model diversity
         """
-        print(f"  Daily data shape: {x_train_daily.shape}")
-        print(f"  Hourly data shape: {x_train_hourly.shape}")
-        print(f"  Target shape: {y_train.shape}")
-        print(f"  Daily index type: {type(x_train_daily.index)}")
-        print(f"  Daily index first/last: {x_train_daily.index[0]} to {x_train_daily.index[-1]}")
+        logger.info("Daily data shape: %s", x_train_daily.shape)
+        logger.info("Hourly data shape: %s", x_train_hourly.shape)
+        logger.info("Target shape: %s", y_train.shape)
+        logger.info("Daily index type: %s", type(x_train_daily.index))
+        logger.info("Daily index first/last: %s to %s", x_train_daily.index[0], x_train_daily.index[-1])
 
         if not isinstance(x_train_daily.index, pd.DatetimeIndex):
-            print("  Warning: Daily index is not DatetimeIndex, converting (fast method)...")
+            logger.warning("Daily index is not DatetimeIndex, converting (fast method)...")
             x_train_daily.index = pd.to_datetime(x_train_daily.index, utc=True)
 
         if not isinstance(x_train_hourly.index, pd.DatetimeIndex):
-            print("  Warning: Hourly index is not DatetimeIndex, converting (fast method)...")
+            logger.warning("Hourly index is not DatetimeIndex, converting (fast method)...")
             x_train_hourly.index = pd.to_datetime(x_train_hourly.index, utc=True)
 
         if not isinstance(y_train.index, pd.DatetimeIndex):
-            print("  Warning: Target index is not DatetimeIndex, converting (fast method)...")
+            logger.warning("Target index is not DatetimeIndex, converting (fast method)...")
             y_train.index = pd.to_datetime(y_train.index, utc=True)
 
-        print("  Sorting indices for optimal performance...")
+        logger.info("Sorting indices for optimal performance...")
         if not x_train_daily.index.is_monotonic_increasing:
-            print("    Sorting daily index...")
+            logger.info("Sorting daily index...")
             x_train_daily = x_train_daily.sort_index()
         if not x_train_hourly.index.is_monotonic_increasing:
-            print("    Sorting hourly index...")
+            logger.info("Sorting hourly index...")
             x_train_hourly = x_train_hourly.sort_index()
         if not y_train.index.is_monotonic_increasing:
-            print("    Sorting target index...")
+            logger.info("Sorting target index...")
             y_train = y_train.sort_index()
 
         self._meta_index = x_train_daily.index
-        print(f"  Meta index type after conversion: {type(self._meta_index)}")
-        print(f"  Meta index is sorted: {self._meta_index.is_monotonic_increasing}")
+        logger.info("Meta index type after conversion: %s", type(self._meta_index))
+        logger.info("Meta index is sorted: %s", self._meta_index.is_monotonic_increasing)
 
         base_models = [
             {
@@ -113,7 +116,7 @@ class TimeSeriesStackedModelTrainingPipeline(BaseTrainingPipeline):
             },
         ]
 
-        print(f"  Created {len(base_models)} base model configs")
+        logger.info("Created %d base model configs", len(base_models))
         return base_models
 
     def _get_predictions(self):
@@ -140,36 +143,33 @@ class TimeSeriesStackedModelTrainingPipeline(BaseTrainingPipeline):
         x_test_hourly = self._test_train_data["test"]["hourly"]
         self._populate_test_train_data()
 
-        print("\n" + "=" * 60)
-        print("Training TimeSeriesStacker Model")
-        print("=" * 60)
-        print(f"Training samples: {len(x_train_daily)}")
-        print(f"Testing samples: {len(x_test_daily)}")
-        print(f"Unique stocks in test set: {self._symbols_test.nunique()}")
+        logger.info("Training TimeSeriesStacker Model")
+        logger.info("Training samples: %d", len(x_train_daily))
+        logger.info("Testing samples: %d", len(x_test_daily))
+        logger.info("Unique stocks in test set: %d", self._symbols_test.nunique())
 
         if self.should_optimise:
-            print("Running hyperparameter optimisation, this will take a while...")
+            logger.info("Running hyperparameter optimisation, this will take a while...")
             self._optimize_hyperparameters(x_train_daily, y_train, x_test_daily, self._y_test)
 
-        print("\nCreating base models configuration...")
+        logger.info("Creating base models configuration...")
 
-        print("  Aligning target index with daily features...")
+        logger.info("Aligning target index with daily features...")
         if not y_train.index.equals(x_train_daily.index):
-            print("  WARNING: Target index doesn't match daily index, reindexing...")
+            logger.warning("Target index doesn't match daily index, reindexing...")
             y_train = y_train.reindex(x_train_daily.index)
 
         base_models_config = self._create_base_models_config(x_train_daily, x_train_hourly, y_train)
 
-        print(f"  Base models: {[bm['name'] for bm in base_models_config]}")
-        print(f"  Meta index length: {len(self._meta_index)}")
-        print(f"  Target length: {len(y_train)}")
+        logger.info("Base models: %s", [bm['name'] for bm in base_models_config])
+        logger.info("Meta index length: %d", len(self._meta_index))
+        logger.info("Target length: %d", len(y_train))
 
-        print("\nInitializing TimeSeriesStacker...")
-        print("  This may take a moment for large datasets...")
+        logger.info("Initializing TimeSeriesStacker...")
 
         try:
             start_time = time.time()
-            print("  Creating stacker object...")
+            logger.info("Creating stacker object...")
             self._stacker = TimeSeriesStacker(
                 base_models=base_models_config,
                 meta_index=self._meta_index,
@@ -178,33 +178,32 @@ class TimeSeriesStackedModelTrainingPipeline(BaseTrainingPipeline):
                 meta_model=Ridge(alpha=1.0),
             )
             elapsed = time.time() - start_time
-            print(f"✓ TimeSeriesStacker initialized successfully in {elapsed:.2f}s")
+            logger.info("TimeSeriesStacker initialized successfully in %.2fs", elapsed)
         except Exception as e:
-            print(f"✗ Error initializing TimeSeriesStacker: {e}")
+            logger.error("Error initializing TimeSeriesStacker: %s", e)
             traceback.print_exc()
             raise
 
-        print("\nGenerating out-of-fold predictions and training meta-learner...")
+        logger.info("Generating out-of-fold predictions and training meta-learner...")
         oof_results = self._stacker.fit_meta()
 
-        print("\nMeta-model OOF Performance:")
-        print(f"  OOF DataFrame shape: {oof_results['meta_oof_df'].shape}")
+        logger.info("Meta-model OOF DataFrame shape: %s", oof_results['meta_oof_df'].shape)
 
-        print("\nRetraining base models on full data for test predictions...")
+        logger.info("Retraining base models on full data for test predictions...")
 
         if not isinstance(x_test_daily.index, pd.DatetimeIndex):
-            print("  Converting test daily index...")
+            logger.info("Converting test daily index...")
             x_test_daily.index = pd.to_datetime(x_test_daily.index, utc=True)
         if not isinstance(x_test_hourly.index, pd.DatetimeIndex):
-            print("  Converting test hourly index...")
+            logger.info("Converting test hourly index...")
             x_test_hourly.index = pd.to_datetime(x_test_hourly.index, utc=True)
         if not isinstance(self._y_test.index, pd.DatetimeIndex):
-            print("  Converting test target index...")
+            logger.info("Converting test target index...")
             self._y_test.index = pd.to_datetime(self._y_test.index, utc=True)
 
         test_meta_index = x_test_daily.index
 
-        print("  Concatenating train and test data...")
+        logger.info("Concatenating train and test data...")
         base_models_full = [
             {
                 "name": "xgb_daily",
@@ -229,11 +228,11 @@ class TimeSeriesStackedModelTrainingPipeline(BaseTrainingPipeline):
             },
         ]
 
-        print("  Updating stacker configuration...")
+        logger.info("Updating stacker configuration...")
         self._stacker.base_models = base_models_full
         self._stacker.target = pd.concat([y_train, self._y_test])
 
-        print("  Running fit_full_and_predict...")
+        logger.info("Running fit_full_and_predict...")
         test_results = self._stacker.fit_full_and_predict(test_meta_index)
 
         self._meta_predictions = test_results["meta_preds"]
@@ -246,10 +245,10 @@ class TimeSeriesStackedModelTrainingPipeline(BaseTrainingPipeline):
             "evals": test_results["evals"],
         }
 
-        print("\nTest Set Performance:")
+        logger.info("Test Set Performance:")
         if test_results["evals"]:
             for metric, value in test_results["evals"].items():
-                print(f"  {metric.upper()}: {value:.4f}")
+                logger.info("  %s: %.4f", metric.upper(), value)
 
         model_name = "ALL_STOCKS"
         save_trained_model(self._stacker.meta_model, model_name, self._test_results)
@@ -260,7 +259,7 @@ class TimeSeriesStackedModelTrainingPipeline(BaseTrainingPipeline):
         """Save the stacker model"""
         with open(f"models/stacker_{model_name}.pkl", "wb") as f:
             pickle.dump(self._stacker, f)
-        print(f"Stacker saved to models/stacker_{model_name}.pkl")
+        logger.info("Stacker saved to models/stacker_%s.pkl", model_name)
 
     def simulate(self, initial_capital: float = 10000, tickers=None, strategy_name: str = None):
         """
@@ -285,10 +284,10 @@ class TimeSeriesStackedModelTrainingPipeline(BaseTrainingPipeline):
 
         if tickers is not None:
             test_df = test_df[test_df["symbol"].isin(tickers)]
-            print(f"Filtering to {len(tickers)} tickers: {tickers}")
+            logger.info("Filtering to %d tickers: %s", len(tickers), tickers)
 
         unique_symbols = test_df["symbol"].unique()
-        print(f"\nSimulating {len(unique_symbols)} tickers")
+        logger.info("Simulating %d tickers", len(unique_symbols))
 
         available_strategies = StrategyRegistry.list()
         if strategy_name is not None:
@@ -298,14 +297,12 @@ class TimeSeriesStackedModelTrainingPipeline(BaseTrainingPipeline):
         else:
             strategies_to_run = available_strategies
 
-        print(f"Running strategies: {strategies_to_run}\n")
+        logger.info("Running strategies: %s", strategies_to_run)
 
         all_results = {}
 
         for strategy_key in strategies_to_run:
-            print(f"\n{'=' * 60}")
-            print(f"Strategy: {strategy_key}")
-            print(f"{'=' * 60}")
+            logger.info("Strategy: %s", strategy_key)
 
             strategy_results = {}
 
@@ -315,10 +312,10 @@ class TimeSeriesStackedModelTrainingPipeline(BaseTrainingPipeline):
                     strategy_class = StrategyRegistry.get(strategy_key)
 
                     if len(ticker_data) < strategy_class.get_minimum_data_points():
-                        print(f" Skipping {symbol}: insufficient data ({len(ticker_data)} rows)")
+                        logger.info("Skipping %s: insufficient data (%d rows)", symbol, len(ticker_data))
                         continue
 
-                    print(f"\n--- {symbol} ({len(ticker_data)} samples) ---")
+                    logger.info("%s (%d samples)", symbol, len(ticker_data))
 
                     additional_data = strategy_class.get_extra_params(ticker_data.set_index("date")["price"])
 
@@ -344,31 +341,27 @@ class TimeSeriesStackedModelTrainingPipeline(BaseTrainingPipeline):
 
                     strategy_results[symbol] = results
 
-                    print(f"Final Value: ${results['final_value']:,.2f}")
-                    print(f"Return: {results['total_return'] * 100:.2f}%")
+                    logger.info("Final Value: $%.2f", results['final_value'])
+                    logger.info("Return: %.2f%%", results['total_return'] * 100)
 
                 except Exception as e:
-                    print(f" Error running {strategy_key} on {symbol}: {e}")
+                    logger.error("Error running %s on %s: %s", strategy_key, symbol, e)
                     traceback.print_exc()
 
             all_results[strategy_key] = strategy_results
 
-            print(f"\n{'=' * 60}")
-            print(f"Summary for {strategy_key}")
-            print(f"{'=' * 60}")
+            logger.info("Summary for %s", strategy_key)
 
             if strategy_results:
                 total_final_value = sum(r["final_value"] for r in strategy_results.values())
                 avg_return = np.mean([r["total_return"] for r in strategy_results.values()])
                 winning_tickers = sum(1 for r in strategy_results.values() if r["total_return"] > 0)
 
-                print(f"Tickers simulated: {len(strategy_results)}")
-                print(f"Total final value: ${total_final_value:,.2f}")
-                print(f"Average return: {avg_return * 100:.2f}%")
+                logger.info("Tickers simulated: %d", len(strategy_results))
+                logger.info("Total final value: $%.2f", total_final_value)
+                logger.info("Average return: %.2f%%", avg_return * 100)
                 win_pct = winning_tickers / len(strategy_results) * 100
-                print(
-                    f"Winning tickers: {winning_tickers}/{len(strategy_results)} ({win_pct:.1f}%)"
-                )
+                logger.info("Winning tickers: %d/%d (%.1f%%)", winning_tickers, len(strategy_results), win_pct)
 
         return self
 
@@ -391,24 +384,20 @@ class TimeSeriesStackedModelTrainingPipeline(BaseTrainingPipeline):
         Analyze which base models contribute most to the ensemble
         """
         if self._stacker is None or self._stacker.fitted_meta is None:
-            print("Stacker not trained yet.")
+            logger.warning("Stacker not trained yet.")
             return None
 
-        print("\n" + "=" * 60)
-        print("Stacker Analysis")
-        print("=" * 60)
+        logger.info("Stacker Analysis")
 
         if hasattr(self._stacker.fitted_meta, "coef_"):
             coeffs = self._stacker.fitted_meta.coef_
             feature_names = self._stacker.meta_features.columns
 
-            print("\nMeta-Model Weights:")
+            logger.info("Meta-Model Weights:")
             for name, coef in zip(feature_names, coeffs):
-                print(f"  {name}: {coef:.4f}")
+                logger.info("  %s: %.4f", name, coef)
 
         if self._base_predictions is not None:
-            print("\nBase Model Prediction Correlations:")
-            corr_matrix = self._base_predictions.corr()
-            print(corr_matrix)
+            logger.info("Base Model Prediction Correlations:\n%s", self._base_predictions.corr())
 
         return self
