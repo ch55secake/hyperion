@@ -1,31 +1,15 @@
 """Regression tests for the end-to-end stacked model training pipeline."""
 
 import numpy as np
-import pandas as pd
 import pytest
 
 from src.pipeline.stacked_pipeline import StackedModelTrainingPipeline
-from src.feature.feature_engineering import FeatureEngineering
+from tests.helpers import make_ohlcv, fast_xgb_params, fast_lgb_params
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _make_ohlcv(n: int = 200, seed: int = 42) -> pd.DataFrame:
-    rng = np.random.default_rng(seed)
-    close = 100.0 + np.cumsum(rng.normal(0, 1, n))
-    high = close + rng.uniform(0, 1, n)
-    low = close - rng.uniform(0, 1, n)
-    open_ = close + rng.normal(0, 0.5, n)
-    volume = rng.uniform(1_000, 10_000, n)
-    dates = pd.date_range("2022-01-01", periods=n, freq="D")
-    return pd.DataFrame(
-        {"Open": open_, "High": high, "Low": low, "Close": close, "Volume": volume},
-        index=dates,
-    )
-
 
 class _StubDownloader:
     """Minimal stand-in for StockDataDownloader that returns deterministic values."""
@@ -53,38 +37,23 @@ def _build_pipeline(symbols, monkeypatch) -> StackedModelTrainingPipeline:
     """
     intervals = ["1d", "1h"]
 
-    # Fast model params to keep tests quick.
-    fast_xgb = {
-        "objective": "reg:squarederror",
-        "n_estimators": 10,
-        "max_depth": 3,
-        "tree_method": "hist",
-        "seed": 42,
-        "enable_categorical": True,
-    }
-    fast_lgb = {
-        "objective": "regression",
-        "metric": "rmse",
-        "verbosity": -1,
-        "n_estimators": 10,
-        "max_depth": 3,
-        "num_leaves": 8,
-        "seed": 42,
-    }
+    # Use the shared fast params, but reduce n_estimators further for pipeline speed.
+    pipeline_xgb = {**fast_xgb_params(), "n_estimators": 10}
+    pipeline_lgb = {**fast_lgb_params(), "n_estimators": 10}
 
     pipeline = StackedModelTrainingPipeline(
         intervals=intervals,
         symbols=symbols,
         test_size=0.2,
     )
-    pipeline._xgb_params = fast_xgb
-    pipeline._lgb_params = fast_lgb
+    pipeline._xgb_params = pipeline_xgb
+    pipeline._lgb_params = pipeline_lgb
 
     # Inject synthetic OHLCV data (same for both intervals in tests).
     stock_data = {}
     for i, interval in enumerate(intervals):
         stock_data[interval] = {
-            symbol: _make_ohlcv(n=200, seed=j + i * 100)
+            symbol: make_ohlcv(n=200, seed=j + i * 100)
             for j, symbol in enumerate(symbols)
         }
     pipeline._stock_data = stock_data
@@ -187,39 +156,20 @@ class TestStackedPipelineRegression:
         """Pipeline should skip tickers with insufficient data, not raise an exception."""
         symbols = ["VALID", "TINY"]
 
-        intervals = ["1d", "1h"]
-        fast_xgb = {
-            "objective": "reg:squarederror",
-            "n_estimators": 10,
-            "max_depth": 3,
-            "tree_method": "hist",
-            "seed": 42,
-            "enable_categorical": True,
-        }
-        fast_lgb = {
-            "objective": "regression",
-            "metric": "rmse",
-            "verbosity": -1,
-            "n_estimators": 10,
-            "max_depth": 3,
-            "num_leaves": 8,
-            "seed": 42,
-        }
-
         pipeline = StackedModelTrainingPipeline(
-            intervals=intervals,
+            intervals=["1d", "1h"],
             symbols=symbols,
             test_size=0.2,
         )
-        pipeline._xgb_params = fast_xgb
-        pipeline._lgb_params = fast_lgb
+        pipeline._xgb_params = {**fast_xgb_params(), "n_estimators": 10}
+        pipeline._lgb_params = {**fast_lgb_params(), "n_estimators": 10}
 
         stock_data = {}
-        for interval in intervals:
+        for interval in ["1d", "1h"]:
             stock_data[interval] = {
-                "VALID": _make_ohlcv(n=200, seed=1),
+                "VALID": make_ohlcv(n=200, seed=1),
                 # Only 5 rows — too few to produce any valid features/targets.
-                "TINY": _make_ohlcv(n=5, seed=2),
+                "TINY": make_ohlcv(n=5, seed=2),
             }
         pipeline._stock_data = stock_data
         pipeline._downloader = _StubDownloader()

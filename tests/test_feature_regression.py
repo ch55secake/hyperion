@@ -5,20 +5,7 @@ import pandas as pd
 import pytest
 
 from src.feature.feature_engineering import FeatureEngineering
-
-
-def _make_ohlcv(n: int = 200, seed: int = 42) -> pd.DataFrame:
-    rng = np.random.default_rng(seed)
-    close = 100.0 + np.cumsum(rng.normal(0, 1, n))
-    high = close + rng.uniform(0, 1, n)
-    low = close - rng.uniform(0, 1, n)
-    open_ = close + rng.normal(0, 0.5, n)
-    volume = rng.uniform(1_000, 10_000, n)
-    dates = pd.date_range("2022-01-01", periods=n, freq="D")
-    return pd.DataFrame(
-        {"Open": open_, "High": high, "Low": low, "Close": close, "Volume": volume},
-        index=dates,
-    )
+from tests.helpers import make_ohlcv
 
 
 class TestFeatureEngineeringRegression:
@@ -74,11 +61,11 @@ class TestFeatureEngineeringRegression:
 
     def test_feature_columns_are_consistent_across_seeds(self):
         """Column names (not values) should be identical regardless of the random seed used to generate prices."""
-        fe1 = FeatureEngineering(_make_ohlcv(seed=42))
+        fe1 = FeatureEngineering(make_ohlcv(seed=42))
         fe1.create_target_features()
         x1, *_ = fe1.prepare_features()
 
-        fe2 = FeatureEngineering(_make_ohlcv(seed=99))
+        fe2 = FeatureEngineering(make_ohlcv(seed=99))
         fe2.create_target_features()
         x2, *_ = fe2.prepare_features()
 
@@ -88,7 +75,7 @@ class TestFeatureEngineeringRegression:
         """Row count returned by prepare_features should be close to n - target_days."""
         n = 200
         target_days = 10
-        df = _make_ohlcv(n=n, seed=7)
+        df = make_ohlcv(n=n, seed=7)
         fe = FeatureEngineering(df)
         fe.create_target_features(target_days=target_days)
         x, y, *_ = fe.prepare_features()

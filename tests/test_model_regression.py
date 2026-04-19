@@ -5,29 +5,7 @@ import pytest
 from sklearn.metrics import r2_score
 
 from src.model import XGBoostStockPredictor, LightGBMStockPredictor, StackedStockPredictor
-
-
-def _fast_xgb_params() -> dict:
-    return {
-        "objective": "reg:squarederror",
-        "n_estimators": 20,
-        "max_depth": 3,
-        "tree_method": "hist",
-        "seed": 42,
-        "enable_categorical": True,
-    }
-
-
-def _fast_lgb_params() -> dict:
-    return {
-        "objective": "regression",
-        "metric": "rmse",
-        "verbosity": -1,
-        "n_estimators": 20,
-        "max_depth": 3,
-        "num_leaves": 8,
-        "seed": 42,
-    }
+from tests.helpers import fast_xgb_params, fast_lgb_params
 
 
 class TestXGBoostRegression:
@@ -37,7 +15,7 @@ class TestXGBoostRegression:
         """XGBoost with fixed seed produces identical predictions across two training runs."""
         model1, x_train, x_test, y_train, _ = trained_xgb_model
 
-        model2 = XGBoostStockPredictor(params=_fast_xgb_params())
+        model2 = XGBoostStockPredictor(params=fast_xgb_params())
         model2.train(x_train, y_train)
 
         preds1 = model1.predict(x_test)
@@ -86,7 +64,7 @@ class TestLightGBMRegression:
         """LightGBM with fixed seed produces identical predictions across two training runs."""
         model1, x_train, x_test, y_train, _ = trained_lgb_model
 
-        model2 = LightGBMStockPredictor(params=_fast_lgb_params())
+        model2 = LightGBMStockPredictor(params=fast_lgb_params())
         model2.train(x_train, y_train)
 
         preds1 = model1.predict(x_test)
@@ -137,8 +115,8 @@ class TestWeightedEnsembleRegression:
 
         stacked = StackedStockPredictor(
             {
-                "xgb": XGBoostStockPredictor(params=_fast_xgb_params()),
-                "lgb": LightGBMStockPredictor(params=_fast_lgb_params()),
+                "xgb": XGBoostStockPredictor(params=fast_xgb_params()),
+                "lgb": LightGBMStockPredictor(params=fast_lgb_params()),
             }
         )
 
@@ -162,8 +140,8 @@ class TestWeightedEnsembleRegression:
 
         stacked = StackedStockPredictor(
             {
-                "xgb": XGBoostStockPredictor(params=_fast_xgb_params()),
-                "lgb": LightGBMStockPredictor(params=_fast_lgb_params()),
+                "xgb": XGBoostStockPredictor(params=fast_xgb_params()),
+                "lgb": LightGBMStockPredictor(params=fast_lgb_params()),
             }
         )
         train_data = {
@@ -185,8 +163,8 @@ class TestWeightedEnsembleRegression:
 
         stacked = StackedStockPredictor(
             {
-                "xgb": XGBoostStockPredictor(params=_fast_xgb_params()),
-                "lgb": LightGBMStockPredictor(params=_fast_lgb_params()),
+                "xgb": XGBoostStockPredictor(params=fast_xgb_params()),
+                "lgb": LightGBMStockPredictor(params=fast_lgb_params()),
             }
         )
         train_data = {
