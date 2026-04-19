@@ -36,7 +36,10 @@ class TradingSimulator:
         logger.info("Running Trading Simulation")
         logger.info("=" * 60)
 
-        pred_array = np.array(predictions)
+        pred_array = np.asarray(predictions)
+        actual_array = np.asarray(actual_returns)
+        price_array = np.asarray(prices) if prices is not None else None
+        date_array = np.asarray(dates) if dates is not None else None
 
         if threshold == "auto":
             threshold = np.percentile(np.abs(pred_array), 25)
@@ -50,12 +53,12 @@ class TradingSimulator:
             logger.debug(f"Fixed threshold: {threshold:.6f}")
 
         # Use the strategy's state - no need to track separately
-        for i, pred_return in enumerate(predictions):
-            actual_return = actual_returns.iloc[i] if hasattr(actual_returns, "iloc") else actual_returns[i]
-            date = dates.iloc[i] if hasattr(dates, "iloc") else (dates[i] if dates is not None else i)
+        for i, pred_return in enumerate(pred_array):
+            actual_return = actual_array[i]
+            date = date_array[i] if date_array is not None else i
 
             # Determine current price
-            current_price = prices.iloc[i] if hasattr(prices, "iloc") else prices[i]
+            current_price = price_array[i]
 
             # Execute strategy and let it manage its own state
             strategy.execute(date=date, price=current_price, pred_return=pred_return, actual_return=actual_return)
@@ -74,19 +77,13 @@ class TradingSimulator:
 
         # --- Close remaining position ---
         if strategy.position is not None:
-            final_price = prices.iloc[-1] if hasattr(prices, "iloc") else prices[-1]
+            final_price = price_array[-1]
             strategy.capital = strategy.shares * final_price * (1 - self.transaction_cost)
 
             profit = strategy.capital - self.initial_capital
             pnl = ((final_price - strategy.entry_price) / strategy.entry_price) * 100
 
-            # Get final date using iloc for pandas Series
-            if hasattr(dates, "iloc"):
-                final_date = dates.iloc[-1]
-            elif hasattr(dates, "__getitem__"):
-                final_date = dates[-1]
-            else:
-                final_date = None
+            final_date = date_array[-1] if date_array is not None else None
 
             self.trades.append(
                 Trade(
@@ -106,10 +103,8 @@ class TradingSimulator:
         final_value = strategy.capital
         total_return = (final_value - self.initial_capital) / self.initial_capital
         buy_hold_return = None
-        if prices is not None:
-            first_price = prices.iloc[0] if hasattr(prices, "iloc") else prices[0]
-            last_price = prices.iloc[-1] if hasattr(prices, "iloc") else prices[-1]
-            buy_hold_return = (last_price - first_price) / first_price
+        if price_array is not None:
+            buy_hold_return = (price_array[-1] - price_array[0]) / price_array[0]
 
         if total_return - buy_hold_return > 0:
             logger.info("=" * 60)
