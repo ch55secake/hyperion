@@ -26,6 +26,7 @@ class XGBoostStockPredictor(Model):
                 "tree_method": "hist",
                 "seed": 42,
                 "enable_categorical": True,
+                "early_stopping_rounds": 50,
             }
         super().__init__("xgboost", params=params)
 
@@ -51,13 +52,15 @@ class XGBoostStockPredictor(Model):
 
         self.model = xgboost.XGBRegressor(**self.params)
 
-        if x_val is not None and y_val is not None and early_stopping is not None:
+        fit_kwargs = {}
+        if x_val is not None and y_val is not None:
             x_val_processed = self._prepare_numeric_and_categorical_columns(x_val.copy(), object_cols, x_val)
+            fit_kwargs["eval_set"] = [(x_train_processed, y_train), (x_val_processed, y_val)]
+            fit_kwargs["verbose"] = False
+            if early_stopping is not None:
+                fit_kwargs["early_stopping_rounds"] = early_stopping
 
-            eval_set = [(x_train_processed, y_train), (x_val_processed, y_val)]
-            self.model.fit(x_train_processed, y_train, eval_set=eval_set, verbose=False)
-        else:
-            self.model.fit(x_train_processed, y_train)
+        self.model.fit(x_train_processed, y_train, **fit_kwargs)
 
         feature_names = x_train_processed.columns.tolist()
         feature_importances = self.model.feature_importances_
