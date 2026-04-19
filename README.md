@@ -90,8 +90,36 @@ pre-commit install
 ### Running
 
 ```bash
-make run        # poetry run python3 src/main.py
+make run        # poetry run python3 src/main.py (uses all defaults)
 ```
+
+All parameters have sensible defaults but can be overridden via Make variables or `ARGS`:
+
+```bash
+# Override individual parameters
+make run PERIOD=5y N_TRIALS=200
+
+# Override multiple parameters
+make run PERIOD=5y TEST_SIZE=0.3 INITIAL_CAPITAL=50000
+
+# Pass arbitrary CLI flags directly
+make run ARGS="--period 5y --n-trials 200 --transaction-cost 0.002"
+
+# See all available parameters and their defaults
+make help
+```
+
+| Make variable | CLI flag | Default | Purpose |
+|---|---|---|---|
+| `PERIOD` | `--period` | `2y` | Historical data window |
+| `INTERVALS` | `--intervals` | `1d,1h` | OHLCV intervals (comma-separated) |
+| `TEST_SIZE` | `--test-size` | `0.2` | Train/test split fraction |
+| `TARGET_DAYS` | `--target-days` | `10` | Forward-return horizon (days) |
+| `N_TRIALS` | `--n-trials` | `1000` | Optuna trials per model |
+| `R2_SAVE` | `--r2-save-threshold` | `0.0012` | Min R² to persist a model |
+| `R2_INVALID` | `--r2-invalid-threshold` | `-0.3` | R² floor for invalid-model path |
+| `INITIAL_CAPITAL` | `--initial-capital` | `10000` | Simulation starting cash |
+| `TRANSACTION_COST` | `--transaction-cost` | `0.001` | Per-trade proportional cost |
 
 ## Development
 
@@ -113,7 +141,9 @@ make test-cov   # run tests with coverage report
 | Command | Effect |
 |---------|--------|
 | `make install` | Install dependencies via Poetry |
-| `make run` | Run the main pipeline |
+| `make run` | Run the main pipeline with default parameters |
+| `make run PERIOD=5y N_TRIALS=200` | Run with overridden parameters |
+| `make help` | Show all CLI parameters and their defaults |
 | `make test` | Run unit tests |
 | `make test-cov` | Run tests with coverage report |
 | `make clean` | Remove plots, invalid models, results, and params |
