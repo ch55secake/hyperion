@@ -75,7 +75,10 @@ class BaseTrainingPipeline(ABC):
             raise Exception("Please run read_tickers(), before trying to run download_data()")
 
         self._downloader = StockDataDownloader(self.symbols, period=self.period, interval=self.interval)
-        self._stock_data = self._downloader.download_data()
+        self._stock_data, failed = self._downloader.download_data()
+
+        if failed:
+            logger.warning("%d symbol(s) failed to download and will be excluded: %s", len(failed), failed)
 
         if not self._stock_data:
             logger.warning("No data downloaded. Exiting.")

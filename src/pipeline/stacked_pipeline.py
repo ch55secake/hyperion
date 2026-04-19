@@ -84,7 +84,15 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         self._stock_data = {}
         for interval in self.intervals:
             self._downloader = StockDataDownloader(self.symbols, period=self.period, interval=interval)
-            self._stock_data[interval] = self._downloader.download_data()
+            interval_data, failed = self._downloader.download_data()
+            if failed:
+                logger.warning(
+                    "%d symbol(s) failed to download for interval '%s' and will be excluded: %s",
+                    len(failed),
+                    interval,
+                    failed,
+                )
+            self._stock_data[interval] = interval_data
 
         if not self._stock_data:
             logger.warning("No data downloaded. Exiting.")

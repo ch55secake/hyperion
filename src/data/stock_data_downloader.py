@@ -53,11 +53,19 @@ class StockDataDownloader:
         except Exception as e:
             logger.warning(f"Failed to save stock info: {e}")
 
-    def download_data(self):
-        """Download data for all symbols"""
+    def download_data(self) -> tuple[dict, list[str]]:
+        """Download data for all symbols.
+
+        Returns:
+            A tuple of (data, failed) where data maps symbol -> DataFrame for
+            successfully downloaded symbols, and failed is a list of symbols
+            that could not be downloaded.
+        """
         logger.info("=" * 60)
         logger.info("Downloading Stock Data from yfinance")
         logger.info("=" * 60)
+
+        failed: list[str] = []
 
         for symbol in self.symbols:
             try:
@@ -109,9 +117,14 @@ class StockDataDownloader:
 
             except Exception as e:
                 logger.error(f"Error downloading {symbol}: {str(e)}")
+                failed.append(symbol)
 
         self.save_stock_info()
-        return self.data
+
+        if failed:
+            logger.warning("%d symbol(s) failed to download: %s", len(failed), failed)
+
+        return self.data, failed
 
     @staticmethod
     def _get_stock_info(symbol) -> None:
