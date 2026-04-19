@@ -1,4 +1,5 @@
 import traceback
+from concurrent.futures import ProcessPoolExecutor
 from typing import Any
 
 import numpy as np
@@ -20,6 +21,49 @@ from src.writer import save_trained_model
 from src.feature.feature_split import FeaturePartition, derive_feature_split
 
 # Required for the usage of the strategy registry
+
+
+def _simulate_ticker_worker(
+    ticker_df: pd.DataFrame,
+    strategy_key: str,
+    initial_capital: int,
+) -> tuple[str, dict | None, str | None]:
+    """Simulate a single ticker; designed for parallel execution via ProcessPoolExecutor.
+
+    Returns a 3-tuple ``(symbol, results, message)`` where:
+    - *results* is the simulation result dict on success, or ``None`` when the
+      ticker is skipped or an error occurs.
+    - *message* describes why the ticker was skipped or what error occurred;
+      ``None`` on success.
+    """
+    symbol = str(ticker_df["symbol"].iloc[0])
+    strategy_class = StrategyRegistry.get(strategy_key)
+
+    if len(ticker_df) < strategy_class.get_minimum_data_points():
+        return symbol, None, f"insufficient data ({len(ticker_df)} rows)"
+
+    try:
+        additional_data = strategy_class.get_extra_params(ticker_df.set_index("date")["price"])
+
+        simulator = TradingSimulator(initial_capital=initial_capital)
+        strategy = StrategyRegistry.create(
+            name=strategy_key, simulator=simulator, capital=initial_capital, **additional_data
+        )
+
+        ticker_data_reset = ticker_df.reset_index(drop=True)
+
+        results = simulator.simulate(
+            predictions=ticker_data_reset["prediction"],
+            actual_returns=ticker_data_reset["actual_return"],
+            prices=ticker_data_reset["price"],
+            dates=ticker_data_reset["date"],
+            strategy=strategy,
+            threshold="auto",
+        )
+
+        return symbol, results, None
+    except Exception as exc:
+        return symbol, None, f"{exc}\n{traceback.format_exc()}"
 
 
 class StackedModelTrainingPipeline(BaseTrainingPipeline):
@@ -467,49 +511,28 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
             strategy_results = {}
 
-            for symbol in unique_symbols:
+            ticker_dfs = [
+                test_df[test_df["symbol"] == symbol].sort_values("date") for symbol in unique_symbols
+            ]
+
+            with ProcessPoolExecutor() as pool:
+                futures = [
+                    (pool.submit(_simulate_ticker_worker, df, strategy_key, int(initial_capital)), str(df["symbol"].iloc[0]))
+                    for df in ticker_dfs
+                ]
+
+            for future, symbol in futures:
                 try:
-                    ticker_data = test_df[test_df["symbol"] == symbol].sort_values("date")
-                    strategy_class = StrategyRegistry.get(strategy_key)
-
-                    if len(ticker_data) < strategy_class.get_minimum_data_points():
-                        logger.warning(f"Skipping {symbol}: insufficient data ({len(ticker_data)} rows)")
-                        continue
-
-                    logger.info(f"--- {symbol} ({len(ticker_data)} samples) ---")
-
-                    additional_data = strategy_class.get_extra_params(ticker_data.set_index("date")["price"])
-
-                    simulator = TradingSimulator(initial_capital=int(initial_capital))
-                    strategy = StrategyRegistry.create(
-                        name=strategy_key, simulator=simulator, capital=int(initial_capital), **additional_data
-                    )
-
-                    ticker_data_reset = ticker_data.reset_index(drop=True)
-
-                    train_predictions = predictions[self._split_idx :]
-
-                    threshold = np.percentile(np.abs(train_predictions), 75)
-
-                    results = simulator.simulate(
-                        predictions=ticker_data_reset["prediction"],
-                        actual_returns=ticker_data_reset["actual_return"],
-                        prices=ticker_data_reset["price"],
-                        dates=ticker_data_reset["date"],
-                        strategy=strategy,
-                        threshold=threshold if isinstance(threshold, str) else "auto",
-                    )
-
-                    strategy_results[symbol] = results
-
-                    logger.info(f"Final Value: ${results['final_value']:,.2f}")
-                    logger.info(f"Return: {results['total_return'] * 100:.2f}%")
-
+                    sym, results, message = future.result()
+                    if results is None:
+                        logger.warning(f"Skipping {sym}: {message}")
+                    else:
+                        strategy_results[sym] = results
+                        logger.info(f"--- {sym} ({len(results['portfolio_history'])} samples) ---")
+                        logger.info(f"Final Value: ${results['final_value']:,.2f}")
+                        logger.info(f"Return: {results['total_return'] * 100:.2f}%")
                 except Exception as e:
                     logger.error(f"Error running {strategy_key} on {symbol}: {e}")
-                    import traceback
-
-                    traceback.print_exc()
 
             all_results[strategy_key] = strategy_results
 
