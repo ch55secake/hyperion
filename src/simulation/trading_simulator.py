@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 
+from src.simulation.risk_metrics import RiskMetrics, compute_risk_metrics
 from src.simulation.types import PortfolioHistory, TradeAction, Trade
 from src.util import logger
 from .strategy.directional import DirectionalTradingStrategy
@@ -121,11 +122,20 @@ class TradingSimulator:
                 logger.info(f"Strategy Alpha:        {(total_return - buy_hold_return) * 100:.2f}%")
             logger.info(f"Number of Trades:      {len(self.trades)}")
 
+        portfolio_df = pd.DataFrame(self.portfolio_history)
+        trades_df = pd.DataFrame(self.trades)
+        risk_metrics: RiskMetrics = compute_risk_metrics(
+            portfolio_history=portfolio_df,
+            trades=trades_df,
+            total_return=total_return,
+        )
+
         return {
-            "portfolio_history": pd.DataFrame(self.portfolio_history),
-            "trades": pd.DataFrame(self.trades),
+            "portfolio_history": portfolio_df,
+            "trades": trades_df,
             "final_value": final_value,
             "total_return": total_return,
             "buy_hold_return": buy_hold_return,
             "num_trades": len(self.trades),
+            "risk_metrics": risk_metrics,
         }
