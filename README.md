@@ -63,7 +63,7 @@ hyperion/
 │   └── train.py        # Training entry point
 ├── tests/              # Unit tests (pytest)
 ├── resources/          # Ticker lists
-├── pyproject.toml      # Poetry project definition
+├── pyproject.toml      # uv project definition
 ├── Makefile            # Developer commands
 └── .pre-commit-config.yaml
 ```
@@ -73,12 +73,12 @@ hyperion/
 ### Prerequisites
 
 - Python **3.12**
-- [Poetry](https://python-poetry.org/)
+- [uv](https://docs.astral.sh/uv/)
 
 ### Installation
 
 ```bash
-make install    # poetry lock && poetry install
+make install    # uv sync
 ```
 
 ### Install pre-commit hooks
@@ -90,7 +90,7 @@ pre-commit install
 ### Running
 
 ```bash
-make run        # poetry run python3 src/main.py (uses all defaults)
+make run        # uv run python3 src/main.py (uses all defaults)
 ```
 
 All parameters have sensible defaults but can be overridden via Make variables or `ARGS`:
@@ -125,14 +125,14 @@ make help
 
 ### Code Style
 
-- **Formatter:** [Black](https://black.readthedocs.io/) -- line length 120
-- **Linter:** [Pylint](https://pylint.org/) -- minimum score 9.0, max line length 120
+- **Formatter / Linter:** [Ruff](https://docs.astral.sh/ruff/) -- line length 120 (replaces Black and Pylint)
+- **Type checker:** [ty](https://docs.astral.sh/ty/) -- fast type checking from the Astral ecosystem
 - **Pre-commit hooks** run automatically on commit and push
 
 ### Testing
 
 ```bash
-make test       # poetry run pytest tests/ -v --tb=short
+make test       # uv run pytest tests/ -v --tb=short
 make test-cov   # run tests with coverage report
 ```
 
@@ -140,7 +140,7 @@ make test-cov   # run tests with coverage report
 
 | Command | Effect |
 |---------|--------|
-| `make install` | Install dependencies via Poetry |
+| `make install` | Install dependencies via uv |
 | `make run` | Run the main pipeline with default parameters |
 | `make run PERIOD=5y N_TRIALS=200` | Run with overridden parameters |
 | `make help` | Show all CLI parameters and their defaults |
@@ -157,8 +157,7 @@ GitHub Actions runs the following checks on every push and PR to `main`:
 
 | Job | Description |
 |-----|-------------|
-| **pylint** | Static analysis with a minimum score of 9.0 |
-| **black** | Formatting check |
+| **ruff** | Linting and formatting check with ruff |
 | **build** | Dependency installation smoke test |
 | **test** | Unit tests with coverage reporting |
 
