@@ -1,28 +1,37 @@
-# Hyperion 
-
-The name is cool, don't hate. 
+# Hyperion
 
 > [!NOTE]
-> This project is under development.
+> This project is under active development.
 
-## Overview 
+## Overview
 
-Attempt to make trades based on the predictions of models trained on historical using the XGBoost algorithm. We are trying 
-to aim for a 5-10% ROI on the portfolio.
+Hyperion is a stock trading prediction system that trains machine-learning models on historical price data and uses them to simulate trades. The target return on the portfolio is **5–10% ROI**.
 
-## Features 
+## Features
 
-We currently have the following features implemented: 
-
-(hyperion-py)
-- XGBoost algorithm
-- LightGBM algorithm
+- XGBoost and LightGBM model training on historical stock data
 - Stacked multi-timeframe model (daily + hourly, experimental)
-- Data plots based on the predictions
-- Prediction analysis
-- Experimental walk-foward validation, might be removed in the future
+- Hyperparameter optimisation via Optuna
+- Prediction analysis and data visualisation
+- Walk-forward validation (experimental)
 - Trading simulation
 
-(hyperion-go)
-- Deprecated implementation of the random forest algorithm 
-- Trading simulation
+## Getting Started
+
+Python **3.12** and [Poetry](https://python-poetry.org/) are required.
+
+```bash
+make install   # poetry lock && poetry install
+make run       # poetry run python3 src/main.py
+```
+
+## Makefile Commands
+
+| Command | Effect |
+|---|---|
+| `make install` | Install dependencies via Poetry |
+| `make run` | Run the application |
+| `make clean` | Remove plots, invalid models, results and params |
+| `make cleanmodels` | Remove plots, models, invalid models, results and params |
+| `make ctrain` | `clean` then `run` |
+| `make cmtrain` | `cleanmodels` then `run` |
