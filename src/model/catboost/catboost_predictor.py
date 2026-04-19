@@ -30,7 +30,6 @@ class CatBoostStockPredictor(Model):
                 "early_stopping_rounds": 100,
                 # Output
                 "verbose": 100,
-                "use_best_model": True,
             }
         super().__init__("catboost", params)
         self.early_stopping_rounds = 50
