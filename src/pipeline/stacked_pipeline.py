@@ -1,4 +1,3 @@
-import traceback
 from concurrent.futures import ProcessPoolExecutor
 from typing import Any
 
@@ -30,11 +29,13 @@ def _simulate_ticker_worker(
 ) -> tuple[str, dict | None, str | None]:
     """Simulate a single ticker; designed for parallel execution via ProcessPoolExecutor.
 
-    Returns a 3-tuple ``(symbol, results, message)`` where:
+    Returns a 3-tuple ``(symbol, results, skip_reason)`` where:
     - *results* is the simulation result dict on success, or ``None`` when the
-      ticker is skipped or an error occurs.
-    - *message* describes why the ticker was skipped or what error occurred;
-      ``None`` on success.
+      ticker is skipped.
+    - *skip_reason* describes why the ticker was skipped; ``None`` on success.
+
+    Unexpected errors are not caught here and will propagate to the caller via
+    ``Future.result()``.
     """
     symbol = str(ticker_df["symbol"].iloc[0])
     strategy_class = StrategyRegistry.get(strategy_key)
@@ -42,28 +43,25 @@ def _simulate_ticker_worker(
     if len(ticker_df) < strategy_class.get_minimum_data_points():
         return symbol, None, f"insufficient data ({len(ticker_df)} rows)"
 
-    try:
-        additional_data = strategy_class.get_extra_params(ticker_df.set_index("date")["price"])
+    additional_data = strategy_class.get_extra_params(ticker_df.set_index("date")["price"])
 
-        simulator = TradingSimulator(initial_capital=initial_capital)
-        strategy = StrategyRegistry.create(
-            name=strategy_key, simulator=simulator, capital=initial_capital, **additional_data
-        )
+    simulator = TradingSimulator(initial_capital=initial_capital)
+    strategy = StrategyRegistry.create(
+        name=strategy_key, simulator=simulator, capital=initial_capital, **additional_data
+    )
 
-        ticker_data_reset = ticker_df.reset_index(drop=True)
+    ticker_data_reset = ticker_df.reset_index(drop=True)
 
-        results = simulator.simulate(
-            predictions=ticker_data_reset["prediction"],
-            actual_returns=ticker_data_reset["actual_return"],
-            prices=ticker_data_reset["price"],
-            dates=ticker_data_reset["date"],
-            strategy=strategy,
-            threshold="auto",
-        )
+    results = simulator.simulate(
+        predictions=ticker_data_reset["prediction"],
+        actual_returns=ticker_data_reset["actual_return"],
+        prices=ticker_data_reset["price"],
+        dates=ticker_data_reset["date"],
+        strategy=strategy,
+        threshold="auto",
+    )
 
-        return symbol, results, None
-    except Exception as exc:
-        return symbol, None, f"{exc}\n{traceback.format_exc()}"
+    return symbol, results, None
 
 
 class StackedModelTrainingPipeline(BaseTrainingPipeline):
@@ -521,18 +519,18 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
                     for df in ticker_dfs
                 ]
 
-            for future, symbol in futures:
-                try:
-                    sym, results, message = future.result()
-                    if results is None:
-                        logger.warning(f"Skipping {sym}: {message}")
-                    else:
-                        strategy_results[sym] = results
-                        logger.info(f"--- {sym} ({len(results['portfolio_history'])} samples) ---")
-                        logger.info(f"Final Value: ${results['final_value']:,.2f}")
-                        logger.info(f"Return: {results['total_return'] * 100:.2f}%")
-                except Exception as e:
-                    logger.error(f"Error running {strategy_key} on {symbol}: {e}")
+                for future, symbol in futures:
+                    try:
+                        sym, results, skip_reason = future.result()
+                        if results is None:
+                            logger.warning(f"Skipping {sym}: {skip_reason}")
+                        else:
+                            strategy_results[sym] = results
+                            logger.info(f"--- {sym} ({len(results['portfolio_history'])} samples) ---")
+                            logger.info(f"Final Value: ${results['final_value']:,.2f}")
+                            logger.info(f"Return: {results['total_return'] * 100:.2f}%")
+                    except Exception:
+                        logger.exception(f"Error running {strategy_key} on {symbol}")
 
             all_results[strategy_key] = strategy_results
 
