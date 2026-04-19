@@ -67,14 +67,14 @@ class StockDataDownloader:
         :return: tuple of (symbol, DataFrame) — DataFrame is None for empty data
         """
         default_path: str = "./historic_data/"
-        filename = f"{symbol}_{self.period}_{self.interval}.csv"
+        filename = f"{symbol}_{self.period}_{self.interval}.parquet"
         complete_path: str = os.path.join(default_path, filename)
         logger.debug(f"Checking for existing data for {complete_path}...")
 
         needs_refresh = False
 
         if os.path.isfile(complete_path):
-            df = pd.read_csv(complete_path, parse_dates=True, index_col=0)
+            df = pd.read_parquet(complete_path)
 
             last_date = pd.to_datetime(df.index[-1]).date()
             today = pd.Timestamp.now().date()
@@ -101,15 +101,15 @@ class StockDataDownloader:
                 logger.warning(f"No data found for {symbol}")
                 return symbol, None
 
-            csv_path = f"./historic_data/{filename}"
-            df.to_csv(csv_path)
+            parquet_path = f"./historic_data/{filename}"
+            df.to_parquet(parquet_path)
 
             with self._lock:
                 self._stock_info[symbol] = ticker.info
 
             logger.info(f"Downloaded {len(df)} data points for {symbol}")
             logger.info(f"Date range: {df.index[0].date()} to {df.index[-1].date()}")
-            logger.info(f"Saved to {csv_path}")
+            logger.info(f"Saved to {parquet_path}")
 
             return symbol, df
 

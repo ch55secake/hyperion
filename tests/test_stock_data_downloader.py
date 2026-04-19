@@ -57,6 +57,19 @@ def _make_fresh_price_df(n=10):
     )
 
 
+def _make_tz_aware_df(tz="America/New_York"):
+    """Return a small DataFrame with a timezone-aware DatetimeIndex, mimicking yfinance output."""
+    index = pd.date_range("2024-01-01", periods=5, freq="D", tz=tz)
+    return pd.DataFrame(
+        {
+            "Open": [100.0, 101.0, 102.0, 103.0, 104.0],
+            "Close": [101.0, 102.0, 103.0, 104.0, 105.0],
+            "Volume": [1000, 1100, 1200, 1300, 1400],
+        },
+        index=index,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Constructor
 # ---------------------------------------------------------------------------
@@ -285,7 +298,7 @@ class TestDownloadDataParallel:
         assert "ERR" not in result
         assert "ERR" in failed
 
-    def test_csv_written_for_downloaded_symbols(self, tmp_path, monkeypatch):
+    def test_parquet_written_for_downloaded_symbols(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         os.makedirs(tmp_path / "historic_data", exist_ok=True)
         df = _make_fresh_price_df()
@@ -297,13 +310,13 @@ class TestDownloadDataParallel:
             downloader = StockDataDownloader(["AAPL"], period="1mo", interval="1d")
             downloader.download_data()
 
-        assert os.path.isfile("./historic_data/AAPL_1mo_1d.csv")
+        assert os.path.isfile("./historic_data/AAPL_1mo_1d.parquet")
 
-    def test_cached_csv_used_without_network_call(self, tmp_path, monkeypatch):
+    def test_cached_parquet_used_without_network_call(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         os.makedirs(tmp_path / "historic_data", exist_ok=True)
         df = _make_fresh_price_df()
-        df.to_csv("./historic_data/AAPL_1mo_1d.csv")
+        df.to_parquet("./historic_data/AAPL_1mo_1d.parquet")
 
         with patch("src.data.stock_data_downloader.yf.Ticker") as mock_yf:
             downloader = StockDataDownloader(["AAPL"], period="1mo", interval="1d")
@@ -339,9 +352,47 @@ class TestDownloadDataParallel:
         monkeypatch.chdir(tmp_path)
         os.makedirs(tmp_path / "historic_data", exist_ok=True)
         df = _make_fresh_price_df()
-        df.to_csv("./historic_data/TSLA_1mo_1d.csv")
+        df.to_parquet("./historic_data/TSLA_1mo_1d.parquet")
 
         with patch("src.data.stock_data_downloader.yf.Ticker") as mock_yf:
             downloader = StockDataDownloader(["TSLA"], period="1mo", interval="1d")
             downloader.download_data()
             mock_yf.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Parquet round-trip: timezone preservation
+# ---------------------------------------------------------------------------
+
+
+class TestParquetRoundTrip:
+    """Verify that the Parquet cache preserves timezone-aware DatetimeIndex."""
+
+    def test_timezone_preserved_after_roundtrip(self, tmp_path):
+        df = _make_tz_aware_df()
+        path = tmp_path / "test.parquet"
+
+        df.to_parquet(path)
+        df_loaded = pd.read_parquet(path)
+
+        assert df_loaded.index.tzinfo is not None, "Timezone info should be preserved after Parquet round-trip"
+        assert str(df_loaded.index.tz) == str(df.index.tz), "Timezone should match original after round-trip"
+
+    def test_index_values_preserved_after_roundtrip(self, tmp_path):
+        df = _make_tz_aware_df()
+        path = tmp_path / "test.parquet"
+
+        df.to_parquet(path)
+        df_loaded = pd.read_parquet(path)
+
+        # Parquet does not store DatetimeIndex frequency; compare without freq
+        pd.testing.assert_index_equal(df.index, df_loaded.index, exact=False, check_names=True)
+
+    def test_data_values_preserved_after_roundtrip(self, tmp_path):
+        df = _make_tz_aware_df()
+        path = tmp_path / "test.parquet"
+
+        df.to_parquet(path)
+        df_loaded = pd.read_parquet(path)
+
+        pd.testing.assert_frame_equal(df, df_loaded, check_freq=False)
