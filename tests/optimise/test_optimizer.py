@@ -207,7 +207,7 @@ class TestLightGBMObjective:
 class TestThreeWayTemporalSplit:
     """Verify that the train / val / test split is laid out correctly in time."""
 
-    def _make_sequential_data(self, n: int = 100, n_features: int = 3, seed: int = 0):
+    def _make_random_data(self, n: int = 100, n_features: int = 3, seed: int = 0):
         rng = np.random.default_rng(seed)
         cols = [f"f{i}" for i in range(n_features)]
         x = pd.DataFrame(rng.normal(0, 1, (n, n_features)), columns=cols)
@@ -215,8 +215,12 @@ class TestThreeWayTemporalSplit:
         return x, y
 
     def test_val_indices_are_strictly_after_train(self):
-        """No validation sample may appear at the same position or earlier than the last train sample."""
-        x, y = self._make_sequential_data(n=100)
+        """Validation samples must come strictly after all training samples in time.
+
+        Temporal ordering ensures the model cannot see future validation data during
+        training, preventing look-ahead data leakage.
+        """
+        x, y = self._make_random_data(n=100)
         test_size = 0.2
         val_size = 0.1
         n = len(x)
@@ -233,8 +237,12 @@ class TestThreeWayTemporalSplit:
         assert x_val.index.min() >= val_split_idx
 
     def test_test_indices_are_strictly_after_val(self):
-        """No test sample may appear at the same position or earlier than the last val sample."""
-        x, y = self._make_sequential_data(n=100)
+        """Test samples must come strictly after all validation samples in time.
+
+        Keeping the test set after validation ensures hyperparameter tuning (which
+        uses the validation split) cannot influence the final out-of-sample metric.
+        """
+        x, y = self._make_random_data(n=100)
         test_size = 0.2
         val_size = 0.1
         n = len(x)
@@ -250,7 +258,7 @@ class TestThreeWayTemporalSplit:
 
     def test_splits_are_non_overlapping_and_exhaustive(self):
         """Train + val + test must cover all rows without overlap."""
-        x, y = self._make_sequential_data(n=100)
+        x, y = self._make_random_data(n=100)
         test_size = 0.2
         val_size = 0.1
         n = len(x)
@@ -269,7 +277,7 @@ class TestThreeWayTemporalSplit:
 
     def test_optimizer_receives_val_not_test(self):
         """The optimizer's x_val must match the validation slice, not the test slice."""
-        x, y = self._make_sequential_data(n=100)
+        x, y = self._make_random_data(n=100)
         test_size = 0.2
         val_size = 0.1
         n = len(x)
