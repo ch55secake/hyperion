@@ -640,9 +640,7 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
             print("⚠️  Insufficient test data for ranking.")
             return pd.DataFrame()
 
-        latest_per_symbol = (
-            test_df.sort_values("date").groupby("symbol").last().reset_index()
-        )
+        latest_per_symbol = test_df.sort_values("date").groupby("symbol").last().reset_index()
 
         pred_map = dict(zip(latest_per_symbol["symbol"], latest_per_symbol["prediction"]))
         price_map = dict(zip(latest_per_symbol["symbol"], latest_per_symbol["price"]))
@@ -677,7 +675,9 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         print(f"Stocks ranked: {len(ranked_df)}\n")
 
         col_fmt = "{:<8} {:>14} {:>12} {:>12} {:>14} {:>5} {:>14}"
-        header = col_fmt.format("Symbol", "Exp Return", "Confidence", "Volatility", "Priority", "Rank", "Allocation ($)")
+        header = col_fmt.format(
+            "Symbol", "Exp Return", "Confidence", "Volatility", "Priority", "Rank", "Allocation ($)"
+        )
         separator = "-" * len(header)
         print(header)
         print(separator)
