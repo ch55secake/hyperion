@@ -16,7 +16,10 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.preprocessing import StandardScaler
 
-warnings.filterwarnings("ignore")
+warnings.filterwarnings("ignore", category=UserWarning, module="lightgbm")
+warnings.filterwarnings("ignore", category=UserWarning, module="xgboost")
+warnings.filterwarnings("ignore", category=FutureWarning, module="xgboost")
+warnings.filterwarnings("ignore", category=optuna.exceptions.ExperimentalWarning)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
