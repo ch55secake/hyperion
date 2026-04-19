@@ -1,4 +1,5 @@
 import traceback
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 import numpy as np
@@ -71,7 +72,8 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
     @override
     def download_data(self):
         """
-        Download both hourly and daily data instead of populating just daily data
+        Download both hourly and daily data instead of populating just daily data.
+        All intervals are downloaded concurrently.
         :return:
         """
         logger.info("=" * 60)
@@ -82,9 +84,17 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
             raise Exception("Please run read_tickers(), before trying to run download_data()")
 
         self._stock_data = {}
-        for interval in self.intervals:
-            self._downloader = StockDataDownloader(self.symbols, period=self.period, interval=interval)
-            self._stock_data[interval] = self._downloader.download_data()
+
+        def _download_interval(interval):
+            downloader = StockDataDownloader(self.symbols, period=self.period, interval=interval)
+            return interval, downloader, downloader.download_data()
+
+        with ThreadPoolExecutor(max_workers=len(self.intervals)) as executor:
+            futures = {executor.submit(_download_interval, interval): interval for interval in self.intervals}
+            for future in as_completed(futures):
+                interval, downloader, data = future.result()
+                self._stock_data[interval] = data
+                self._downloader = downloader
 
         if not self._stock_data:
             logger.warning("No data downloaded. Exiting.")
