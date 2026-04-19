@@ -27,6 +27,7 @@ lightgbm = "4.6.0"
 optuna = "4.6.0"
 plotly = "6.4.0"
 catboost = "1.2.8"
+pyarrow = "^23.0.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=7.0"
@@ -36,6 +37,9 @@ pytest-cov = ">=4.0"
 testpaths = ["tests"]
 addopts = "-v"
 pythonpath = ["."]
+markers = [
+    "regression: marks tests as regression tests (may be slower)",
+]
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

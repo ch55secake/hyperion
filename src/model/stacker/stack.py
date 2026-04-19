@@ -78,7 +78,8 @@ class TimeSeriesStacker:
                 else:
                     # fallback: group by target date
                     aligned = preds.resample("D").mean()
-            except Exception:
+            except Exception as e:
+                logger.warning("Failed to infer frequency for alignment, falling back to daily resample: %s", e)
                 aligned = preds.resample("D").mean()
 
             # Reindex to exact target_index and forward-fill last available within day

@@ -5,19 +5,25 @@ from src.util import logger
 
 def align_to_reference(targets_series, reference_index, method="ffill"):
     """
-    Align targets from one interval to a reference index.
+    Align targets from one interval to a reference index using temporal (date-based) alignment.
     :param targets_series: Target series to align
     :param reference_index: Reference index to align to
     :param method: Alignment method ("ffill", "mean")
     :return: Aligned targets series
     """
     if method == "ffill":
-        min_length = min(len(targets_series), len(reference_index))
+        aligned = targets_series.reindex(reference_index, method="ffill")
 
-        aligned_index = reference_index[:min_length]
-        aligned_values = targets_series.iloc[:min_length].values
+        non_null = aligned.notna().sum()
+        coverage = non_null / len(reference_index) if len(reference_index) > 0 else 0.0
+        if coverage < 0.5:
+            logger.warning(
+                f"align_to_reference (ffill): low coverage {coverage * 100:.1f}% "
+                f"({non_null}/{len(reference_index)} dates matched). "
+                "Check that targets_series and reference_index share overlapping dates."
+            )
 
-        return pd.Series(aligned_values, index=aligned_index)
+        return aligned
 
     elif method == "mean":
         try:
@@ -25,11 +31,29 @@ def align_to_reference(targets_series, reference_index, method="ffill"):
             if freq is not None:
                 resampled = targets_series.resample(freq).mean()
             else:
+                logger.warning(
+                    "align_to_reference (mean): could not infer frequency from reference_index. "
+                    "Falling back to daily ('D') resampling."
+                )
                 resampled = targets_series.resample("D").mean()
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                f"align_to_reference (mean): error during frequency detection or resampling ({exc}). "
+                "Falling back to daily ('D') resampling."
+            )
             resampled = targets_series.resample("D").mean()
 
         aligned = resampled.reindex(reference_index, method="ffill")
+
+        non_null = aligned.notna().sum()
+        coverage = non_null / len(reference_index) if len(reference_index) > 0 else 0.0
+        if coverage < 0.5:
+            logger.warning(
+                f"align_to_reference (mean): low coverage {coverage * 100:.1f}% "
+                f"({non_null}/{len(reference_index)} dates matched). "
+                "Check that targets_series and reference_index share overlapping dates."
+            )
+
         return aligned
 
     else:

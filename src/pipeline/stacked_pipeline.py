@@ -1,8 +1,10 @@
 import traceback
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from typing import Any
 
 import numpy as np
 import pandas as pd
+from joblib import Parallel, delayed
 from typing_extensions import override
 
 from src.align import align_targets_across_intervals, ensure_prediction_alignment
@@ -20,6 +22,49 @@ from src.writer import save_trained_model
 from src.feature.feature_split import FeaturePartition, derive_feature_split
 
 # Required for the usage of the strategy registry
+
+
+def _simulate_ticker_worker(
+    ticker_df: pd.DataFrame,
+    strategy_key: str,
+    initial_capital: int,
+    transaction_cost: float = 0.001,
+) -> tuple[str, dict | None, str | None]:
+    """Simulate a single ticker; designed for parallel execution via ProcessPoolExecutor.
+
+    Returns a 3-tuple ``(symbol, results, skip_reason)`` where:
+    - *results* is the simulation result dict on success, or ``None`` when the
+      ticker is skipped.
+    - *skip_reason* describes why the ticker was skipped; ``None`` on success.
+
+    Unexpected errors are not caught here and will propagate to the caller via
+    ``Future.result()``.
+    """
+    symbol = str(ticker_df["symbol"].iloc[0])
+    strategy_class = StrategyRegistry.get(strategy_key)
+
+    if len(ticker_df) < strategy_class.get_minimum_data_points():
+        return symbol, None, f"insufficient data ({len(ticker_df)} rows)"
+
+    additional_data = strategy_class.get_extra_params(ticker_df.set_index("date")["price"])
+
+    simulator = TradingSimulator(initial_capital=initial_capital, transaction_cost=transaction_cost)
+    strategy = StrategyRegistry.create(
+        name=strategy_key, simulator=simulator, capital=initial_capital, **additional_data
+    )
+
+    ticker_data_reset = ticker_df.reset_index(drop=True)
+
+    results = simulator.simulate(
+        predictions=ticker_data_reset["prediction"],
+        actual_returns=ticker_data_reset["actual_return"],
+        prices=ticker_data_reset["price"],
+        dates=ticker_data_reset["date"],
+        strategy=strategy,
+        threshold="auto",
+    )
+
+    return symbol, results, None
 
 
 class StackedModelTrainingPipeline(BaseTrainingPipeline):
@@ -71,7 +116,8 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
     @override
     def download_data(self):
         """
-        Download both hourly and daily data instead of populating just daily data
+        Download both hourly and daily data instead of populating just daily data.
+        All intervals are downloaded concurrently.
         :return:
         """
         logger.info("=" * 60)
@@ -82,9 +128,28 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
             raise Exception("Please run read_tickers(), before trying to run download_data()")
 
         self._stock_data = {}
-        for interval in self.intervals:
-            self._downloader = StockDataDownloader(self.symbols, period=self.period, interval=interval)
-            self._stock_data[interval] = self._downloader.download_data()
+
+        def _download_interval(interval):
+            downloader = StockDataDownloader(self.symbols, period=self.period, interval=interval)
+            interval_data, failed = downloader.download_data()
+            if failed:
+                logger.warning(
+                    "%d symbol(s) failed to download for interval '%s' and will be excluded: %s",
+                    len(failed),
+                    interval,
+                    failed,
+                )
+            return interval, downloader, interval_data
+
+        interval_downloaders: dict[str, StockDataDownloader] = {}
+        with ThreadPoolExecutor(max_workers=len(self.intervals)) as executor:
+            futures = {executor.submit(_download_interval, interval): interval for interval in self.intervals}
+            for future in as_completed(futures):
+                interval, downloader, data = future.result()
+                self._stock_data[interval] = data
+                interval_downloaders[interval] = downloader
+
+        self._downloader = interval_downloaders[self.intervals[0]]
 
         if not self._stock_data:
             logger.warning("No data downloaded. Exiting.")
@@ -109,10 +174,33 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
         return self, train, test
 
+    def _engineer_features_for_symbol(self, symbol: str, data: pd.DataFrame):
+        """
+        Run feature engineering for a single symbol and return split train/test data.
+        Designed to be called in parallel via joblib.
+        :param symbol: ticker symbol
+        :param data: raw OHLCV DataFrame for this symbol and interval
+        :return: tuple of (symbol, x, y, dates, prices, split_idx) or (symbol, None, ...) on error
+        """
+        try:
+            logger.info(f"Processing {symbol}...")
+            features = FeatureEngineering(data)
+            features.create_target_features(target_days=self.target_days)
+            x, y, dates, prices, _ = features.prepare_features()
+            x = self._add_stock_features(x, symbol)
+            split_idx = int(len(x) * (1 - self.test_size))
+            logger.info(f"{symbol}: {split_idx} train samples, {len(x) - split_idx} test samples")
+            return symbol, x, y, dates, prices, split_idx
+        except Exception as e:
+            logger.error(f"Error processing {symbol}: {str(e)}")
+            traceback.print_exc()
+            return symbol, None, None, None, None, None
+
     @override
     def prepare_features(self):
         """
-        Prepare all features for both daily and hourly data, as well as the test and train split
+        Prepare all features for both daily and hourly data, as well as the test and train split.
+        Feature engineering is parallelized across tickers using joblib threads.
         :return:
         """
         if self._stock_data is None:
@@ -131,36 +219,37 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         test_symbols = {interval: [] for interval in self.intervals}
 
         for interval in self.intervals:
-            for symbol in self.symbols:
-                try:
-                    logger.info(f"Processing {symbol}...")
+            available_symbols = [s for s in self.symbols if s in self._stock_data[interval]]
+            if len(available_symbols) < len(self.symbols):
+                missing = set(self.symbols) - set(available_symbols)
+                logger.warning(
+                    "Skipping %d symbol(s) missing from '%s' interval data: %s",
+                    len(missing),
+                    interval,
+                    missing,
+                )
+            results = Parallel(n_jobs=-1, prefer="threads")(
+                delayed(self._engineer_features_for_symbol)(symbol, self._stock_data[interval][symbol])
+                for symbol in available_symbols
+            )
 
-                    features = FeatureEngineering(self._stock_data[interval][symbol])
-                    features.create_target_features()
-                    x, y, dates, prices, _ = features.prepare_features()
-
-                    x = self._add_stock_features(x, symbol)
-
-                    self._split_idx = int(len(x) * (1 - self.test_size))
-
-                    train_features[interval].append(x.iloc[: self._split_idx])
-                    train_targets[interval].append(y.iloc[: self._split_idx])
-                    train_dates[interval].append(pd.Series(dates[: self._split_idx], index=dates[: self._split_idx]))
-                    train_prices[interval].append(prices.iloc[: self._split_idx])
-                    train_symbols[interval].extend([symbol] * self._split_idx)
-
-                    test_features[interval].append(x.iloc[self._split_idx :])
-                    test_targets[interval].append(y.iloc[self._split_idx :])
-                    test_dates[interval].append(pd.Series(dates[self._split_idx :], index=dates[self._split_idx :]))
-                    test_prices[interval].append(prices.iloc[self._split_idx :])
-                    test_symbols[interval].extend([symbol] * (len(x) - self._split_idx))
-
-                    logger.info(f"{symbol}: {self._split_idx} train samples, {len(x) - self._split_idx} test samples")
-
-                except Exception as e:
-                    logger.error(f"Error processing {symbol}: {str(e)}")
-                    traceback.print_exc()
+            for symbol, x, y, dates, prices, split_idx in results:
+                if x is None:
                     continue
+
+                self._split_idx = split_idx
+
+                train_features[interval].append(x.iloc[:split_idx])
+                train_targets[interval].append(y.iloc[:split_idx])
+                train_dates[interval].append(pd.Series(dates[:split_idx], index=dates[:split_idx]))
+                train_prices[interval].append(prices.iloc[:split_idx])
+                train_symbols[interval].extend([symbol] * split_idx)
+
+                test_features[interval].append(x.iloc[split_idx:])
+                test_targets[interval].append(y.iloc[split_idx:])
+                test_dates[interval].append(pd.Series(dates[split_idx:], index=dates[split_idx:]))
+                test_prices[interval].append(prices.iloc[split_idx:])
+                test_symbols[interval].extend([symbol] * (len(x) - split_idx))
 
         logger.info("=" * 60)
         logger.info("Combining Training Data")
@@ -398,11 +487,15 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         self._test_results = self._model.evaluate(self._x_test_dict, aligned_targets[self.default_interval])
 
         model_name: str = "ALL_STOCKS"
-        save_trained_model(self._model, model_name, self._test_results)
+        save_trained_model(
+            self._model, model_name, self._test_results, self.r2_save_threshold, self.r2_invalid_threshold
+        )
 
         return self
 
-    def simulate(self, initial_capital: float = 10000, tickers=None, strategy_name: str = None):
+    def simulate(
+        self, initial_capital: float = 10000, transaction_cost: float = 0.001, tickers=None, strategy_name: str = None
+    ):
         """
         Use the stacked trained model to simulate trading day by day, per ticker
         :return:
@@ -467,49 +560,29 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
             strategy_results = {}
 
-            for symbol in unique_symbols:
-                try:
-                    ticker_data = test_df[test_df["symbol"] == symbol].sort_values("date")
-                    strategy_class = StrategyRegistry.get(strategy_key)
+            ticker_dfs = [test_df[test_df["symbol"] == symbol].sort_values("date") for symbol in unique_symbols]
 
-                    if len(ticker_data) < strategy_class.get_minimum_data_points():
-                        logger.warning(f"Skipping {symbol}: insufficient data ({len(ticker_data)} rows)")
-                        continue
-
-                    logger.info(f"--- {symbol} ({len(ticker_data)} samples) ---")
-
-                    additional_data = strategy_class.get_extra_params(ticker_data.set_index("date")["price"])
-
-                    simulator = TradingSimulator(initial_capital=int(initial_capital))
-                    strategy = StrategyRegistry.create(
-                        name=strategy_key, simulator=simulator, capital=int(initial_capital), **additional_data
+            with ProcessPoolExecutor() as pool:
+                futures = [
+                    (
+                        pool.submit(_simulate_ticker_worker, df, strategy_key, int(initial_capital), transaction_cost),
+                        str(df["symbol"].iloc[0]),
                     )
+                    for df in ticker_dfs
+                ]
 
-                    ticker_data_reset = ticker_data.reset_index(drop=True)
-
-                    train_predictions = predictions[self._split_idx :]
-
-                    threshold = np.percentile(np.abs(train_predictions), 75)
-
-                    results = simulator.simulate(
-                        predictions=ticker_data_reset["prediction"],
-                        actual_returns=ticker_data_reset["actual_return"],
-                        prices=ticker_data_reset["price"],
-                        dates=ticker_data_reset["date"],
-                        strategy=strategy,
-                        threshold=threshold if isinstance(threshold, str) else "auto",
-                    )
-
-                    strategy_results[symbol] = results
-
-                    logger.info(f"Final Value: ${results['final_value']:,.2f}")
-                    logger.info(f"Return: {results['total_return'] * 100:.2f}%")
-
-                except Exception as e:
-                    logger.error(f"Error running {strategy_key} on {symbol}: {e}")
-                    import traceback
-
-                    traceback.print_exc()
+                for future, symbol in futures:
+                    try:
+                        sym, results, skip_reason = future.result()
+                        if results is None:
+                            logger.warning(f"Skipping {sym}: {skip_reason}")
+                        else:
+                            strategy_results[sym] = results
+                            logger.info(f"--- {sym} ({len(results['portfolio_history'])} samples) ---")
+                            logger.info(f"Final Value: ${results['final_value']:,.2f}")
+                            logger.info(f"Return: {results['total_return'] * 100:.2f}%")
+                    except Exception:
+                        logger.exception(f"Error running {strategy_key} on {symbol}")
 
             all_results[strategy_key] = strategy_results
 
@@ -558,7 +631,7 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         :param y_test:
         :return:
         """
-        optimizer = StockModelOptimizer(x_train_daily, y_train, x_test_daily, y_test, n_trials=200, n_jobs=1)
+        optimizer = StockModelOptimizer(x_train_daily, y_train, x_test_daily, y_test, n_trials=self.n_trials, n_jobs=1)
         optimizer.optimize_both()
         optimizer.visualize_studies(save_path="plots/optuna")
         optimizer.save_results(f"params/ALL_STOCKS_best_params.json")
