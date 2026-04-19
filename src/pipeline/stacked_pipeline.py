@@ -176,9 +176,18 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         test_symbols = {interval: [] for interval in self.intervals}
 
         for interval in self.intervals:
+            available_symbols = [s for s in self.symbols if s in self._stock_data[interval]]
+            if len(available_symbols) < len(self.symbols):
+                missing = set(self.symbols) - set(available_symbols)
+                logger.warning(
+                    "Skipping %d symbol(s) missing from '%s' interval data: %s",
+                    len(missing),
+                    interval,
+                    missing,
+                )
             results = Parallel(n_jobs=-1, prefer="threads")(
                 delayed(self._engineer_features_for_symbol)(symbol, self._stock_data[interval][symbol])
-                for symbol in self.symbols
+                for symbol in available_symbols
             )
 
             for symbol, x, y, dates, prices, split_idx in results:
