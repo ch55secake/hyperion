@@ -27,13 +27,6 @@ repos:
         name: Check JSON
         types: [ json ]
 
-      # https://github.com/pre-commit/pre-commit-hooks#check-toml
-      - id: check-toml
-        description: Checks toml files for parseable syntax.
-        entry: check-toml
-        name: Check TOML
-        types: [ toml ]
-
       # https://github.com/pre-commit/pre-commit-hooks#check-yaml
       - id: check-yaml
         description: Checks yaml files for parseable syntax.

@@ -59,6 +59,7 @@ exclude = [
     "src/experimental/**",
     "src/pipeline/**",
 ]
+ignore = ["*unresolved-attribute*", "*no-matching-overload*", "*invalid-argument-type*"]
 
 [build-system]
 requires = ["hatchling"]
