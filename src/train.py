@@ -48,6 +48,17 @@ def simple_train_test_split(
     dates_test = dates[split_idx:]
     prices_test = prices.iloc[split_idx:]
 
+    train_end = dates[split_idx - 1] if split_idx > 0 else "N/A"
+    test_start = dates[split_idx] if split_idx < len(dates) else "N/A"
+    logger.info(
+        "%s: temporal split — %d train samples (up to %s), %d test samples (from %s)",
+        symbol,
+        split_idx,
+        train_end,
+        len(x_daily) - split_idx,
+        test_start,
+    )
+
     optimizer = StockModelOptimizer(x_train_daily, y_train, x_test_daily, y_test)
 
     optimizer.optimize_both()
