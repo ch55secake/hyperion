@@ -294,6 +294,4 @@ class TestThreeWayTemporalSplit:
 
         # The optimizer should hold the val slice, not the test slice
         assert len(opt.x_val) == len(x_val)
-        assert len(opt.x_val) != len(x_test), (
-            "Optimizer must receive the validation set, not the held-out test set"
-        )
+        assert len(opt.x_val) != len(x_test), "Optimizer must receive the validation set, not the held-out test set"
