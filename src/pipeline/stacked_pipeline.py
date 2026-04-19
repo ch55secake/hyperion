@@ -398,7 +398,9 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         self._test_results = self._model.evaluate(self._x_test_dict, aligned_targets[self.default_interval])
 
         model_name: str = "ALL_STOCKS"
-        save_trained_model(self._model, model_name, self._test_results, self.r2_save_threshold, self.r2_invalid_threshold)
+        save_trained_model(
+            self._model, model_name, self._test_results, self.r2_save_threshold, self.r2_invalid_threshold
+        )
 
         return self
 
@@ -482,7 +484,9 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
                     additional_data = strategy_class.get_extra_params(ticker_data.set_index("date")["price"])
 
-                    simulator = TradingSimulator(initial_capital=int(initial_capital), transaction_cost=transaction_cost)
+                    simulator = TradingSimulator(
+                        initial_capital=int(initial_capital), transaction_cost=transaction_cost
+                    )
                     strategy = StrategyRegistry.create(
                         name=strategy_key, simulator=simulator, capital=int(initial_capital), **additional_data
                     )
