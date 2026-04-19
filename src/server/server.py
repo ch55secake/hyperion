@@ -89,7 +89,7 @@ class ModelServer:
                 missing_fields = [field for field in required_fields if field not in data]
 
                 if missing_fields:
-                    return jsonify({"error": f'Missing required fields: {", ".join(missing_fields)}'}), 400
+                    return jsonify({"error": f"Missing required fields: {', '.join(missing_fields)}"}), 400
 
                 ticker = data["ticker"]
                 interval = data["interval"]

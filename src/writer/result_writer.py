@@ -1,7 +1,13 @@
-from typing import Any, Dict
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Dict
+
 from pandas import DataFrame, Series
 
 from src.util import logger
+
+if TYPE_CHECKING:
+    from src.simulation.trading_simulator import TradingSimulator
 
 
 def persist_results(

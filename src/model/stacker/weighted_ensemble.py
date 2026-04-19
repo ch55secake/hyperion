@@ -34,7 +34,6 @@ class StackedStockPredictor:
         if not isinstance(y_val, pd.Series):
             y_val = pd.Series(y_val)
 
-        reference_index = y_val.index
         target_length = len(y_val)
 
         for name, model in self.models.items():
