@@ -17,7 +17,7 @@ class AdaptiveThresholdStrategy(Strategy):
         if self.position is None and pred_return > self.threshold:
             self.buy(date, price)
 
-        elif pred_return < -self.threshold:
+        elif self.position == "long" and pred_return < -self.threshold:
             self.sell(date, price, pred_return)
 
         return self.capital, self.entry_price, self.position, self.shares
