@@ -43,29 +43,36 @@ class FeatureEngineering:
     def _add_moving_averages(self) -> FeatureEngineering:
         for w in _ma_windows:
             if self.__n_rows >= w:
-                # SMA_n: Simple Moving Average over n days. Measures the mean closing price over a period, smoothing short-term fluctuations.
+                # SMA_n: Simple Moving Average over n days. Measures the mean closing price over a period,
+                # smoothing short-term fluctuations.
                 self.df[f"SMA_{w}"] = ti.sma(self.df["Close"], w)
-                # EMA_n: Exponential Moving Average over n days. Gives more weight to recent prices, highlighting short-term trends.
+                # EMA_n: Exponential Moving Average over n days. Gives more weight to recent prices,
+                # highlighting short-term trends.
                 self.df[f"EMA_{w}"] = ti.ema(self.df["Close"], w)
 
-                # WMA_n: Weighted Moving Average over n days. Similar to EMA but weights increase linearly; less sensitive to extreme spikes.
+                # WMA_n: Weighted Moving Average over n days. Similar to EMA but weights increase linearly;
+                # less sensitive to extreme spikes.
                 self.df[f"WMA_{w}"] = ti.wma(self.df["Close"], w)
-                # HMA_n: Hull Moving Average over n days. Faster and less noisy than WMA; responds more quickly to trend changes.
+                # HMA_n: Hull Moving Average over n days. Faster and less noisy than WMA;
+                # responds more quickly to trend changes.
                 self.df[f"HMA_{w}"] = ti.hma(self.df["Close"], w)
 
         return self
 
     def _add_safe_price_ratios(self) -> FeatureEngineering:
-        # Price_to_SMA20 / Price_to_SMA50: Ratio of current price to 20/50-day SMA. Shows if the stock is above/below short/medium-term trend.
+        # Price_to_SMA20 / Price_to_SMA50: Ratio of current price to 20/50-day SMA.
+        # Shows if the stock is above/below short/medium-term trend.
         self.df["Price_to_SMA20"] = ti.ratio(self.df["Close"], self.df.get("SMA_20", pd.Series(1)))
         self.df["Price_to_SMA50"] = ti.ratio(self.df["Close"], self.df.get("SMA_50", pd.Series(1)))
-        # Price_to_EMA12 / Price_to_EMA26: Ratio of current price to 12/26-day EMA. Highlights recent momentum relative to longer trend.
+        # Price_to_EMA12 / Price_to_EMA26: Ratio of current price to 12/26-day EMA.
+        # Highlights recent momentum relative to longer trend.
         self.df["Price_to_EMA12"] = ti.ratio(self.df["Close"], self.df.get("EMA_12", pd.Series(1)))
         self.df["Price_to_EMA26"] = ti.ratio(self.df["Close"], self.df.get("EMA_26", pd.Series(1)))
         # EMA_12_26_Ratio: Ratio of EMA12 to EMA26. Indicator for trend strength (used in MACD calculation).
         if "EMA_12" in self.df.columns and "EMA_26" in self.df.columns:
             self.df["EMA_12_26_Ratio"] = ti.ratio(self.df["EMA_12"], self.df["EMA_26"])
-        # SMA_5_20_Ratio / SMA_10_50_Ratio: Ratio of short-term SMA to medium-term SMA. Signals short-term trend direction relative to longer trend.
+        # SMA_5_20_Ratio / SMA_10_50_Ratio: Ratio of short-term SMA to medium-term SMA.
+        # Signals short-term trend direction relative to longer trend.
         if "SMA_5" in self.df.columns and "SMA_20" in self.df.columns:
             self.df["SMA_5_20_Ratio"] = ti.ratio(self.df["SMA_5"], self.df["SMA_20"])
         if "SMA_10" in self.df.columns and "SMA_50" in self.df.columns:
@@ -100,17 +107,20 @@ class FeatureEngineering:
         return self
 
     def _add_cci(self) -> FeatureEngineering:
-        # CCI: Measures the deviation of the typical price ((High + Low + Close)/3) from its moving average over a given window (default 20 days).
+        # CCI: Measures the deviation of the typical price ((High + Low + Close)/3) from its moving average
+        # over a given window (default 20 days).
         self.df["CCI"] = ti.cci(self.df["High"], self.df["Low"], self.df["Close"])
         return self
 
     def _add_williams_r(self) -> FeatureEngineering:
-        # WilliamsR: Momentum indicator that measures the current closing price relative to the highest high and the lowest low over a given period (default 14 days).
+        # WilliamsR: Momentum indicator that measures the current closing price relative to the highest high
+        # and the lowest low over a given period (default 14 days).
         self.df["WilliamsR"] = ti.williams_r(self.df["High"], self.df["Low"], self.df["Close"])
         return self
 
     def _add_tsi(self) -> FeatureEngineering:
-        # TSI: Momentum oscillator that measures the trend and strength of price movements while smoothing noise using double exponential moving averages.
+        # TSI: Momentum oscillator that measures the trend and strength of price movements while smoothing
+        # noise using double exponential moving averages.
         self.df["TSI"] = ti.tsi(self.df["Close"])
 
         # Optional: signal line
@@ -127,7 +137,8 @@ class FeatureEngineering:
     def _add_bollinger_bands(self) -> FeatureEngineering:
         if self.__n_rows < 20:
             return self
-        # BB_Upper / BB_Lower / BB_Middle: Upper/lower bands around 20-day SMA ± 2 standard deviations. Measures volatility.
+        # BB_Upper / BB_Lower / BB_Middle: Upper/lower bands around 20-day SMA ± 2 standard deviations.
+        # Measures volatility.
         # BB_Width: Width between upper and lower band. Higher width = higher volatility.
         # BB_Width_Ratio: BB_Width relative to middle band. Normalized volatility.
         # BB_B: Measures the relative position of the closing price within the Bollinger Bands.
@@ -174,7 +185,8 @@ class FeatureEngineering:
             if self.__n_rows >= w:
                 # Volatility_nd: n-day rolling standard deviation of closing price. Measures risk and variability.
                 self.df[f"Volatility_{w}d"] = ti.std(self.df["Close"], w)
-        # Volatility_Ratio_10_20: Ratio of 10-day to 20-day volatility. Shows recent volatility relative to longer term.
+        # Volatility_Ratio_10_20: Ratio of 10-day to 20-day volatility.
+        # Shows recent volatility relative to longer term.
         if "Volatility_10d" in self.df.columns and "Volatility_20d" in self.df.columns:
             self.df["Volatility_Ratio_10_20"] = ti.ratio(self.df["Volatility_10d"], self.df["Volatility_20d"])
         return self
@@ -185,7 +197,8 @@ class FeatureEngineering:
         # HL_Range_MA_5 / HL_Range_MA_20: 5/20-day moving average of HL_Range. Smooths daily range trends.
         if self.__n_rows >= 5:
             self.df["HL_Range_MA_5"] = ti.sma(self.df["HL_Range"], 5)
-        # HL_Range_Ratio_5_20: Ratio of short-term to medium-term HL range. Signals expansion/contraction in intraday volatility.
+        # HL_Range_Ratio_5_20: Ratio of short-term to medium-term HL range.
+        # Signals expansion/contraction in intraday volatility.
         if self.__n_rows >= 20:
             self.df["HL_Range_MA_20"] = ti.sma(self.df["HL_Range"], 20)
             if "HL_Range_MA_5" in self.df.columns:
@@ -209,8 +222,12 @@ class FeatureEngineering:
             self.df[f"Return_Lag_{lag}"] = ti.lagged_return(self.df["Close"], lag)
             # TODO:
             # self.df[f"Lagged_Return_{lag}d_Volatility"] = self.df[f"Lagged_Return_{lag}d"].rolling(20).std()
-            # self.df[f"Lagged_Return_{lag}d_Volatility_Ratio"] = self.df[f"Lagged_Return_{lag}d_Volatility"] / self.df["Volatility_20d"].replace(0, np.nan)
-            # self.df[f"Lagged_Return_{lag}d_Volatility_Ratio_SMA_20"] = self.df[f"Lagged_Return_{lag}d_Volatility_Ratio"].rolling(20).mean()
+            # self.df[f"Lagged_Return_{lag}d_Volatility_Ratio"] = (
+            #     self.df[f"Lagged_Return_{lag}d_Volatility"] / self.df["Volatility_20d"].replace(0, np.nan)
+            # )
+            # self.df[f"Lagged_Return_{lag}d_Volatility_Ratio_SMA_20"] = (
+            #     self.df[f"Lagged_Return_{lag}d_Volatility_Ratio"].rolling(20).mean()
+            # )
 
         return self
 
@@ -219,7 +236,8 @@ class FeatureEngineering:
             if self.__n_rows >= m:
                 # Momentum_n: Price change over n days. Shows trend strength.
                 self.df[f"Momentum_{m}"] = ti.momentum(self.df["Close"], m)
-        # Momentum_Ratio_5_10 / Momentum_Ratio_10_20: Ratio of short-term to medium-term momentum. Highlights trend acceleration/deceleration.
+        # Momentum_Ratio_5_10 / Momentum_Ratio_10_20: Ratio of short-term to medium-term momentum.
+        # Highlights trend acceleration/deceleration.
         if "Momentum_5" in self.df.columns and "Momentum_10" in self.df.columns:
             self.df["Momentum_Ratio_5_10"] = ti.ratio(self.df["Momentum_5"], self.df["Momentum_10"])
         if "Momentum_10" in self.df.columns and "Momentum_20" in self.df.columns:
@@ -244,10 +262,16 @@ class FeatureEngineering:
             )
 
             # TODO Maybe
-            # self.df["ATR_Directional_Up"] = (self.df["High"] - self.df["Close"].shift(1)).where(self.df["High"] - self.df["Close"].shift(1) > self.df["ATR"], 0)
-            # self.df["ATR_Directional_Down"] = (self.df["Close"].shift(1) - self.df["Low"]).where(self.df["Close"].shift(1) - self.df["Low"] > self.df["ATR"], 0)
+            # self.df["ATR_Directional_Up"] = (self.df["High"] - self.df["Close"].shift(1)).where(
+            #     self.df["High"] - self.df["Close"].shift(1) > self.df["ATR"], 0
+            # )
+            # self.df["ATR_Directional_Down"] = (self.df["Close"].shift(1) - self.df["Low"]).where(
+            #     self.df["Close"].shift(1) - self.df["Low"] > self.df["ATR"], 0
+            # )
             # self.df["ATR_Directional_Up_Ratio"] = self.df["ATR_Directional_Up"] / self.df["ATR"].replace(0, np.nan)
-            # self.df["ATR_Directional_Down_Ratio"] = self.df["ATR_Directional_Down"] / self.df["ATR"].replace(0, np.nan)
+            # self.df["ATR_Directional_Down_Ratio"] = (
+            #     self.df["ATR_Directional_Down"] / self.df["ATR"].replace(0, np.nan)
+            # )
         return self
 
     def _add_sharpe(self) -> FeatureEngineering:

@@ -464,7 +464,12 @@ def cross_validate_with_optuna(
         y_val = y.iloc[val_idx]
 
         optimizer = StockModelOptimizer(
-            x_train, y_train, x_val, y_val, n_trials=n_trials, n_jobs=-1  # Sequential for cross-validation
+            x_train,
+            y_train,
+            x_val,
+            y_val,
+            n_trials=n_trials,
+            n_jobs=-1,  # Sequential for cross-validation
         )
 
         if model_type.lower() == "xgboost":
