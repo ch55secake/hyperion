@@ -31,37 +31,37 @@ class Logger:
         handler.setFormatter(formatter)
         self.__logger.addHandler(handler)
 
-    def debug(self, message: str, *args: object, **kwargs: object) -> None:
+    def debug(self, message: str, *args: object) -> None:
         """
         Log a debug message
         :param message: the message to log
         :return: nothing, will log a message
         """
-        self.__logger.debug(message, *args, **kwargs)
+        self.__logger.debug(message, *args)
 
-    def info(self, message: str, *args: object, **kwargs: object) -> None:
+    def info(self, message: str, *args: object) -> None:
         """
         Log an info message
         :param message: the message to log
         :return: nothing, will log a message
         """
-        self.__logger.info(message, *args, **kwargs)
+        self.__logger.info(message, *args)
 
-    def warning(self, message: str, *args: object, **kwargs: object) -> None:
+    def warning(self, message: str, *args: object) -> None:
         """
         Log a warning message
         :param message: the message to log
         :return: nothing, will log a message
         """
-        self.__logger.warning(message, *args, **kwargs)
+        self.__logger.warning(message, *args)
 
-    def error(self, message: str, *args: object, **kwargs: object) -> None:
+    def error(self, message: str, *args: object) -> None:
         """
         Log an error message
         :param message: the message to log
         :return: nothing, will log a message
         """
-        self.__logger.error(message, *args, **kwargs)
+        self.__logger.error(message, *args)
 
     def critical(self, message: str, *args: object) -> None:
         """

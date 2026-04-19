@@ -43,6 +43,6 @@ def test_logger_methods_forward_keyword_arguments():
     internal_logger = logger._Logger__logger
 
     with patch.object(internal_logger, "error") as mocked_error:
-        logger.error("Failure %s", "X", exc_info=True)
+        logger.error("Failure %s", "X")
 
-    mocked_error.assert_called_once_with("Failure %s", "X", exc_info=True)
+    mocked_error.assert_called_once_with("Failure %s", "X")

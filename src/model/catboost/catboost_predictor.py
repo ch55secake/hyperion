@@ -58,12 +58,12 @@ class CatBoostStockPredictor(Model):
             else:
                 eval_set = (x_val, y_val)
 
-        self.model.fit(  # type: ignore[union-attr]
+        self.model.fit(  # ty: ignore[unresolved-attribute]
             train_pool if self.cat_features else x_train,
             None if self.cat_features else y_train,
             eval_set=eval_set,
             early_stopping_rounds=self.early_stopping_rounds if eval_set else None,
-            verbose=self.model.get_params()["verbose"],  # type: ignore[union-attr]
+            verbose=self.model.get_params()["verbose"],  # ty: ignore[unresolved-attribute]
         )
 
         return self
@@ -74,4 +74,4 @@ class CatBoostStockPredictor(Model):
         :param x:
         :return:
         """
-        return self.model.predict(self._prepare_prediction(x))  # type: ignore[union-attr]
+        return self.model.predict(self._prepare_prediction(x))  # ty: ignore[unresolved-attribute]

@@ -229,7 +229,7 @@ class StockModelOptimizer:
 
         mae = mean_absolute_error(self.y_val, y_pred)
         r2 = r2_score(self.y_val, y_pred)
-        dir_acc = (np.sign(y_pred) == np.sign(self.y_val)).mean()  # type: ignore[no-overload]
+        dir_acc = (np.sign(y_pred) == np.sign(self.y_val)).mean()  # ty: ignore[no-matching-overload]
 
         trial.set_user_attr("mae", mae)
         trial.set_user_attr("r2", r2)

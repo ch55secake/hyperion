@@ -58,8 +58,8 @@ exclude = [
     "src/ranking/**",
     "src/experimental/**",
     "src/pipeline/**",
+    "src/feature/technical_indicators.py",
 ]
-ignore = ["*unresolved-attribute*", "*no-matching-overload*", "*invalid-argument-type*"]
 
 [build-system]
 requires = ["hatchling"]

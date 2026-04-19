@@ -85,4 +85,4 @@ class XGBoostStockPredictor(Model):
 
     def predict(self, x):
         """Make predictions"""
-        return self.model.predict(self._prepare_prediction(x))  # type: ignore[union-attr]
+        return self.model.predict(self._prepare_prediction(x))  # ty: ignore[unresolved-attribute]

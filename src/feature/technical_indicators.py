@@ -198,10 +198,7 @@ def bollinger_bands(
 
 def price_change(series: pd.Series, window: int) -> pd.Series:
     """Price Change over x days"""
-    result = series.pct_change(window)
-    if isinstance(result, pd.DataFrame):
-        return result.iloc[:, 0] if result.shape[1] > 0 else pd.Series(dtype=float)
-    return result
+    return series.pct_change(window)
 
 
 def atr(high: pd.Series, low: pd.Series, close: pd.Series, window: int = 14) -> pd.Series:
@@ -218,7 +215,7 @@ def atr(high: pd.Series, low: pd.Series, close: pd.Series, window: int = 14) -> 
 
 def lagged_return(series: pd.Series, window: int) -> pd.Series:
     """Lagged Returns"""
-    return price_change(series, 1).shift(window)  # type: ignore[return-value]
+    return price_change(series, 1).shift(window)
 
 
 def momentum(series: pd.Series, window: int) -> pd.Series:
@@ -229,7 +226,7 @@ def momentum(series: pd.Series, window: int) -> pd.Series:
 def rate_of_change(series: pd.Series, window: int) -> pd.Series:
     """Rate of Change"""
     shifted = series.shift(window)
-    return ratio(series - shifted, shifted).replace(0, np.nan) * 100  # type: ignore[return-value]
+    return ratio(series - shifted, shifted).replace(0, np.nan) * 100
 
 
 def plus_di(

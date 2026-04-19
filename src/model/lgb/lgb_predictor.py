@@ -106,4 +106,4 @@ class LightGBMStockPredictor(Model):
 
     def predict(self, x):
         """Make predictions"""
-        return self.model.predict(self._prepare_prediction(x), num_iteration=self.model.best_iteration)  # type: ignore[union-attr]
+        return self.model.predict(self._prepare_prediction(x), num_iteration=self.model.best_iteration)  # ty: ignore[unresolved-attribute]
