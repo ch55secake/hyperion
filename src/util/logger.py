@@ -63,5 +63,13 @@ class Logger:
         """
         self.__logger.error(message, *args, **kwargs)
 
+    def critical(self, message: str, *args: object, **kwargs: object) -> None:
+        """
+        Log a critical message
+        :param message: the message to log
+        :return: nothing, will log a message
+        """
+        self.__logger.critical(message, *args, **kwargs)
+
 
 logger = Logger()

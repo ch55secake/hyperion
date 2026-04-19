@@ -97,7 +97,7 @@ def train_model(symbols=None, period: str = "5y", interval: str = "1h", visualiz
     logger.info("=" * 60)
 
     # Download data hourly (interval='1h')
-    stock_data_downloader = StockDataDownloader(symbols, period=_DEFAULT_CONFIG.period, interval=interval)
+    stock_data_downloader = StockDataDownloader(symbols, period=period, interval=interval)
 
     stock_data_hourly, failed = stock_data_downloader.download_data()
 

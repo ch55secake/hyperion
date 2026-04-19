@@ -69,7 +69,10 @@ def ensure_prediction_alignment(predictions, y_test):
     if len(predictions) != len(y_test):
         min_len = min(len(predictions), len(y_test))
         logger.warning(
-            f"Prediction length ({len(predictions)}) and y_test length ({len(y_test)}) mismatch. Using {min_len} samples."
+            "Prediction length (%d) and y_test length (%d) mismatch. Using %d samples.",
+            len(predictions),
+            len(y_test),
+            min_len,
         )
         aligned_y_test = y_test.iloc[:min_len].reset_index(drop=True)
     else:

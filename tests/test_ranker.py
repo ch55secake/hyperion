@@ -402,13 +402,11 @@ class TestRankAndAllocate:
 
     def test_all_below_threshold_returns_empty_like_df(self):
         ranker = StockRanker(min_confidence=0.99, total_funds=100_000, max_allocation_pct=1.0)
-        result = ranker.rank_and_allocate(
+        _ = ranker.rank_and_allocate(
             predictions={"AAPL": 0.05, "GOOG": 0.03},
             current_prices={},
             predictions_are_returns=True,
         )
-        # Both confidence values are < 0.99 (max=1.0 only for the top stock but 0.05/0.05=1.0 for AAPL)
-        # Actually AAPL gets 1.0 confidence so it passes → let's force both to be below
         ranker2 = StockRanker(min_confidence=0.99, total_funds=100_000, max_allocation_pct=1.0)
         result2 = ranker2.rank_and_allocate(
             predictions={"AAPL": 0.05, "GOOG": 0.03},

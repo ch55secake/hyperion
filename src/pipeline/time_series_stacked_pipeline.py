@@ -18,11 +18,9 @@ from src.util import logger
 from src.writer import save_trained_model
 
 # Required for the usage of the strategy registry
-import src.simulation.strategy  # pylint: disable=unused-import
 
 
 class TimeSeriesStackedModelTrainingPipeline(BaseTrainingPipeline):
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._xgb_params = None

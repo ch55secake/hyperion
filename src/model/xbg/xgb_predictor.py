@@ -67,8 +67,7 @@ class XGBoostStockPredictor(Model):
 
         if len(feature_names) != len(feature_importances):
             logger.warning(
-                f"Feature name count ({len(feature_names)}) doesn't match importance count "
-                f"({len(feature_importances)})"
+                f"Feature name count ({len(feature_names)}) doesn't match importance count ({len(feature_importances)})"
             )
             feature_names = [f"feature_{i}" for i in range(len(feature_importances))]
 
