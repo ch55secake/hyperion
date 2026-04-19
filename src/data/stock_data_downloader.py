@@ -23,6 +23,7 @@ class StockDataDownloader:
     _lock: threading.Lock = threading.Lock()
 
     MAX_WORKERS: int = 16
+    REQUIRED_COLUMNS: frozenset[str] = frozenset({"Open", "High", "Low", "Close", "Volume"})
 
     def __init__(self, symbols, period="2y", interval="1d"):
         self.symbols = symbols if isinstance(symbols, list) else [symbols]
@@ -75,19 +76,30 @@ class StockDataDownloader:
         needs_refresh = False
 
         if os.path.isfile(complete_path):
-            df = pd.read_parquet(complete_path)
-
-            last_date = pd.to_datetime(df.index[-1]).date()
-            lookback_date = (datetime.now() - timedelta(days=2)).date()
-
-            if last_date < lookback_date:
-                logger.warning(f"Cache is outdated (last date: {last_date}, lookback date: {lookback_date})")
+            df: pd.DataFrame | None = None
+            try:
+                df = pd.read_parquet(complete_path)
+            except Exception as e:
+                logger.warning(f"Failed to read cached parquet for {symbol}: {e}. Re-downloading.")
                 needs_refresh = True
-            else:
-                logger.info(f"Using cached data for {symbol}")
-                with self._lock:
-                    self._history_data[(symbol, self.period, self.interval)] = df
-                return symbol, df
+
+            if df is not None:
+                missing_cols = self.REQUIRED_COLUMNS - set(df.columns)
+                if missing_cols:
+                    logger.warning(f"Cached parquet for {symbol} is missing columns {missing_cols}. Re-downloading.")
+                    needs_refresh = True
+                else:
+                    last_date = pd.to_datetime(df.index[-1]).date()
+                    lookback_date = (datetime.now() - timedelta(days=2)).date()
+
+                    if last_date < lookback_date:
+                        logger.warning(f"Cache is outdated (last date: {last_date}, lookback date: {lookback_date})")
+                        needs_refresh = True
+                    else:
+                        logger.info(f"Using cached data for {symbol}")
+                        with self._lock:
+                            self._history_data[(symbol, self.period, self.interval)] = df
+                        return symbol, df
 
         if not os.path.isfile(complete_path) or needs_refresh:
             logger.info(f"Downloading {symbol} ({self.period} {self.interval} data)...")
