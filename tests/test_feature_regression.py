@@ -25,9 +25,9 @@ class TestFeatureEngineeringRegression:
         fe2 = FeatureEngineering(synthetic_ohlcv.copy())
         fe2.create_target_features()
         x2, *_ = fe2.prepare_features()
-        assert len(x2.columns) == feature_count, (
-            f"Feature count changed: expected {feature_count}, got {len(x2.columns)}"
-        )
+        assert (
+            len(x2.columns) == feature_count
+        ), f"Feature count changed: expected {feature_count}, got {len(x2.columns)}"
 
     def test_feature_values_deterministic(self, synthetic_ohlcv):
         """Feature matrix for fixed input should produce the exact same values on repeated calls."""

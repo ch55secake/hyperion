@@ -34,12 +34,10 @@ class TestSimulationRegression:
         sim2 = TradingSimulator(initial_capital=10_000)
         result2 = sim2.simulate(predictions, actual_returns, prices=prices, dates=dates)
 
-        assert result1["final_value"] == result2["final_value"], (
-            "Simulation final value is not deterministic for identical inputs"
-        )
-        assert result1["num_trades"] == result2["num_trades"], (
-            "Trade count is not deterministic for identical inputs"
-        )
+        assert (
+            result1["final_value"] == result2["final_value"]
+        ), "Simulation final value is not deterministic for identical inputs"
+        assert result1["num_trades"] == result2["num_trades"], "Trade count is not deterministic for identical inputs"
 
     def test_all_strategies_run_without_error(self):
         """Every registered strategy should complete simulation without exceptions."""
@@ -86,9 +84,7 @@ class TestSimulationRegression:
         result = sim.simulate(predictions, actual_returns, prices=prices, dates=dates)
 
         history = result["portfolio_history"]
-        assert (history["portfolio_value"] >= 0).all(), (
-            "Portfolio value went negative during simulation"
-        )
+        assert (history["portfolio_value"] >= 0).all(), "Portfolio value went negative during simulation"
 
     def test_final_value_positive_with_always_long_signal(self):
         """When all predictions are positive (always-buy signal), final value should be positive."""

@@ -6,10 +6,10 @@ import pytest
 from src.pipeline.stacked_pipeline import StackedModelTrainingPipeline
 from tests.helpers import make_ohlcv, fast_xgb_params, fast_lgb_params
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 class _StubDownloader:
     """Minimal stand-in for StockDataDownloader that returns deterministic values."""
@@ -52,10 +52,7 @@ def _build_pipeline(symbols, monkeypatch) -> StackedModelTrainingPipeline:
     # Inject synthetic OHLCV data (same for both intervals in tests).
     stock_data = {}
     for i, interval in enumerate(intervals):
-        stock_data[interval] = {
-            symbol: make_ohlcv(n=200, seed=j + i * 100)
-            for j, symbol in enumerate(symbols)
-        }
+        stock_data[interval] = {symbol: make_ohlcv(n=200, seed=j + i * 100) for j, symbol in enumerate(symbols)}
     pipeline._stock_data = stock_data
     pipeline._downloader = _StubDownloader()
 
@@ -110,9 +107,9 @@ class TestStackedPipelineRegression:
         """Predictions array length should match the test set size."""
         predictions = trained_pipeline._get_predictions()
         y_test = trained_pipeline._y_test
-        assert len(predictions) == len(y_test), (
-            f"Prediction length {len(predictions)} != test target length {len(y_test)}"
-        )
+        assert len(predictions) == len(
+            y_test
+        ), f"Prediction length {len(predictions)} != test target length {len(y_test)}"
 
     def test_predictions_are_deterministic(self, monkeypatch):
         """Two pipeline runs with the same seed produce identical predictions."""

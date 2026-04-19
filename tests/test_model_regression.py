@@ -45,9 +45,7 @@ class TestXGBoostRegression:
         """Number of predictions must equal the number of test rows."""
         model, _, x_test, _, _ = trained_xgb_model
         preds = model.predict(x_test)
-        assert len(preds) == len(x_test), (
-            f"Prediction count {len(preds)} != test row count {len(x_test)}"
-        )
+        assert len(preds) == len(x_test), f"Prediction count {len(preds)} != test row count {len(x_test)}"
 
     def test_xgb_evaluate_returns_expected_keys(self, trained_xgb_model):
         """evaluate() must return a dict with standard metric keys."""
@@ -94,9 +92,7 @@ class TestLightGBMRegression:
         """Number of predictions must equal the number of test rows."""
         model, _, x_test, _, _ = trained_lgb_model
         preds = model.predict(x_test)
-        assert len(preds) == len(x_test), (
-            f"Prediction count {len(preds)} != test row count {len(x_test)}"
-        )
+        assert len(preds) == len(x_test), f"Prediction count {len(preds)} != test row count {len(x_test)}"
 
     def test_lgb_evaluate_returns_expected_keys(self, trained_lgb_model):
         """evaluate() must return a dict with standard metric keys."""
@@ -153,9 +149,9 @@ class TestWeightedEnsembleRegression:
         ensemble_preds = stacked.predict({"xgb": x_test, "lgb": x_test})
         ensemble_r2 = r2_score(y_test, ensemble_preds)
 
-        assert ensemble_r2 >= worst_r2 - 0.05, (
-            f"Ensemble R² ({ensemble_r2:.4f}) is worse than worst model R² ({worst_r2:.4f}) by more than tolerance"
-        )
+        assert (
+            ensemble_r2 >= worst_r2 - 0.05
+        ), f"Ensemble R² ({ensemble_r2:.4f}) is worse than worst model R² ({worst_r2:.4f}) by more than tolerance"
 
     def test_ensemble_predictions_are_finite(self, trained_xgb_model, trained_lgb_model):
         """StackedStockPredictor predictions must not contain NaN or Inf."""
