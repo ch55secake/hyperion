@@ -132,10 +132,10 @@ class _MockTrial:
     def __init__(self):
         self._attrs = {}
 
-    def suggest_float(self, name, low, high, log=False):  # noqa: ARG002
+    def suggest_float(self, _name, low, _high, log=False):  # noqa: ARG002
         return low
 
-    def suggest_int(self, name, low, high):  # noqa: ARG002
+    def suggest_int(self, _name, low, _high):  # noqa: ARG002
         return low
 
     def set_user_attr(self, key, value):

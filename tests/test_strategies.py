@@ -595,39 +595,42 @@ class TestVolatilityAdjustedStrategy:
 
 
 class TestStrategyBuySellMechanics:
+    _PRICE = 100.0
+    _CAPITAL = 10_000.0
+
     def test_buy_sets_long_position(self):
         sim = _Sim()
-        s = DirectionalTradingStrategy(sim, capital=10_000)
-        s.buy(date=0, price=100.0)
+        s = DirectionalTradingStrategy(sim, capital=self._CAPITAL)
+        s.buy(date=0, price=self._PRICE)
         assert s.position == "long"
         assert s.shares > 0
         assert s.capital == 0
 
     def test_sell_clears_position(self):
         sim = _Sim()
-        s = DirectionalTradingStrategy(sim, capital=10_000)
-        s.buy(date=0, price=100.0)
+        s = DirectionalTradingStrategy(sim, capital=self._CAPITAL)
+        s.buy(date=0, price=self._PRICE)
         s.sell(date=1, price=110.0, pred_return=0.0)
         assert s.position is None
         assert s.shares == 0
 
     def test_sell_appends_to_trades(self):
         sim = _Sim()
-        s = DirectionalTradingStrategy(sim, capital=10_000)
-        s.buy(date=0, price=100.0)
+        s = DirectionalTradingStrategy(sim, capital=self._CAPITAL)
+        s.buy(date=0, price=self._PRICE)
         initial_trades = len(sim.trades)
         s.sell(date=1, price=110.0, pred_return=0.0)
         assert len(sim.trades) == initial_trades + 1
 
     def test_buy_appends_trade_record(self):
         sim = _Sim()
-        s = DirectionalTradingStrategy(sim, capital=10_000)
-        s.buy(date=0, price=100.0)
+        s = DirectionalTradingStrategy(sim, capital=self._CAPITAL)
+        s.buy(date=0, price=self._PRICE)
         assert len(sim.trades) == 1
 
     def test_shares_computed_correctly_on_buy(self):
         sim = _Sim()
-        s = DirectionalTradingStrategy(sim, capital=10_000)
-        s.buy(date=0, price=100.0)
-        expected_shares = (10_000 * (1 - sim.transaction_cost)) / 100.0
+        s = DirectionalTradingStrategy(sim, capital=self._CAPITAL)
+        s.buy(date=0, price=self._PRICE)
+        expected_shares = (self._CAPITAL * (1 - sim.transaction_cost)) / self._PRICE
         assert s.shares == pytest.approx(expected_shares, rel=1e-9)
