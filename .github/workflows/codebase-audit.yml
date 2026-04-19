@@ -1,0 +1,45 @@
+name: Codebase Audit
+
+on:
+  schedule:
+    - cron: '0 8 * * *'  # 8am UTC daily
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create audit issue
+        id: create-issue
+        env:
+          GH_TOKEN: ${{ secrets.COPILOT_PAT }}
+        run: |
+          ISSUE_URL=$(gh issue create \
+            --repo ${{ github.repository }} \
+            --title "Daily Audit: $(date +%Y-%m-%d)" \
+            --label "automated-audit" \
+            --body "Audit the Hyperion codebase. Look for:
+
+          1. **Bugs** — logic errors, crashes, incorrect behaviour
+          2. **Performance** — slow code paths, missing parallelism, redundant computation
+          3. **ML issues** — data leakage, incorrect splits, overfitting risks
+          4. **Security** — input validation, path traversal, debug modes
+          5. **Code quality** — dead code, missing error handling, logging violations
+          6. **Test gaps** — untested critical paths
+
+          Check existing open issues first and only report NEW problems not already tracked.
+          For each finding, include file paths, line numbers, code snippets, impact, and a suggested fix.
+          Open a PR with fixes where possible.")
+
+          ISSUE_NUMBER=$(echo "$ISSUE_URL" | grep -oE '[0-9]+$')
+          echo "issue_number=$ISSUE_NUMBER" >> "$GITHUB_OUTPUT"
+
+      - name: Assign to copilot-swe-agent
+        uses: otto-de/assign_issue_toCopilot_action@v1.0.1
+        with:
+          issue_number: ${{ steps.create-issue.outputs.issue_number }}
+          github_token: ${{ secrets.COPILOT_PAT }}
