@@ -132,15 +132,4 @@ GitHub Actions runs the following checks on every push and PR to `main`:
 | **build** | Dependency installation smoke test |
 | **test** | Unit tests with coverage reporting |
 
-### Logging
 
-All diagnostic output must use the shared Logger singleton from `src/util/logger.py`. Never use `print()`.
-
-```python
-from src.util import logger
-
-logger.info("Training started for %s", ticker)
-logger.warning("R2 is below threshold: %.4f", r2)
-logger.error("Failed to load data for %s", ticker)
-logger.debug("Feature matrix shape: %s", X.shape)
-```
