@@ -1,3 +1,30 @@
+## Configurable parameters (override via ARGS or per-parameter variables)
+## Examples:
+##   make run ARGS="--period 5y --n-trials 200"
+##   make run PERIOD=5y N_TRIALS=200
+##   make run INITIAL_CAPITAL=50000 TEST_SIZE=0.3
+PERIOD          ?= 2y
+INTERVALS       ?= 1d,1h
+TEST_SIZE       ?= 0.2
+TARGET_DAYS     ?= 10
+N_TRIALS        ?= 1000
+R2_SAVE         ?= 0.0012
+R2_INVALID      ?= -0.3
+INITIAL_CAPITAL ?= 10000
+TRANSACTION_COST ?= 0.001
+ARGS            ?=
+
+_RUN_ARGS = --period $(PERIOD) \
+            --intervals $(INTERVALS) \
+            --test-size $(TEST_SIZE) \
+            --target-days $(TARGET_DAYS) \
+            --n-trials $(N_TRIALS) \
+            --r2-save-threshold $(R2_SAVE) \
+            --r2-invalid-threshold $(R2_INVALID) \
+            --initial-capital $(INITIAL_CAPITAL) \
+            --transaction-cost $(TRANSACTION_COST) \
+            $(ARGS)
+
 cleanmodels:
 	@rm -rf plots/*
 	@rm -rf models/*
@@ -12,7 +39,7 @@ clean:
 	@rm -rf params/*
 
 run:
-	@poetry run python3 src/main.py
+	@poetry run python3 src/main.py $(_RUN_ARGS)
 
 install:
 	@poetry lock
@@ -33,4 +60,7 @@ test:
 test-cov:
 	@poetry run pytest tests/ -v --tb=short --cov=src --cov-report=term-missing
 
-.PHONY: clean run install test test-cov
+help:
+	@poetry run python3 src/main.py --help
+
+.PHONY: clean cleanmodels run install cmtrain ctrain test test-cov help
