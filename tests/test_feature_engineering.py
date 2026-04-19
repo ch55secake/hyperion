@@ -26,6 +26,15 @@ def _make_df(n=100, seed=42):
     )
 
 
+def _make_df_with_categoricals(n=120, seed=42):
+    """Create a minimal OHLCV DataFrame that also has ticker/sector/industry columns."""
+    df = _make_df(n=n, seed=seed)
+    df["ticker"] = "AAPL"
+    df["sector"] = "Technology"
+    df["industry"] = "Software"
+    return df
+
+
 class TestFeatureEngineeringInit:
     def test_raises_on_missing_column(self):
         df = pd.DataFrame({"Open": [1.0], "Close": [1.0]})
@@ -148,3 +157,46 @@ class TestPrepareFeatures:
         fe.create_target_features(target_days=5)
         with pytest.raises(ValueError, match="No valid data"):
             fe.prepare_features()
+
+
+class TestPrepareFeaturesWithScale:
+    def test_scale_preserves_categorical_columns(self):
+        df = _make_df_with_categoricals(n=120)
+        fe = FeatureEngineering(df)
+        fe.create_target_features(target_days=5)
+        x, _, _, _, _ = fe.prepare_features(scale=True)
+        assert "ticker" in x.columns
+        assert "sector" in x.columns
+        assert "industry" in x.columns
+
+    def test_scale_numeric_columns_are_scaled(self):
+        df = _make_df_with_categoricals(n=120)
+        fe = FeatureEngineering(df)
+        fe.create_target_features(target_days=5)
+        x, _, _, _, _ = fe.prepare_features(scale=True)
+        numeric_cols = x.select_dtypes(include="number").columns
+        assert len(numeric_cols) > 0
+        for col in numeric_cols:
+            assert abs(x[col].mean()) < 1.0
+
+    def test_scale_categorical_values_unchanged(self):
+        df = _make_df_with_categoricals(n=120)
+        fe = FeatureEngineering(df)
+        fe.create_target_features(target_days=5)
+        x, _, _, _, _ = fe.prepare_features(scale=True)
+        assert (x["ticker"] == "AAPL").all()
+        assert (x["sector"] == "Technology").all()
+        assert (x["industry"] == "Software").all()
+
+    def test_scale_same_row_count(self):
+        df = _make_df_with_categoricals(n=120)
+        fe_unscaled = FeatureEngineering(df.copy())
+        fe_unscaled.create_target_features(target_days=5)
+        x_unscaled, y_unscaled, _, _, _ = fe_unscaled.prepare_features(scale=False)
+
+        fe_scaled = FeatureEngineering(df.copy())
+        fe_scaled.create_target_features(target_days=5)
+        x_scaled, y_scaled, _, _, _ = fe_scaled.prepare_features(scale=True)
+
+        assert len(x_scaled) == len(x_unscaled)
+        assert len(y_scaled) == len(y_unscaled)
