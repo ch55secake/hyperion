@@ -2,6 +2,7 @@
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from src.simulation.trading_simulator import TradingSimulator
 
@@ -27,6 +28,7 @@ class TestTradingSimulatorInit:
         assert sim.initial_capital == 50_000
 
 
+@pytest.mark.regression
 class TestSimulate:
     def test_returns_dict_with_required_keys(self):
         sim = TradingSimulator()
