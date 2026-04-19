@@ -2,6 +2,7 @@ import json
 import os
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timedelta
 from typing import Any
 
 import pandas as pd
@@ -77,8 +78,7 @@ class StockDataDownloader:
             df = pd.read_parquet(complete_path)
 
             last_date = pd.to_datetime(df.index[-1]).date()
-            today = pd.Timestamp.now().date()
-            lookback_date = today - pd.Timedelta(days=2)
+            lookback_date = (datetime.now() - timedelta(days=2)).date()
 
             if last_date < lookback_date:
                 logger.warning(f"Cache is outdated (last date: {last_date}, lookback date: {lookback_date})")

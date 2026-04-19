@@ -206,6 +206,8 @@ def run_trade_simulation(
     if preds is None:
         logger.warning("Predictions missing, computing via predictor.predict()")
         predictor = x_test_dict.get("predictor")
+        if predictor is None:
+            raise ValueError("No predictor found in x_test_dict")
         preds = predictor.predict(x_test_dict)
 
     # Ensure 1D

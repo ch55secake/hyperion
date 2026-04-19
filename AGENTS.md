@@ -58,10 +58,11 @@ make run       # uv run python3 src/main.py
 ### Code Style
 
 - **Formatter / Linter:** [Ruff](https://docs.astral.sh/ruff/) — line length **120** (replaces Black and Pylint).
-- **Type checker:** [ty](https://docs.astral.sh/ty/) — from the Astral ecosystem.
+- **Type checker:** [ty](https://docs.astral.sh/ty/) — static type analysis from the Astral ecosystem.
 - **Pre-commit hooks** (run automatically on commit and push):
   - Syntax checks: `check-ast`, `check-json`, `check-toml`, `check-yaml`
   - Style: `end-of-file-fixer`, `trailing-whitespace`, `ruff`, `ruff-format`
+  - Type checking: `ty`
 
 Install hooks once after cloning:
 ```bash
@@ -120,5 +121,6 @@ The logger is a singleton — importing it from any module always returns the sa
 ```bash
 make test       # uv run pytest tests/ -v --tb=short
 make test-cov   # run tests with coverage report
+make typecheck  # uv run ty check
 ```
 

@@ -500,7 +500,11 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         return self
 
     def simulate(
-        self, initial_capital: float = 10000, transaction_cost: float = 0.001, tickers=None, strategy_name: str = None
+        self,
+        initial_capital: float = 10000,
+        transaction_cost: float = 0.001,
+        tickers=None,
+        strategy_name: str | None = None,
     ):
         """
         Use the stacked trained model to simulate trading day by day, per ticker

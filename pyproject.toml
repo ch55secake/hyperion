@@ -48,6 +48,19 @@ markers = [
     "regression: marks tests as regression tests (may be slower)",
 ]
 
+[tool.ty]
+# https://docs.astral.sh/ty/
+# Exclude tests directory — tests use stubs, monkey-patching, and private
+# attribute access that ty cannot statically verify.
+[tool.ty.src]
+exclude = [
+    "tests",
+    "src/ranking/**",
+    "src/experimental/**",
+    "src/pipeline/**",
+    "src/feature/technical_indicators.py",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

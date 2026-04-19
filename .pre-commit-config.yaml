@@ -27,13 +27,6 @@ repos:
         name: Check JSON
         types: [ json ]
 
-      # https://github.com/pre-commit/pre-commit-hooks#check-toml
-      - id: check-toml
-        description: Checks toml files for parseable syntax.
-        entry: check-toml
-        name: Check TOML
-        types: [ toml ]
-
       # https://github.com/pre-commit/pre-commit-hooks#check-yaml
       - id: check-yaml
         description: Checks yaml files for parseable syntax.
@@ -64,6 +57,13 @@ repos:
 
   - repo: local
     hooks:
+      - id: ty
+        name: ty
+        entry: uv run ty check
+        language: system
+        pass_filenames: false
+        types: [python]
+
       - id: pytest
         name: pytest
         entry: uv run pytest tests/ -x -q --tb=short -m "not regression"
