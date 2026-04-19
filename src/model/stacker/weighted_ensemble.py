@@ -105,18 +105,18 @@ class StackedStockPredictor:
         Return 1D stacked predictions
         """
         preds = []
-        min_length = float("inf")
 
-        # Find the minimum length across all predictions
+        # Collect raw predictions once, then align to the minimum length
+        raw_predictions = {}
         for name, model in self.models.items():
-            p = model.predict(x_dict[name])
-            p = np.asarray(p).ravel()
-            min_length = min(min_length, len(p))
+            raw_predictions[name] = np.asarray(model.predict(x_dict[name])).ravel()
 
-        # Collect and align predictions to minimum length
-        for name, model in self.models.items():
-            p = model.predict(x_dict[name])
-            p = np.asarray(p).ravel()
+        if not raw_predictions:
+            return np.array([])
+
+        min_length = min(len(p) for p in raw_predictions.values())
+
+        for name, p in raw_predictions.items():
             # Align to minimum length
             if len(p) >= min_length:
                 p_aligned = p[:min_length]
