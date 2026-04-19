@@ -91,10 +91,13 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
         with ThreadPoolExecutor(max_workers=len(self.intervals)) as executor:
             futures = {executor.submit(_download_interval, interval): interval for interval in self.intervals}
-            for future in as_completed(futures):
-                interval, downloader, data = future.result()
-                self._stock_data[interval] = data
-                self._downloader = downloader
+            results = {interval: (downloader, data) for interval, downloader, data in
+                       (future.result() for future in as_completed(futures))}
+
+        for interval, (_, data) in results.items():
+            self._stock_data[interval] = data
+
+        self._downloader = results[self.intervals[0]][0]
 
         if not self._stock_data:
             logger.warning("No data downloaded. Exiting.")

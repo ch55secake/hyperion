@@ -78,10 +78,10 @@ class StockDataDownloader:
 
                 last_date = pd.to_datetime(df.index[-1]).date()
                 today = pd.Timestamp.now().date()
-                yesterday = today - pd.Timedelta(days=2)
+                lookback_date = today - pd.Timedelta(days=2)
 
-                if last_date < yesterday:
-                    logger.warning(f"Cache is outdated (last date: {last_date}, lookback date: {yesterday})")
+                if last_date < lookback_date:
+                    logger.warning(f"Cache is outdated (last date: {last_date}, lookback date: {lookback_date})")
                     needs_refresh = True
                 else:
                     logger.info(f"Using cached data for {symbol}")
