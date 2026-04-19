@@ -43,7 +43,7 @@ class SingleModelTrainingPipeline(BaseTrainingPipeline):
         x_test_daily = self._test_train_data["test"]["daily"]
         y_test = self._test_train_data["test"]["targets"]
 
-        optimizer = StockModelOptimizer(x_train_daily, y_train, x_test_daily, y_test, n_trials=500, n_jobs=1)
+        optimizer = StockModelOptimizer(x_train_daily, y_train, x_test_daily, y_test, n_trials=self.n_trials, n_jobs=1)
 
         if self.model_type == "xgboost":
             optimizer.optimize_xgboost()
@@ -87,7 +87,7 @@ class SingleModelTrainingPipeline(BaseTrainingPipeline):
         self._x_test_dict = {"daily": x_test_daily}
         test_results = self._model.evaluate(x_test_daily, self._y_test)
 
-        save_trained_model(self._model, f"{self.model_type.upper()}_MODEL", test_results)
+        save_trained_model(self._model, f"{self.model_type.upper()}_MODEL", test_results, self.r2_save_threshold, self.r2_invalid_threshold)
         logger.info(f"{self.model_type.upper()} model training complete!")
 
         return self
