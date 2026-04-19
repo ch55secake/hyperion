@@ -327,7 +327,8 @@ class FeatureEngineering:
             scaler = StandardScaler()
             cat_cols = ["ticker", "sector", "industry"]
             num_cols = [c for c in x.columns if c not in cat_cols]
-            x = pd.DataFrame(scaler.fit_transform(x), columns=num_cols, index=x.index)
+            x = x.copy()
+            x[num_cols] = scaler.fit_transform(x[num_cols])
 
         self.__df_prepared = x, y, dates, prices, feature_columns.tolist()
         return self.__df_prepared

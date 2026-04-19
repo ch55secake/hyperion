@@ -25,6 +25,7 @@ class LightGBMStockPredictor(Model):
                 "bagging_fraction": 0.8,
                 "bagging_freq": 1,
                 "n_estimators": 500,
+                "early_stopping_rounds": 50,
                 "seed": 42,
             }
 
@@ -44,6 +45,9 @@ class LightGBMStockPredictor(Model):
             categorical_feature=self.categorical_columns if self.categorical_columns else "auto",
         )
 
+        early_stopping_rounds = self.params.get("early_stopping_rounds")
+        train_params = {k: v for k, v in self.params.items() if k != "early_stopping_rounds"}
+
         valid_sets = [train_data]
         valid_names = ["train"]
 
@@ -62,12 +66,18 @@ class LightGBMStockPredictor(Model):
             logger.debug(f"x_val_processed length: {len(x_val_processed)}")
             logger.debug(f"y_val length: {len(y_val)}")
 
+        callbacks = []
+        if early_stopping_rounds is not None and x_val is not None and y_val is not None:
+            callbacks.append(lgb.early_stopping(stopping_rounds=early_stopping_rounds, verbose=False))
+            logger.info("Early stopping enabled with %d rounds", early_stopping_rounds)
+
         self.model = lgb.train(
-            self.params,
+            train_params,
             train_data,
-            # valid_sets=valid_sets,
-            # valid_names=valid_names,
+            valid_sets=valid_sets,
+            valid_names=valid_names,
             num_boost_round=self.params.get("n_estimators", 1500),
+            callbacks=callbacks or None,
         )
 
         feature_names = x_train_processed.columns.tolist()
