@@ -148,9 +148,9 @@ class TestWeightedEnsembleRegression:
         ensemble_preds = stacked.predict({"xgb": x_test, "lgb": x_test})
         ensemble_r2 = r2_score(y_test, ensemble_preds)
 
-        assert (
-            ensemble_r2 >= worst_r2 - 0.05
-        ), f"Ensemble R² ({ensemble_r2:.4f}) is worse than worst model R² ({worst_r2:.4f}) by more than tolerance"
+        assert ensemble_r2 >= worst_r2 - 0.05, (
+            f"Ensemble R² ({ensemble_r2:.4f}) is worse than worst model R² ({worst_r2:.4f}) by more than tolerance"
+        )
 
     def test_ensemble_predictions_are_finite(self, trained_xgb_model, trained_lgb_model):
         """StackedStockPredictor predictions must not contain NaN or Inf."""
