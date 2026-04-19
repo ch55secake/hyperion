@@ -3,6 +3,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from joblib import Parallel, delayed
 from typing_extensions import override
 
 from src.align import align_targets_across_intervals, ensure_prediction_alignment
@@ -109,10 +110,33 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
         return self, train, test
 
+    def _engineer_features_for_symbol(self, symbol: str, data: pd.DataFrame):
+        """
+        Run feature engineering for a single symbol and return split train/test data.
+        Designed to be called in parallel via joblib.
+        :param symbol: ticker symbol
+        :param data: raw OHLCV DataFrame for this symbol and interval
+        :return: tuple of (symbol, x, y, dates, prices, split_idx) or (symbol, None, ...) on error
+        """
+        try:
+            logger.info(f"Processing {symbol}...")
+            features = FeatureEngineering(data)
+            features.create_target_features()
+            x, y, dates, prices, _ = features.prepare_features()
+            x = self._add_stock_features(x, symbol)
+            split_idx = int(len(x) * (1 - self.test_size))
+            logger.info(f"{symbol}: {split_idx} train samples, {len(x) - split_idx} test samples")
+            return symbol, x, y, dates, prices, split_idx
+        except Exception as e:
+            logger.error(f"Error processing {symbol}: {str(e)}")
+            traceback.print_exc()
+            return symbol, None, None, None, None, None
+
     @override
     def prepare_features(self):
         """
-        Prepare all features for both daily and hourly data, as well as the test and train split
+        Prepare all features for both daily and hourly data, as well as the test and train split.
+        Feature engineering is parallelized across tickers using joblib threads.
         :return:
         """
         if self._stock_data is None:
@@ -131,36 +155,28 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         test_symbols = {interval: [] for interval in self.intervals}
 
         for interval in self.intervals:
-            for symbol in self.symbols:
-                try:
-                    logger.info(f"Processing {symbol}...")
+            results = Parallel(n_jobs=-1, prefer="threads")(
+                delayed(self._engineer_features_for_symbol)(symbol, self._stock_data[interval][symbol])
+                for symbol in self.symbols
+            )
 
-                    features = FeatureEngineering(self._stock_data[interval][symbol])
-                    features.create_target_features()
-                    x, y, dates, prices, _ = features.prepare_features()
-
-                    x = self._add_stock_features(x, symbol)
-
-                    self._split_idx = int(len(x) * (1 - self.test_size))
-
-                    train_features[interval].append(x.iloc[: self._split_idx])
-                    train_targets[interval].append(y.iloc[: self._split_idx])
-                    train_dates[interval].append(pd.Series(dates[: self._split_idx], index=dates[: self._split_idx]))
-                    train_prices[interval].append(prices.iloc[: self._split_idx])
-                    train_symbols[interval].extend([symbol] * self._split_idx)
-
-                    test_features[interval].append(x.iloc[self._split_idx :])
-                    test_targets[interval].append(y.iloc[self._split_idx :])
-                    test_dates[interval].append(pd.Series(dates[self._split_idx :], index=dates[self._split_idx :]))
-                    test_prices[interval].append(prices.iloc[self._split_idx :])
-                    test_symbols[interval].extend([symbol] * (len(x) - self._split_idx))
-
-                    logger.info(f"{symbol}: {self._split_idx} train samples, {len(x) - self._split_idx} test samples")
-
-                except Exception as e:
-                    logger.error(f"Error processing {symbol}: {str(e)}")
-                    traceback.print_exc()
+            for symbol, x, y, dates, prices, split_idx in results:
+                if x is None:
                     continue
+
+                self._split_idx = split_idx
+
+                train_features[interval].append(x.iloc[:split_idx])
+                train_targets[interval].append(y.iloc[:split_idx])
+                train_dates[interval].append(pd.Series(dates[:split_idx], index=dates[:split_idx]))
+                train_prices[interval].append(prices.iloc[:split_idx])
+                train_symbols[interval].extend([symbol] * split_idx)
+
+                test_features[interval].append(x.iloc[split_idx:])
+                test_targets[interval].append(y.iloc[split_idx:])
+                test_dates[interval].append(pd.Series(dates[split_idx:], index=dates[split_idx:]))
+                test_prices[interval].append(prices.iloc[split_idx:])
+                test_symbols[interval].extend([symbol] * (len(x) - split_idx))
 
         logger.info("=" * 60)
         logger.info("Combining Training Data")
