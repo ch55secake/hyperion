@@ -4,6 +4,7 @@ import warnings
 
 from src.config import HyperionConfig
 from src.pipeline.stacked_pipeline import StackedModelTrainingPipeline
+from src.pipeline.time_series_stacked_pipeline import TimeSeriesStackedModelTrainingPipeline
 
 warnings.filterwarnings("ignore")
 
@@ -107,4 +108,22 @@ if __name__ == "__main__":
         .train()
         .evaluate_model()
         .simulate(initial_capital=config.initial_capital, transaction_cost=config.transaction_cost)
+    )
+
+    time_series_stacked_pipeline: TimeSeriesStackedModelTrainingPipeline = TimeSeriesStackedModelTrainingPipeline(
+        period=config.period,
+        interval=config.intervals[0],
+        test_size=config.test_size,
+        n_trials=config.n_trials,
+        target_days=config.target_days,
+        r2_save_threshold=config.r2_save_threshold,
+        r2_invalid_threshold=config.r2_invalid_threshold,
+    )
+
+    (
+        time_series_stacked_pipeline.read_tickers()
+        .download_data()
+        .prepare_features()
+        .train()
+        .analyze_stacker_performance()
     )
