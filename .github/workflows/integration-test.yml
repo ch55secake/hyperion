@@ -1,0 +1,66 @@
+name: Integration Test — Full Training Pipeline
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - src/**
+  pull_request:
+    branches:
+      - main
+    paths:
+      - src/**
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integration-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+
+      - name: Cache Poetry dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pypoetry
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-poetry-
+
+      - name: Install dependencies
+        run: |
+          poetry install
+
+      - name: Override tickers list with single ticker
+        run: |
+          echo "AAPL" > resources/tickers.txt
+
+      - name: Run full training pipeline (single ticker)
+        run: |
+          make ctrain N_TRIALS=10 PERIOD=1y
+
+      - name: Assert expected output directories are non-empty
+        run: |
+          if [ -z "$(ls -A results/ 2>/dev/null)" ]; then
+            echo "❌ results/ directory is empty or missing — pipeline produced no output"
+            exit 1
+          fi
+          echo "✅ Pipeline completed successfully and produced output in results/"
