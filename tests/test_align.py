@@ -8,7 +8,6 @@ from unittest.mock import patch
 from src.align import align_targets_across_intervals, ensure_prediction_alignment
 from src.align.align import align_to_reference
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
