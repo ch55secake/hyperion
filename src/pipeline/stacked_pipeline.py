@@ -489,9 +489,9 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
                     ticker_data_reset = ticker_data.reset_index(drop=True)
 
-                    train_predictions = predictions[self._split_idx :]
+                    ticker_predictions = ticker_data_reset["prediction"].to_numpy()
 
-                    threshold = np.percentile(np.abs(train_predictions), 75)
+                    threshold = np.percentile(np.abs(ticker_predictions), 75)
 
                     results = simulator.simulate(
                         predictions=ticker_data_reset["prediction"],
