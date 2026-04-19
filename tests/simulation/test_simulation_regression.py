@@ -2,7 +2,6 @@
 
 import numpy as np
 import pandas as pd
-import pytest
 
 # Import strategy subpackage so all strategies register themselves.
 import src.simulation.strategy  # noqa: F401

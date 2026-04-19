@@ -1,7 +1,6 @@
 """Regression tests for XGBoost, LightGBM, and StackedStockPredictor models."""
 
 import numpy as np
-import pytest
 from sklearn.metrics import r2_score
 
 from src.model import XGBoostStockPredictor, LightGBMStockPredictor, StackedStockPredictor

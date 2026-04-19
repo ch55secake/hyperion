@@ -2,7 +2,6 @@
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from src.feature.feature_engineering import FeatureEngineering
 from tests.helpers import make_ohlcv
