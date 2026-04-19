@@ -560,13 +560,14 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
             strategy_results = {}
 
-            ticker_dfs = [
-                test_df[test_df["symbol"] == symbol].sort_values("date") for symbol in unique_symbols
-            ]
+            ticker_dfs = [test_df[test_df["symbol"] == symbol].sort_values("date") for symbol in unique_symbols]
 
             with ProcessPoolExecutor() as pool:
                 futures = [
-                    (pool.submit(_simulate_ticker_worker, df, strategy_key, int(initial_capital), transaction_cost), str(df["symbol"].iloc[0]))
+                    (
+                        pool.submit(_simulate_ticker_worker, df, strategy_key, int(initial_capital), transaction_cost),
+                        str(df["symbol"].iloc[0]),
+                    )
                     for df in ticker_dfs
                 ]
 
