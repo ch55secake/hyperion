@@ -39,11 +39,10 @@ clean:
 	@rm -rf params/*
 
 run:
-	@poetry run python3 src/main.py $(_RUN_ARGS)
+	@uv run python3 src/main.py $(_RUN_ARGS)
 
 install:
-	@poetry lock
-	@poetry install
+	@uv sync
 
 cmtrain:
 	@make cleanmodels
@@ -55,12 +54,15 @@ ctrain:
 
 
 test:
-	@poetry run pytest tests/ -v --tb=short
+	@uv run pytest tests/ -v --tb=short
 
 test-cov:
-	@poetry run pytest tests/ -v --tb=short --cov=src --cov-report=term-missing
+	@uv run pytest tests/ -v --tb=short --cov=src --cov-report=term-missing
+
+typecheck:
+	@uv run ty check
 
 help:
-	@poetry run python3 src/main.py --help
+	@uv run python3 src/main.py --help
 
-.PHONY: clean cleanmodels run install cmtrain ctrain test test-cov help
+.PHONY: clean cleanmodels run install cmtrain ctrain test test-cov typecheck help

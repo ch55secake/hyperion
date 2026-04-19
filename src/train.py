@@ -113,7 +113,7 @@ def train_model(symbols=None, period: str = "5y", interval: str = "1h", visualiz
     logger.info("=" * 60)
 
     # Download data hourly (interval='1h')
-    stock_data_downloader = StockDataDownloader(symbols, period=_DEFAULT_CONFIG.period, interval=interval)
+    stock_data_downloader = StockDataDownloader(symbols, period=period, interval=interval)
 
     stock_data_hourly, failed = stock_data_downloader.download_data()
 
@@ -222,6 +222,8 @@ def run_trade_simulation(
     if preds is None:
         logger.warning("Predictions missing, computing via predictor.predict()")
         predictor = x_test_dict.get("predictor")
+        if predictor is None:
+            raise ValueError("No predictor found in x_test_dict")
         preds = predictor.predict(x_test_dict)
 
     # Ensure 1D

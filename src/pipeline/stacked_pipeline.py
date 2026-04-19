@@ -69,7 +69,6 @@ def _simulate_ticker_worker(
 
 
 class StackedModelTrainingPipeline(BaseTrainingPipeline):
-
     def __init__(
         self,
         intervals: list[str],
@@ -390,7 +389,13 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         logger.info("Feature split per interval:")
         for interval, info in self.describe_feature_splits().items():
             logger.info(
-                f"  {interval} ({info['role']}): {info['role_specific']} {info['role']} + {info['shared']} shared = {info['total']} total"
+                "  %s (%s): %s %s + %s shared = %s total",
+                interval,
+                info["role"],
+                info["role_specific"],
+                info["role"],
+                info["shared"],
+                info["total"],
             )
 
     def _populate_test_train_data(self):
@@ -544,7 +549,11 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         return self
 
     def simulate(
-        self, initial_capital: float = 10000, transaction_cost: float = 0.001, tickers=None, strategy_name: str = None
+        self,
+        initial_capital: float = 10000,
+        transaction_cost: float = 0.001,
+        tickers=None,
+        strategy_name: str | None = None,
     ):
         """
         Use the stacked trained model to simulate trading day by day, per ticker
@@ -649,7 +658,10 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
                 logger.info(f"Total final value: ${total_final_value:,.2f}")
                 logger.info(f"Average return: {avg_return * 100:.2f}%")
                 logger.info(
-                    f"Winning tickers: {winning_tickers}/{len(strategy_results)} ({winning_tickers / len(strategy_results) * 100:.1f}%)"
+                    "Winning tickers: %d/%d (%.1f%%)",
+                    winning_tickers,
+                    len(strategy_results),
+                    winning_tickers / len(strategy_results) * 100,
                 )
 
         return self
@@ -778,7 +790,7 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         optimizer = StockModelOptimizer(x_train_daily, y_train, x_val_daily, y_val, n_trials=self.n_trials, n_jobs=1)
         optimizer.optimize_both()
         optimizer.visualize_studies(save_path="plots/optuna")
-        optimizer.save_results(f"params/ALL_STOCKS_best_params.json")
+        optimizer.save_results("params/ALL_STOCKS_best_params.json")
 
         self._xgb_params, self._lgb_params = optimizer.best_xgb_params, optimizer.best_lgb_params
 

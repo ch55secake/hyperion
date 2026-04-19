@@ -10,7 +10,7 @@ class LightGBMStockPredictor(Model):
     LightGBM model for stock price prediction with categorical feature support
     """
 
-    def __init__(self, params=None):
+    def __init__(self, params: dict | None = None):
         if params is None:
             params = {
                 "objective": "regression",
@@ -106,4 +106,4 @@ class LightGBMStockPredictor(Model):
 
     def predict(self, x):
         """Make predictions"""
-        return self.model.predict(self._prepare_prediction(x), num_iteration=self.model.best_iteration)
+        return self.model.predict(self._prepare_prediction(x), num_iteration=self.model.best_iteration)  # ty: ignore[unresolved-attribute]

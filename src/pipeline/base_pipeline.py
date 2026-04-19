@@ -18,7 +18,7 @@ class BaseTrainingPipeline(ABC):
 
     def __init__(
         self,
-        symbols: list[str] = None,
+        symbols: list[str] | None = None,
         period: str = "2y",
         interval: str = "1d",
         test_size: float = 0.2,
@@ -213,7 +213,8 @@ class BaseTrainingPipeline(ABC):
 
     def _add_stock_features(self, df: pd.DataFrame, symbol: str):
         """
-        Add stock-specific features to the dataframe. These include sector, industry, beta, avg_volume_log, market_cap_log.
+        Add stock-specific features to the dataframe.
+        These include sector, industry, beta, avg_volume_log, market_cap_log.
         :param df:
         :param symbol:
         :return:
@@ -413,23 +414,29 @@ class BaseTrainingPipeline(ABC):
         logger.info(f"Average R\u00b2: {results_df['r2'].mean():.6f}")
         logger.info(f"Average Directional Accuracy: {results_df['directional_accuracy'].mean():.2f}%")
         logger.info(
-            f"Best performing stock (by R\u00b2): {results_df.loc[results_df['r2'].idxmax(), 'symbol']} (R\u00b2: {results_df['r2'].max():.6f})"
+            "Best performing stock (by R²): %s (R²: %.6f)",
+            results_df.loc[results_df["r2"].idxmax(), "symbol"],
+            results_df["r2"].max(),
         )
         logger.info(
-            f"Worst performing stock (by R\u00b2): {results_df.loc[results_df['r2'].idxmin(), 'symbol']} (R\u00b2: {results_df['r2'].min():.6f})"
+            "Worst performing stock (by R²): %s (R²: %.6f)",
+            results_df.loc[results_df["r2"].idxmin(), "symbol"],
+            results_df["r2"].min(),
         )
         logger.info(
-            f"Best directional accuracy: {results_df.loc[results_df['directional_accuracy'].idxmax(), 'symbol']} ({results_df['directional_accuracy'].max():.2f}%)"
+            "Best directional accuracy: %s (%.2f%%)",
+            results_df.loc[results_df["directional_accuracy"].idxmax(), "symbol"],
+            results_df["directional_accuracy"].max(),
         )
 
     def _save_results_and_predictions(self, detailed_predictions):
         results_df = pd.DataFrame(self._results)
         results_df.to_csv("results/per_stock_performance.csv", index=False)
-        logger.info(f"Per-stock results saved to: results/per_stock_performance.csv")
+        logger.info("Per-stock results saved to: results/per_stock_performance.csv")
 
         detailed_df = pd.DataFrame(detailed_predictions)
         detailed_df.to_csv("results/detailed_predictions.csv", index=False)
-        logger.info(f"Detailed predictions saved to: results/detailed_predictions.csv")
+        logger.info("Detailed predictions saved to: results/detailed_predictions.csv")
 
     def visualize(self):
         """

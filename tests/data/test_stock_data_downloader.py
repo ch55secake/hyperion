@@ -3,7 +3,6 @@
 import json
 import os
 import tempfile
-import threading
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
