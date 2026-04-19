@@ -16,9 +16,7 @@ class StrategyRegistry:
     def get(cls, name: str) -> Type[Strategy]:
         name = name.lower()
         if name not in cls._registry:
-            raise ValueError(
-                f"Strategy '{name}' not registered. " f"Registered strategies: {list(cls._registry.keys())}"
-            )
+            raise ValueError(f"Strategy '{name}' not registered. Registered strategies: {list(cls._registry.keys())}")
         return cls._registry[name]
 
     @classmethod

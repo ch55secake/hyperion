@@ -10,7 +10,6 @@ from src.model import XGBoostStockPredictor
 
 
 class SingleModelTrainingPipeline(BaseTrainingPipeline):
-
     def __init__(self, model_type: str = "xgboost", *args, **kwargs):
         super().__init__(*args, **kwargs)
         if model_type not in ["xgboost", "lightgbm", "catboost"]:

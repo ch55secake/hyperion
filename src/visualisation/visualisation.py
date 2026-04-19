@@ -65,8 +65,7 @@ class Visualizer:
                 bbox_inches="tight",
             )
             logger.info(
-                f"Saved feature importance plot: {save_path}/{symbol_parts[0]}/{symbol_parts[1]}"
-                f"_feature_importance.png"
+                f"Saved feature importance plot: {save_path}/{symbol_parts[0]}/{symbol_parts[1]}_feature_importance.png"
             )
         else:
             plt.savefig(f"{save_path}/{symbol}/feature_importance.png", dpi=300, bbox_inches="tight")
