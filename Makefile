@@ -60,7 +60,10 @@ test:
 test-cov:
 	@poetry run pytest tests/ -v --tb=short --cov=src --cov-report=term-missing
 
+typecheck:
+	@poetry run ty check
+
 help:
 	@poetry run python3 src/main.py --help
 
-.PHONY: clean cleanmodels run install cmtrain ctrain test test-cov help
+.PHONY: clean cleanmodels run install cmtrain ctrain test test-cov typecheck help

@@ -32,6 +32,7 @@ pyarrow = "^23.0.1"
 [tool.poetry.group.dev.dependencies]
 pytest = ">=7.0"
 pytest-cov = ">=4.0"
+ty = "^0.0.31"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -40,6 +41,10 @@ pythonpath = ["."]
 markers = [
     "regression: marks tests as regression tests (may be slower)",
 ]
+
+[tool.ty]
+# https://docs.astral.sh/ty/
+# Using default configuration
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

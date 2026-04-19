@@ -59,10 +59,12 @@ make run       # poetry run python3 src/main.py
 
 - **Formatter:** [Black](https://black.readthedocs.io/) — line length **120**.
 - **Linter:** [Pylint](https://pylint.org/) — max line length 120; several noisy checks disabled (see `.pylintrc`).
+- **Type checker:** [ty](https://docs.astral.sh/ty/) — static type analysis from the Astral ecosystem.
 - **Pre-commit hooks** (run automatically on commit and push):
   - `poetry-lock`, `poetry-check`, `poetry-install`
   - Syntax checks: `check-ast`, `check-json`, `check-toml`, `check-yaml`
   - Style: `end-of-file-fixer`, `trailing-whitespace`, `black`
+  - Type checking: `ty`
 
 Install hooks once after cloning:
 ```bash
@@ -121,4 +123,5 @@ The logger is a singleton — importing it from any module always returns the sa
 ```bash
 make test       # poetry run pytest tests/ -v --tb=short
 make test-cov   # run tests with coverage report
+make typecheck  # poetry run ty check
 ```
