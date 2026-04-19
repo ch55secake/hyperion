@@ -256,7 +256,15 @@ class StockRanker:
         """
         if not predictions:
             return pd.DataFrame(
-                columns=["symbol", "expected_return", "confidence", "volatility", "priority_score", "rank", "allocation"]
+                columns=[
+                    "symbol",
+                    "expected_return",
+                    "confidence",
+                    "volatility",
+                    "priority_score",
+                    "rank",
+                    "allocation",
+                ]
             )
 
         symbols = list(predictions.keys())
@@ -289,9 +297,7 @@ class StockRanker:
                 lambda s: max(historical_volatility.get(s, self.min_volatility), self.min_volatility)
             )
         elif prices_history is not None:
-            vol_map = self.compute_volatility(
-                {s: prices_history[s] for s in df["symbol"] if s in prices_history}
-            )
+            vol_map = self.compute_volatility({s: prices_history[s] for s in df["symbol"] if s in prices_history})
             df["volatility"] = df["symbol"].map(lambda s: vol_map.get(s, self.min_volatility))
         else:
             df["volatility"] = self.min_volatility
