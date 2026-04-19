@@ -99,7 +99,10 @@ def train_model(symbols=None, period: str = "5y", interval: str = "1h", visualiz
     # Download data hourly (interval='1h')
     stock_data_downloader = StockDataDownloader(symbols, period=_DEFAULT_CONFIG.period, interval=interval)
 
-    stock_data_hourly = stock_data_downloader.download_data()
+    stock_data_hourly, failed = stock_data_downloader.download_data()
+
+    if failed:
+        logger.warning("%d symbol(s) failed to download and will be excluded: %s", len(failed), failed)
 
     if not stock_data_hourly:
         logger.warning("No data downloaded. Exiting.")
