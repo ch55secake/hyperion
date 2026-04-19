@@ -16,6 +16,10 @@ class TestHyperionConfigDefaults:
         cfg = HyperionConfig()
         assert cfg.test_size == 0.2
 
+    def test_default_val_size(self):
+        cfg = HyperionConfig()
+        assert cfg.val_size == 0.1
+
     def test_default_target_days(self):
         cfg = HyperionConfig()
         assert cfg.target_days == 10
@@ -53,6 +57,10 @@ class TestHyperionConfigCustomValues:
     def test_custom_test_size(self):
         cfg = HyperionConfig(test_size=0.3)
         assert cfg.test_size == 0.3
+
+    def test_custom_val_size(self):
+        cfg = HyperionConfig(val_size=0.15)
+        assert cfg.val_size == 0.15
 
     def test_custom_target_days(self):
         cfg = HyperionConfig(target_days=5)

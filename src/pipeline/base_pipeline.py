@@ -22,6 +22,7 @@ class BaseTrainingPipeline(ABC):
         period: str = "2y",
         interval: str = "1d",
         test_size: float = 0.2,
+        val_size: float = 0.1,
         should_optimise: bool = False,
         n_trials: int = 1000,
         target_days: int = 10,
@@ -32,6 +33,7 @@ class BaseTrainingPipeline(ABC):
         self.period = period
         self.interval = interval
         self.test_size = test_size
+        self.val_size = val_size
         self.should_optimise = should_optimise
         self.n_trials = n_trials
         self.target_days = target_days

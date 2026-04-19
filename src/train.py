@@ -23,7 +23,8 @@ from src.simulation.strategy.strategy import Strategy
 from src.config import HyperionConfig
 
 _DEFAULT_CONFIG = HyperionConfig()
-TEST_SIZE = _DEFAULT_CONFIG.test_size  # Train/test split ratio
+TEST_SIZE = _DEFAULT_CONFIG.test_size  # Fraction of data held out for final evaluation
+VAL_SIZE = _DEFAULT_CONFIG.val_size  # Fraction of data used for hyperparameter optimisation
 USE_WALK_FORWARD = False  # Set to False for a simple train / test split
 
 
@@ -38,17 +39,31 @@ def simple_train_test_split(
 ) -> Tuple[
     Dict[str, pd.DataFrame], Dict[str, pd.DataFrame], pd.Series, StackedStockPredictor, pd.Series, dict, pd.Series
 ]:
+    n = len(x_daily)
 
-    split_idx = int(len(x_daily) * (1 - TEST_SIZE))
+    # Temporal 3-way split: train | val | test
+    # All boundaries are calculated from the end of the series so that temporal
+    # ordering is preserved and no future data leaks into earlier splits.
+    test_split_idx = int(n * (1 - TEST_SIZE))
+    val_split_idx = int(n * (1 - TEST_SIZE - VAL_SIZE))
 
-    x_train_daily, x_test_daily = x_daily.iloc[:split_idx], x_daily.iloc[split_idx:]
-    x_train_hourly, x_test_hourly = x_hourly.iloc[:split_idx], x_hourly.iloc[split_idx:]
+    x_train_daily = x_daily.iloc[:val_split_idx]
+    x_val_daily = x_daily.iloc[val_split_idx:test_split_idx]
+    x_test_daily = x_daily.iloc[test_split_idx:]
 
-    y_train, y_test = y.iloc[:split_idx], y.iloc[split_idx:]
-    dates_test = dates[split_idx:]
-    prices_test = prices.iloc[split_idx:]
+    x_train_hourly = x_hourly.iloc[:val_split_idx]
+    x_val_hourly = x_hourly.iloc[val_split_idx:test_split_idx]
+    x_test_hourly = x_hourly.iloc[test_split_idx:]
 
-    optimizer = StockModelOptimizer(x_train_daily, y_train, x_test_daily, y_test)
+    y_train = y.iloc[:val_split_idx]
+    y_val = y.iloc[val_split_idx:test_split_idx]
+    y_test = y.iloc[test_split_idx:]
+    dates_test = dates[test_split_idx:]
+    prices_test = prices.iloc[test_split_idx:]
+
+    # Hyperparameter search uses the validation set — the held-out test set is
+    # never visible during optimisation, which prevents data leakage.
+    optimizer = StockModelOptimizer(x_train_daily, y_train, x_val_daily, y_val)
 
     optimizer.optimize_both()
 
@@ -69,14 +84,15 @@ def simple_train_test_split(
         }
     )
 
-    # Train base models
+    # Train base models using the validation set for early stopping.
+    # The test set remains strictly held out for final evaluation.
     train_data = {
-        "daily": (x_train_daily, y_train, x_test_daily, y_test),
-        "hourly": (x_train_hourly, y_train, x_test_hourly, y_test),
+        "daily": (x_train_daily, y_train, x_val_daily, y_val),
+        "hourly": (x_train_hourly, y_train, x_val_hourly, y_val),
     }
     stacked.train(train_data)
 
-    # Evaluate on test set
+    # Evaluate on held-out test set
     test_results = stacked.evaluate(x_test_dict, y_test)
 
     return x_test_dict, x_train_dict, dates_test, stacked, prices_test, test_results, y_test
