@@ -45,7 +45,8 @@ class LightGBMStockPredictor(Model):
             categorical_feature=self.categorical_columns if self.categorical_columns else "auto",
         )
 
-        early_stopping_rounds = self.params.pop("early_stopping_rounds", None)
+        early_stopping_rounds = self.params.get("early_stopping_rounds")
+        train_params = {k: v for k, v in self.params.items() if k != "early_stopping_rounds"}
 
         valid_sets = [train_data]
         valid_names = ["train"]
@@ -71,12 +72,12 @@ class LightGBMStockPredictor(Model):
             logger.info("Early stopping enabled with %d rounds", early_stopping_rounds)
 
         self.model = lgb.train(
-            self.params,
+            train_params,
             train_data,
             valid_sets=valid_sets,
             valid_names=valid_names,
             num_boost_round=self.params.get("n_estimators", 1500),
-            callbacks=callbacks if callbacks else None,
+            callbacks=callbacks or None,
         )
 
         feature_names = x_train_processed.columns.tolist()
