@@ -127,13 +127,7 @@ class BaseTrainingPipeline(ABC):
 
                 x_daily = self._add_stock_features(x_daily, symbol)
 
-                features_hourly = FeatureEngineering(self._stock_data[symbol])
-                features_hourly.create_target_features(target_days=self.target_days)
-                x_hourly, _, _, _, _ = features_hourly.prepare_features()
-
-                x_hourly = self._add_stock_features(x_hourly, symbol)
-
-                x_hourly = x_hourly.loc[x_daily.index]
+                x_hourly = x_daily.copy()
 
                 self._split_idx = int(len(x_daily) * (1 - self.test_size))
 
