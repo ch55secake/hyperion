@@ -1,3 +1,21 @@
+from typing import Any
+
+
+def predict_today(ticker: str) -> dict[str, Any] | None:
+    """
+    Generate today's trading prediction for a given ticker.
+
+    This function is a placeholder — the full implementation requires a trained
+    model to be available on disk.  It is called by the Flask server's
+    ``/predict/<ticker>`` endpoint.
+
+    :param ticker: The stock ticker symbol to predict for (e.g. "AAPL").
+    :return: A dictionary of prediction results, or None if prediction failed.
+    """
+    # TODO: Implement full prediction by loading the trained model and running inference.
+    return None
+
+
 # import os
 #
 # from src.simulation import predict_today

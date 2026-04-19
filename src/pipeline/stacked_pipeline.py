@@ -69,7 +69,6 @@ def _simulate_ticker_worker(
 
 
 class StackedModelTrainingPipeline(BaseTrainingPipeline):
-
     def __init__(
         self,
         intervals: list[str],
@@ -177,11 +176,11 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
     def _engineer_features_for_symbol(self, symbol: str, data: pd.DataFrame):
         """
-        Run feature engineering for a single symbol and return split train/test data.
+        Run feature engineering for a single symbol and return split train/val/test data.
         Designed to be called in parallel via joblib.
         :param symbol: ticker symbol
         :param data: raw OHLCV DataFrame for this symbol and interval
-        :return: tuple of (symbol, x, y, dates, prices, split_idx) or (symbol, None, ...) on error
+        :return: tuple of (symbol, x, y, dates, prices, val_split_idx, test_split_idx) or (symbol, None, ...) on error
         """
         try:
             logger.info(f"Processing {symbol}...")
@@ -189,18 +188,24 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
             features.create_target_features(target_days=self.target_days)
             x, y, dates, prices, _ = features.prepare_features()
             x = self._add_stock_features(x, symbol)
-            split_idx = int(len(x) * (1 - self.test_size))
-            logger.info(f"{symbol}: {split_idx} train samples, {len(x) - split_idx} test samples")
-            return symbol, x, y, dates, prices, split_idx
+            n = len(x)
+            test_split_idx = int(n * (1 - self.test_size))
+            val_split_idx = int(n * (1 - self.test_size - self.val_size))
+            logger.info(
+                f"{symbol}: {val_split_idx} train samples, "
+                f"{test_split_idx - val_split_idx} val samples, "
+                f"{n - test_split_idx} test samples"
+            )
+            return symbol, x, y, dates, prices, val_split_idx, test_split_idx
         except Exception as e:
             logger.error(f"Error processing {symbol}: {str(e)}")
             traceback.print_exc()
-            return symbol, None, None, None, None, None
+            return symbol, None, None, None, None, None, None
 
     @override
     def prepare_features(self):
         """
-        Prepare all features for both daily and hourly data, as well as the test and train split.
+        Prepare all features for both daily and hourly data, as well as the train/val/test split.
         Feature engineering is parallelized across tickers using joblib threads.
         :return:
         """
@@ -212,6 +217,10 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         train_dates = {interval: [] for interval in self.intervals}
         train_prices = {interval: [] for interval in self.intervals}
         train_symbols = {interval: [] for interval in self.intervals}
+
+        val_features = {interval: [] for interval in self.intervals}
+        val_targets = {interval: [] for interval in self.intervals}
+        val_symbols = {interval: [] for interval in self.intervals}
 
         test_features = {interval: [] for interval in self.intervals}
         test_targets = {interval: [] for interval in self.intervals}
@@ -234,23 +243,27 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
                 for symbol in available_symbols
             )
 
-            for symbol, x, y, dates, prices, split_idx in results:
+            for symbol, x, y, dates, prices, val_split_idx, test_split_idx in results:
                 if x is None:
                     continue
 
-                self._split_idx = split_idx
+                self._split_idx = val_split_idx
 
-                train_features[interval].append(x.iloc[:split_idx])
-                train_targets[interval].append(y.iloc[:split_idx])
-                train_dates[interval].append(pd.Series(dates[:split_idx], index=dates[:split_idx]))
-                train_prices[interval].append(prices.iloc[:split_idx])
-                train_symbols[interval].extend([symbol] * split_idx)
+                train_features[interval].append(x.iloc[:val_split_idx])
+                train_targets[interval].append(y.iloc[:val_split_idx])
+                train_dates[interval].append(pd.Series(dates[:val_split_idx], index=dates[:val_split_idx]))
+                train_prices[interval].append(prices.iloc[:val_split_idx])
+                train_symbols[interval].extend([symbol] * val_split_idx)
 
-                test_features[interval].append(x.iloc[split_idx:])
-                test_targets[interval].append(y.iloc[split_idx:])
-                test_dates[interval].append(pd.Series(dates[split_idx:], index=dates[split_idx:]))
-                test_prices[interval].append(prices.iloc[split_idx:])
-                test_symbols[interval].extend([symbol] * (len(x) - split_idx))
+                val_features[interval].append(x.iloc[val_split_idx:test_split_idx])
+                val_targets[interval].append(y.iloc[val_split_idx:test_split_idx])
+                val_symbols[interval].extend([symbol] * (test_split_idx - val_split_idx))
+
+                test_features[interval].append(x.iloc[test_split_idx:])
+                test_targets[interval].append(y.iloc[test_split_idx:])
+                test_dates[interval].append(pd.Series(dates[test_split_idx:], index=dates[test_split_idx:]))
+                test_prices[interval].append(prices.iloc[test_split_idx:])
+                test_symbols[interval].extend([symbol] * (len(x) - test_split_idx))
 
         logger.info("=" * 60)
         logger.info("Combining Training Data")
@@ -268,6 +281,19 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
         combined_train_symbols = train_symbols[self.default_interval]
         train_symbols_series = pd.Series(combined_train_symbols, index=train_intervals[self.default_interval].index)
+
+        logger.info("Combining Validation Data")
+        val_intervals = dict()
+        for interval in self.intervals:
+            val_intervals[interval] = pd.concat(val_features[interval], axis=0, ignore_index=False)
+
+        val_targets_dict = dict()
+        for interval in self.intervals:
+            val_targets_dict[interval] = pd.concat(val_targets[interval], axis=0, ignore_index=False)
+
+        val_symbols_series = pd.Series(
+            val_symbols[self.default_interval], index=val_intervals[self.default_interval].index
+        )
 
         logger.info("Combining Test Data")
         test_intervals = dict()
@@ -287,8 +313,10 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
         logger.info("Converting categorical columns...")
         _, train_intervals, test_intervals = self.__create_categorical_features(train_intervals, test_intervals)
+        _, val_intervals, _ = self.__create_categorical_features(val_intervals, test_intervals)
 
         logger.info(f"Total train samples: {len(train_intervals[self.default_interval])}")
+        logger.info(f"Total val samples: {len(val_intervals[self.default_interval])}")
         logger.info(f"Total test samples: {len(test_intervals[self.default_interval])}")
         logger.info(f"Number of stocks: {len(self.symbols)}")
         logger.info(f"Stocks in test set: {test_symbols_series.nunique()}")
@@ -301,6 +329,11 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
                 "dates": train_dates,
                 "prices": train_prices,
                 "symbols": train_symbols_series,
+            },
+            "val": {
+                **{interval: val_intervals[interval] for interval in self.intervals},
+                "targets": val_targets_dict,
+                "symbols": val_symbols_series,
             },
             "test": {
                 **{interval: test_intervals[interval] for interval in self.intervals},
@@ -356,7 +389,13 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         logger.info("Feature split per interval:")
         for interval, info in self.describe_feature_splits().items():
             logger.info(
-                f"  {interval} ({info['role']}): {info['role_specific']} {info['role']} + {info['shared']} shared = {info['total']} total"
+                "  %s (%s): %s %s + %s shared = %s total",
+                interval,
+                info["role"],
+                info["role_specific"],
+                info["role"],
+                info["shared"],
+                info["total"],
             )
 
     def _populate_test_train_data(self):
@@ -430,14 +469,19 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
             raise Exception("Please run prepare_features(), before trying to run train()")
 
         x_train = dict()
+        x_val = dict()
         x_test = dict()
 
         for interval in self.intervals:
             x_train[interval] = self._test_train_data["train"][interval]
+            x_val[interval] = self._test_train_data["val"][interval]
             x_test[interval] = self._test_train_data["test"][interval]
 
         x_train_selected = {
             interval: self._select_interval_features(interval, x_train[interval]) for interval in self.intervals
+        }
+        x_val_selected = {
+            interval: self._select_interval_features(interval, x_val[interval]) for interval in self.intervals
         }
         x_test_selected = {
             interval: self._select_interval_features(interval, x_test[interval]) for interval in self.intervals
@@ -445,6 +489,8 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
         if isinstance(self._test_train_data["train"]["targets"], dict):
             y_train_dict = self._test_train_data["train"]["targets"]
+
+        y_val_dict = self._test_train_data["val"]["targets"]
 
         self._populate_test_train_data()
 
@@ -456,12 +502,18 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         logger.info("Training Stacked Model")
         logger.info("=" * 60)
         logger.info(f"Training samples: {len(x_train[self.default_interval])}")
+        logger.info(f"Validation samples: {len(x_val[self.default_interval])}")
         logger.info(f"Testing samples: {len(x_test[self.default_interval])}")
         logger.info(f"Unique stocks in test set: {self._symbols_test.nunique()}")
 
         if self.should_optimise:
             logger.info("Running hyperparameter optimisation, this will take a while...")
-            # self._optimize_hyperparameters(x_train_daily, y_train, x_test_daily, self._y_test)
+            self._optimize_hyperparameters(
+                x_train[self.default_interval],
+                y_train_dict[self.default_interval],
+                x_val[self.default_interval],
+                y_val_dict[self.default_interval],
+            )
 
         self._model = StackedStockPredictor(
             {
@@ -470,12 +522,14 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
             }
         )
 
+        # Train base models using the validation set for early stopping.
+        # The test set is never used during training to prevent data leakage.
         train_data = {
             interval: (
                 x_train_selected[interval],
                 y_train_dict[interval],
-                x_test_selected[interval],
-                self._y_test_dict[interval],
+                x_val_selected[interval],
+                y_val_dict[interval],
             )
             for interval in self.intervals
         }
@@ -495,7 +549,11 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         return self
 
     def simulate(
-        self, initial_capital: float = 10000, transaction_cost: float = 0.001, tickers=None, strategy_name: str = None
+        self,
+        initial_capital: float = 10000,
+        transaction_cost: float = 0.001,
+        tickers=None,
+        strategy_name: str | None = None,
     ):
         """
         Use the stacked trained model to simulate trading day by day, per ticker
@@ -600,7 +658,10 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
                 logger.info(f"Total final value: ${total_final_value:,.2f}")
                 logger.info(f"Average return: {avg_return * 100:.2f}%")
                 logger.info(
-                    f"Winning tickers: {winning_tickers}/{len(strategy_results)} ({winning_tickers / len(strategy_results) * 100:.1f}%)"
+                    "Winning tickers: %d/%d (%.1f%%)",
+                    winning_tickers,
+                    len(strategy_results),
+                    winning_tickers / len(strategy_results) * 100,
                 )
 
         return self
@@ -715,19 +776,21 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
         return test_data
 
-    def _optimize_hyperparameters(self, x_train_daily=None, y_train=None, x_test_daily=None, y_test=None):
+    def _optimize_hyperparameters(self, x_train_daily=None, y_train=None, x_val_daily=None, y_val=None):
         """
         Run optimization will only be run if the flag is enabled when the pipeline is instantiated.
+        Hyperparameter search is performed against the validation set so that the held-out test set
+        is never visible during tuning, preventing data leakage.
         :param x_train_daily:
         :param y_train:
-        :param x_test_daily:
-        :param y_test:
+        :param x_val_daily: validation features (not the test set)
+        :param y_val: validation targets (not the test set)
         :return:
         """
-        optimizer = StockModelOptimizer(x_train_daily, y_train, x_test_daily, y_test, n_trials=self.n_trials, n_jobs=1)
+        optimizer = StockModelOptimizer(x_train_daily, y_train, x_val_daily, y_val, n_trials=self.n_trials, n_jobs=1)
         optimizer.optimize_both()
         optimizer.visualize_studies(save_path="plots/optuna")
-        optimizer.save_results(f"params/ALL_STOCKS_best_params.json")
+        optimizer.save_results("params/ALL_STOCKS_best_params.json")
 
         self._xgb_params, self._lgb_params = optimizer.best_xgb_params, optimizer.best_lgb_params
 
