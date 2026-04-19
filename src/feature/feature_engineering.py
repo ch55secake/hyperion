@@ -341,7 +341,7 @@ class FeatureEngineering:
         if len(df_clean) == 0:
             raise ValueError("No valid data after processing features")
 
-        x = df_clean[feature_columns]
+        x = df_clean[feature_columns].copy()
         y = df_clean["Target"]
         dates = df_clean.index
         prices = df_clean["Close"]
@@ -351,8 +351,14 @@ class FeatureEngineering:
             scaler = StandardScaler()
             cat_cols = ["ticker", "sector", "industry"]
             num_cols = [c for c in x.columns if c not in cat_cols]
-            x = x.copy()
             x[num_cols] = scaler.fit_transform(x[num_cols])
+
+        # Downcast float64 columns to float32 to halve the feature matrix memory footprint.
+        # Categorical columns (ticker, sector, industry) are left untouched.
+        _cat_cols = {"ticker", "sector", "industry"}
+        float64_cols = [c for c in x.columns if c not in _cat_cols and x[c].dtype == "float64"]
+        if float64_cols:
+            x[float64_cols] = x[float64_cols].astype("float32")
 
         self.__df_prepared = x, y, dates, prices, feature_columns.tolist()  # type: ignore[assignment]
         return self.__df_prepared
