@@ -41,6 +41,9 @@ class Strategy(ABC):
         )
 
     def sell(self, date: int | Any, price: int | Any, pred_return: Any) -> None:
+        if self.position != "long" or self.entry_price == 0:
+            return
+
         cost_basis = self.shares * self.entry_price
         sale_proceeds = self.shares * price * (1 - self.simulator.transaction_cost)
         profit = sale_proceeds - cost_basis

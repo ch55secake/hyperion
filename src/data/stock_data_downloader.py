@@ -1,5 +1,7 @@
 import json
 import os
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 import pandas as pd
@@ -16,6 +18,10 @@ class StockDataDownloader:
     # History data is cached to avoid downloading the same data multiple times
     # Key is (symbol, period, interval)
     _history_data: dict[tuple[str, str, str], pd.DataFrame] = {}
+    # Lock protecting writes to class-level shared dicts from multiple threads
+    _lock: threading.Lock = threading.Lock()
+
+    MAX_WORKERS: int = 16
 
     def __init__(self, symbols, period="2y", interval="1d"):
         self.symbols = symbols if isinstance(symbols, list) else [symbols]
@@ -53,65 +59,94 @@ class StockDataDownloader:
         except Exception as e:
             logger.warning(f"Failed to save stock info: {e}")
 
-    def download_data(self):
-        """Download data for all symbols"""
+    def _download_single(self, symbol: str) -> tuple[str, pd.DataFrame | None]:
+        """
+        Download or load cached data for a single symbol.
+        Exceptions are allowed to propagate so the caller can track failures.
+        :param symbol: the stock symbol to download
+        :return: tuple of (symbol, DataFrame) — DataFrame is None for empty data
+        """
+        default_path: str = "./historic_data/"
+        filename = f"{symbol}_{self.period}_{self.interval}.csv"
+        complete_path: str = os.path.join(default_path, filename)
+        logger.debug(f"Checking for existing data for {complete_path}...")
+
+        needs_refresh = False
+
+        if os.path.isfile(complete_path):
+            df = pd.read_csv(complete_path, parse_dates=True, index_col=0)
+
+            last_date = pd.to_datetime(df.index[-1]).date()
+            today = pd.Timestamp.now().date()
+            lookback_date = today - pd.Timedelta(days=2)
+
+            if last_date < lookback_date:
+                logger.warning(f"Cache is outdated (last date: {last_date}, lookback date: {lookback_date})")
+                needs_refresh = True
+            else:
+                logger.info(f"Using cached data for {symbol}")
+                with self._lock:
+                    self._history_data[(symbol, self.period, self.interval)] = df
+                return symbol, df
+
+        if not os.path.isfile(complete_path) or needs_refresh:
+            logger.info(f"Downloading {symbol} ({self.period} {self.interval} data)...")
+            ticker = yf.Ticker(symbol)
+            df = ticker.history(period=self.period, interval=self.interval)
+
+            with self._lock:
+                self._history_data[(symbol, self.period, self.interval)] = df
+
+            if df.empty:
+                logger.warning(f"No data found for {symbol}")
+                return symbol, None
+
+            csv_path = f"./historic_data/{filename}"
+            df.to_csv(csv_path)
+
+            with self._lock:
+                self._stock_info[symbol] = ticker.info
+
+            logger.info(f"Downloaded {len(df)} data points for {symbol}")
+            logger.info(f"Date range: {df.index[0].date()} to {df.index[-1].date()}")
+            logger.info(f"Saved to {csv_path}")
+
+            return symbol, df
+
+        return symbol, None
+
+    def download_data(self) -> tuple[dict, list[str]]:
+        """Download data for all symbols in parallel using a thread pool.
+
+        Returns:
+            A tuple of (data, failed) where data maps symbol -> DataFrame for
+            successfully downloaded symbols, and failed is a list of symbols
+            that could not be downloaded.
+        """
         logger.info("=" * 60)
         logger.info("Downloading Stock Data from yfinance")
         logger.info("=" * 60)
 
-        for symbol in self.symbols:
-            try:
-                default_path: str = "./historic_data/"
-                filename = f"{symbol}_{self.period}_{self.interval}.csv"
-                complete_path: str = os.path.join(default_path, filename)
-                logger.debug(f"Checking for existing data for {complete_path}...")
+        failed: list[str] = []
 
-                needs_refresh = False
-
-                if os.path.isfile(complete_path):
-                    df = pd.read_csv(complete_path, parse_dates=True, index_col=0)
-
-                    last_date = pd.to_datetime(df.index[-1]).date()
-                    today = pd.Timestamp.now().date()
-                    yesterday = today - pd.Timedelta(days=2)
-
-                    if last_date < yesterday:
-                        logger.warning(f"Cache is outdated (last date: {last_date}, lookback date: {yesterday})")
-                        needs_refresh = True
-                    else:
-                        logger.info(f"Using cached data for {symbol}")
-                        self._history_data[(symbol, self.period, self.interval)] = df
+        with ThreadPoolExecutor(max_workers=self.MAX_WORKERS) as executor:
+            futures = {executor.submit(self._download_single, sym): sym for sym in self.symbols}
+            for future in as_completed(futures):
+                symbol = futures[future]
+                try:
+                    _, df = future.result()
+                    if df is not None:
                         self.data[symbol] = df
-                        if symbol not in self._stock_info:
-                            self._stock_info[symbol] = yf.Ticker(symbol).info
-                        continue
-
-                if not os.path.isfile(complete_path) or needs_refresh:
-                    logger.info(f"Downloading {symbol} ({self.period} {self.interval} data)...")
-                    ticker = yf.Ticker(symbol)
-                    df = ticker.history(period=self.period, interval=self.interval)
-
-                    self._history_data[(symbol, self.period, self.interval)] = df
-
-                    if df.empty:
-                        logger.warning(f"No data found for {symbol}")
-                        continue
-
-                    filename = f"./historic_data/{filename}"
-                    df.to_csv(filename)
-
-                    self.data[symbol] = df
-                    self._stock_info[symbol] = ticker.info
-
-                    logger.info(f"Downloaded {len(df)} data points for {symbol}")
-                    logger.info(f"Date range: {df.index[0].date()} to {df.index[-1].date()}")
-                    logger.info(f"Saved to {filename}")
-
-            except Exception as e:
-                logger.error(f"Error downloading {symbol}: {str(e)}")
+                except Exception as e:
+                    logger.error(f"Error downloading {symbol}: {str(e)}")
+                    failed.append(symbol)
 
         self.save_stock_info()
-        return self.data
+
+        if failed:
+            logger.warning("%d symbol(s) failed to download: %s", len(failed), failed)
+
+        return self.data, failed
 
     @staticmethod
     def _get_stock_info(symbol) -> None:
