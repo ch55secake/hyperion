@@ -7,7 +7,7 @@ import pytest
 from src.feature.feature_engineering import FeatureEngineering
 from src.model import LightGBMStockPredictor, XGBoostStockPredictor
 from src.model.model import Model
-from tests.helpers import fast_lgb_params, fast_xgb_params
+from tests.helpers import fast_lgb_params, fast_xgb_params, make_ohlcv
 
 
 class _DummyPredictor(Model):
@@ -70,19 +70,7 @@ def synthetic_ohlcv():
 
 def _make_trained_split():
     """Build a train/test split from deterministic synthetic OHLCV data."""
-    rng = np.random.default_rng(42)
-    n = 200
-    prices = np.clip(100 + np.cumsum(rng.normal(0, 1, n)), 10, None)
-    ohlcv = pd.DataFrame(
-        {
-            "Open": prices * (1 + rng.normal(0, 0.002, n)),
-            "High": prices * (1 + np.abs(rng.normal(0, 0.005, n))),
-            "Low": prices * (1 - np.abs(rng.normal(0, 0.005, n))),
-            "Close": prices,
-            "Volume": rng.integers(1_000, 10_000, n).astype(float),
-        },
-        index=pd.date_range("2022-01-01", periods=n, freq="D"),
-    )
+    ohlcv = make_ohlcv(n=200, seed=42)
     fe = FeatureEngineering(ohlcv)
     fe.create_target_features()
     x, y, *_ = fe.prepare_features()
