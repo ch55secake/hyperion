@@ -118,6 +118,140 @@ class TestCreateTargetFeatures:
         assert len(result) == 120
 
 
+class TestMultiHorizonTargets:
+    def test_horizon_columns_added(self):
+        df = _make_df(n=120)
+        fe = FeatureEngineering(df)
+        result = fe.create_target_features(target_days=10, horizons=[1, 5, 10, 20])
+        for h in [1, 5, 10, 20]:
+            assert f"Target_{h}d" in result.columns
+
+    def test_horizon_columns_not_added_by_default(self):
+        df = _make_df(n=120)
+        fe = FeatureEngineering(df)
+        result = fe.create_target_features(target_days=10)
+        assert "Target_1d" not in result.columns
+        assert "Target_5d" not in result.columns
+
+    def test_horizon_length_unchanged(self):
+        df = _make_df(n=120)
+        fe = FeatureEngineering(df)
+        result = fe.create_target_features(target_days=10, horizons=[1, 5])
+        assert len(result) == 120
+
+    def test_horizon_targets_not_in_feature_matrix(self):
+        df = _make_df(n=120)
+        fe = FeatureEngineering(df)
+        fe.create_target_features(target_days=10, horizons=[1, 5, 10, 20])
+        x, _, _, _, _ = fe.prepare_features()
+        for h in [1, 5, 10, 20]:
+            assert f"Target_{h}d" not in x.columns
+
+
+class TestRiskAdjustedTargets:
+    def test_sharpe_columns_added(self):
+        df = _make_df(n=120)
+        fe = FeatureEngineering(df)
+        result = fe.create_target_features(target_days=10, horizons=[5, 10], risk_adjusted=True)
+        assert "Target_Sharpe_5d" in result.columns
+        assert "Target_Sharpe_10d" in result.columns
+
+    def test_maxdd_columns_added(self):
+        df = _make_df(n=120)
+        fe = FeatureEngineering(df)
+        result = fe.create_target_features(target_days=10, horizons=[5], risk_adjusted=True)
+        assert "Target_MaxDD_5d" in result.columns
+
+    def test_sortino_columns_added(self):
+        df = _make_df(n=120)
+        fe = FeatureEngineering(df)
+        result = fe.create_target_features(target_days=10, horizons=[5], risk_adjusted=True)
+        assert "Target_Sortino_5d" in result.columns
+
+    def test_risk_adjusted_fallback_to_target_days(self):
+        """When horizons=None, risk_adjusted targets use [target_days]."""
+        df = _make_df(n=120)
+        fe = FeatureEngineering(df)
+        result = fe.create_target_features(target_days=5, risk_adjusted=True)
+        assert "Target_Sharpe_5d" in result.columns
+        assert "Target_MaxDD_5d" in result.columns
+        assert "Target_Sortino_5d" in result.columns
+
+    def test_risk_adjusted_not_in_feature_matrix(self):
+        df = _make_df(n=120)
+        fe = FeatureEngineering(df)
+        fe.create_target_features(target_days=10, horizons=[5], risk_adjusted=True)
+        x, _, _, _, _ = fe.prepare_features()
+        assert "Target_Sharpe_5d" not in x.columns
+        assert "Target_MaxDD_5d" not in x.columns
+        assert "Target_Sortino_5d" not in x.columns
+
+    def test_maxdd_target_is_less_than_or_equal_to_raw_return(self):
+        """MDD-adjusted return should be <= the raw forward return when return is positive."""
+        df = _make_df(n=120)
+        fe = FeatureEngineering(df)
+        result = fe.create_target_features(target_days=5, horizons=[5], risk_adjusted=True)
+        raw = result["Target_5d"].dropna()
+        mdd_adj = result["Target_MaxDD_5d"].dropna()
+        positive_mask = (raw > 0) & (mdd_adj.index.isin(raw.index))
+        if positive_mask.any():
+            assert (mdd_adj[positive_mask] <= raw[positive_mask] + 1e-9).all()
+
+
+class TestClassificationTargets:
+    def test_binary_column_added(self):
+        df = _make_df(n=120)
+        fe = FeatureEngineering(df)
+        result = fe.create_target_features(target_days=5, classification=True)
+        assert "Target_Binary" in result.columns
+
+    def test_ternary_column_added(self):
+        df = _make_df(n=120)
+        fe = FeatureEngineering(df)
+        result = fe.create_target_features(target_days=5, classification=True)
+        assert "Target_Ternary" in result.columns
+
+    def test_binary_values_are_zero_or_one(self):
+        df = _make_df(n=120)
+        fe = FeatureEngineering(df)
+        result = fe.create_target_features(target_days=5, classification=True)
+        valid = result["Target_Binary"].dropna()
+        assert set(valid.unique()).issubset({0, 1})
+
+    def test_ternary_values_are_minus_one_zero_or_one(self):
+        df = _make_df(n=120)
+        fe = FeatureEngineering(df)
+        result = fe.create_target_features(target_days=5, classification=True)
+        valid = result["Target_Ternary"].dropna()
+        assert set(valid.unique()).issubset({-1, 0, 1})
+
+    def test_classification_not_in_feature_matrix(self):
+        df = _make_df(n=120)
+        fe = FeatureEngineering(df)
+        fe.create_target_features(target_days=5, classification=True)
+        x, _, _, _, _ = fe.prepare_features()
+        assert "Target_Binary" not in x.columns
+        assert "Target_Ternary" not in x.columns
+
+    def test_invalid_thresholds_raise(self):
+        df = _make_df(n=120)
+        fe = FeatureEngineering(df)
+        with pytest.raises(ValueError, match="down_threshold"):
+            fe.create_target_features(target_days=5, classification=True, up_threshold=-0.05, down_threshold=0.05)
+
+    def test_custom_thresholds_respected(self):
+        """All returns above 5% should be labelled 1 with up_threshold=0.05."""
+        df = _make_df(n=120)
+        fe = FeatureEngineering(df)
+        result = fe.create_target_features(
+            target_days=5, classification=True, up_threshold=0.05, down_threshold=-0.05
+        )
+        forward_return = result["Close"].pct_change(5).shift(-5)
+        binary = result["Target_Binary"]
+        mask = forward_return > 0.05
+        assert (binary[mask] == 1).all()
+
+
 class TestPrepareFeatures:
     def test_returns_tuple_of_five(self):
         df = _make_df(n=120)

@@ -11,6 +11,7 @@ import src.feature.technical_indicators as ti
 _required_cols = ["Open", "High", "Low", "Close", "Volume"]
 _all_cols = ["Open", "High", "Low", "Close", "Volume", "Dividends", "Stock Splits"]
 _all_cols_with_targets = ["Open", "High", "Low", "Close", "Volume", "Target", "Dividends", "Stock Splits"]
+_multi_horizon_days = [1, 5, 10, 20]
 _ma_windows = [5, 10, 12, 20, 26, 50, 100]
 _price_change_windows = [1, 5, 10, 20, 50, 100]
 _volume_change_windows = [5, 10, 20, 50]
@@ -324,15 +325,83 @@ class FeatureEngineering:
 
         self.__calculated = True
 
-    def _create_target(self, target_days: int):
+    def _create_target(self, target_days: int) -> None:
         self.df["Target"] = self.df["Close"].pct_change(target_days).shift(-target_days)
-        return self.df
+
+    def _create_multi_horizon_targets(self, horizons: list[int]) -> None:
+        """Creates forward return targets for each horizon in *horizons* (e.g. 1d, 5d, 10d, 20d)."""
+        for h in horizons:
+            self.df[f"Target_{h}d"] = self.df["Close"].pct_change(h).shift(-h)
+
+    def _create_risk_adjusted_targets(self, horizons: list[int]) -> None:
+        """Creates risk-adjusted forward targets for each horizon:
+
+        * ``Target_Sharpe_Nd``  — forward Sharpe ratio (mean / std of daily returns × √N)
+        * ``Target_MaxDD_Nd``   — raw forward return divided by (1 + max-drawdown from entry)
+        * ``Target_Sortino_Nd`` — Sortino-style ratio (mean / downside-std of daily returns × √N)
+        """
+        daily_returns = self.df["Close"].pct_change(1)
+        downside_returns = daily_returns.clip(upper=0)
+
+        for h in horizons:
+            # Rolling statistics over the *forward* window [t+1 .. t+h].
+            # rolling(h).stat() at position t uses [t-h+1 .. t]; shifting by -h moves
+            # the window forward so it covers [t+1 .. t+h].
+            forward_mean = daily_returns.rolling(h).mean().shift(-h)
+            forward_std = daily_returns.rolling(h).std().shift(-h)
+
+            # Forward Sharpe
+            self.df[f"Target_Sharpe_{h}d"] = (
+                forward_mean / forward_std.replace(0, np.nan)
+            ) * np.sqrt(h)
+
+            # MDD-adjusted return: raw return / (1 + drawdown from entry to window trough)
+            forward_return = self.df["Close"].pct_change(h).shift(-h)
+            forward_min_price = self.df["Close"].rolling(h).min().shift(-h)
+            mdd = (self.df["Close"] - forward_min_price) / self.df["Close"].replace(0, np.nan)
+            mdd = mdd.clip(lower=0)
+            self.df[f"Target_MaxDD_{h}d"] = forward_return / (1 + mdd)
+
+            # Sortino-style target
+            forward_downside_std = downside_returns.rolling(h).std().shift(-h)
+            self.df[f"Target_Sortino_{h}d"] = (
+                forward_mean / forward_downside_std.replace(0, np.nan)
+            ) * np.sqrt(h)
+
+    def _create_classification_targets(
+        self,
+        target_days: int,
+        up_threshold: float = 0.02,
+        down_threshold: float = -0.02,
+    ) -> None:
+        """Creates binary and ternary directional classification targets.
+
+        * ``Target_Binary``  — 1 if forward return > *up_threshold*, else 0
+        * ``Target_Ternary`` — 1 (up) / 0 (flat) / -1 (down) using both thresholds
+        """
+        if down_threshold >= up_threshold:
+            raise ValueError(
+                f"down_threshold ({down_threshold}) must be strictly less than up_threshold ({up_threshold})"
+            )
+
+        forward_return = self.df["Close"].pct_change(target_days).shift(-target_days)
+
+        self.df["Target_Binary"] = (forward_return > up_threshold).astype(int)
+
+        self.df["Target_Ternary"] = np.select(
+            [forward_return > up_threshold, forward_return < down_threshold],
+            [1, -1],
+            default=0,
+        ).astype(int)
 
     def prepare_features(self, scale: bool = False):
         if self.__df_prepared is not None:
             return self.__df_prepared
         df = self.df.copy()
-        feature_columns = df.columns.difference(_all_cols_with_targets)
+        # Exclude OHLCV base columns, the primary Target, and any derived Target_* columns.
+        target_cols = [c for c in df.columns if c.startswith("Target")]
+        non_feature_cols = list(set(_all_cols_with_targets) | set(target_cols))
+        feature_columns = df.columns.difference(non_feature_cols)
         # Fill missing values instead of dropping all
         df[feature_columns] = df[feature_columns].fillna(0)
 
@@ -357,6 +426,47 @@ class FeatureEngineering:
         self.__df_prepared = x, y, dates, prices, feature_columns.tolist()  # type: ignore[assignment]
         return self.__df_prepared
 
-    def create_target_features(self, target_days: int = 10):
+    def create_target_features(
+        self,
+        target_days: int = 10,
+        horizons: list[int] | None = None,
+        risk_adjusted: bool = False,
+        classification: bool = False,
+        up_threshold: float = 0.02,
+        down_threshold: float = -0.02,
+    ):
+        """Build the primary ``Target`` column and optional enriched targets.
+
+        Parameters
+        ----------
+        target_days:
+            Forward-return window for the primary ``Target`` column (default 10).
+        horizons:
+            If provided, also create ``Target_Nd`` columns for each N in *horizons*.
+            A sensible default is ``[1, 5, 10, 20]``.
+        risk_adjusted:
+            When ``True``, add forward Sharpe, MDD-adjusted, and Sortino-style targets
+            for each horizon in *horizons* (falls back to ``[target_days]`` when
+            *horizons* is ``None``).
+        classification:
+            When ``True``, add ``Target_Binary`` and ``Target_Ternary`` columns based on
+            *up_threshold* and *down_threshold*.
+        up_threshold:
+            Return threshold above which a sample is labelled "up" (default 0.02).
+        down_threshold:
+            Return threshold below which a sample is labelled "down" (default -0.02).
+        """
         self.add_all_technical_indicators()
-        return self._create_target(target_days=target_days)
+        self._create_target(target_days=target_days)
+
+        if horizons is not None:
+            self._create_multi_horizon_targets(horizons)
+
+        if risk_adjusted:
+            _horizons = horizons if horizons is not None else [target_days]
+            self._create_risk_adjusted_targets(_horizons)
+
+        if classification:
+            self._create_classification_targets(target_days, up_threshold, down_threshold)
+
+        return self.df
