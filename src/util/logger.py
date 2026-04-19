@@ -11,7 +11,7 @@ class Logger:
 
     _instance = None
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls, *args: object, **kwargs: object) -> "Logger":
         if not cls._instance:
             cls._instance = super(Logger, cls).__new__(cls, *args, **kwargs)
         return cls._instance
