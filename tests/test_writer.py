@@ -145,17 +145,17 @@ class TestPersistResults:
             )
         return mock_file
 
-    def test_persist_results_writes_symbol_header(self, tmp_path):
+    def test_persist_results_writes_symbol_header(self, tmp_path):  # noqa: ARG002
         mock_file = self._call_persist(str(tmp_path))
         written = "".join(str(call.args[0]) for call in mock_file.write.call_args_list)
         assert "TEST" in written
 
-    def test_persist_results_writes_model_performance(self, tmp_path):
+    def test_persist_results_writes_model_performance(self, tmp_path):  # noqa: ARG002
         mock_file = self._call_persist(str(tmp_path))
         written = "".join(str(call.args[0]) for call in mock_file.write.call_args_list)
         assert "R²" in written or "r2" in written.lower() or "R" in written
 
-    def test_persist_results_writes_strategy_names(self, tmp_path):
+    def test_persist_results_writes_strategy_names(self, tmp_path):  # noqa: ARG002
         mock_file = self._call_persist(str(tmp_path))
         written = "".join(str(call.args[0]) for call in mock_file.write.call_args_list)
         assert "strategy_0" in written
