@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 
 from src.simulation.trading_simulator import TradingSimulator
+from src.simulation.strategy.adaptive import AdaptiveThresholdStrategy
 
 
 def _make_inputs(n=50, seed=42):
@@ -100,3 +101,40 @@ class TestSimulate:
         predictions, actual_returns, prices, dates = _make_inputs()
         result = sim.simulate(predictions, actual_returns, prices=prices, dates=dates)
         assert result["num_trades"] == len(result["trades"])
+
+
+class TestStrategySellGuard:
+    def test_sell_before_buy_does_not_raise(self):
+        """sell() called before buy() must not raise ZeroDivisionError."""
+        from src.simulation.strategy.directional import DirectionalTradingStrategy
+
+        sim = TradingSimulator()
+        strategy = DirectionalTradingStrategy(sim, sim.initial_capital)
+        # Calling sell when no position is open should be a no-op
+        strategy.sell("2024-01-01", 100.0, -0.05)
+        assert strategy.position is None
+        assert strategy.capital == sim.initial_capital
+        assert len(sim.trades) == 0
+
+    def test_sell_with_zero_entry_price_does_not_raise(self):
+        """sell() with entry_price == 0 must not raise ZeroDivisionError."""
+        from src.simulation.strategy.directional import DirectionalTradingStrategy
+
+        sim = TradingSimulator()
+        strategy = DirectionalTradingStrategy(sim, sim.initial_capital)
+        # Force a contradictory state: position=long but entry_price=0
+        strategy.position = "long"
+        strategy.entry_price = 0
+        strategy.sell("2024-01-01", 100.0, -0.05)
+        # Should return early without appending a trade
+        assert len(sim.trades) == 0
+
+    def test_adaptive_strategy_sell_only_when_long(self):
+        """AdaptiveThresholdStrategy must not sell when not in a long position."""
+        sim = TradingSimulator()
+        strategy = AdaptiveThresholdStrategy(sim, sim.initial_capital, threshold=0.01)
+        # Trigger sell condition with no open position — should be ignored
+        strategy.execute("2024-01-01", 100.0, -0.05, -0.05)
+        assert strategy.position is None
+        assert strategy.capital == sim.initial_capital
+        assert len(sim.trades) == 0
