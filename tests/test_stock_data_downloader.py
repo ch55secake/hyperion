@@ -9,7 +9,6 @@ import pytest
 
 from src.data.stock_data_downloader import StockDataDownloader
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

@@ -7,7 +7,6 @@ import pytest
 from src.model.model import Model
 from src.model.stacker.stack import TimeSeriesStacker
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

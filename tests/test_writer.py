@@ -10,7 +10,6 @@ import pytest
 from src.writer.model_writer import save_trained_model
 from src.writer.result_writer import output_best_strategy, persist_results
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
