@@ -2,7 +2,7 @@ import pandas as pd
 import lightgbm as lgb
 
 from ..model import Model
-from src.util import logger
+from src.util import logger, get_device
 
 
 class LightGBMStockPredictor(Model):
@@ -16,6 +16,7 @@ class LightGBMStockPredictor(Model):
                 "objective": "regression",
                 "metric": "rmse",
                 "verbosity": -1,
+                "device": "gpu" if get_device() == "cuda" else "cpu",
                 "max_depth": -1,
                 "min_data_in_leaf": 5,
                 "min_gain_to_split": 0.0,

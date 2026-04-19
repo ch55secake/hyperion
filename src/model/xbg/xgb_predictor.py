@@ -2,7 +2,7 @@ import pandas as pd
 import xgboost
 
 from ..model import Model
-from src.util import logger
+from src.util import logger, get_device
 
 
 class XGBoostStockPredictor(Model):
@@ -24,6 +24,7 @@ class XGBoostStockPredictor(Model):
                 "gamma": 0.0,
                 "n_estimators": 500,
                 "tree_method": "hist",
+                "device": get_device(),
                 "seed": 42,
                 "enable_categorical": True,
                 "early_stopping_rounds": 50,

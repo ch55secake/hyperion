@@ -16,6 +16,8 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.preprocessing import StandardScaler
 
+from src.util import get_device
+
 warnings.filterwarnings("ignore")
 
 logging.basicConfig(level=logging.INFO)
@@ -117,6 +119,7 @@ class StockModelOptimizer:
             "objective": "reg:squarederror",
             "eval_metric": "rmse",
             "tree_method": "hist",  # Required for categorical support
+            "device": get_device(),
             "verbosity": 0,
             "enable_categorical": True,  # Enable categorical support
             "seed": self.random_state,
@@ -181,6 +184,7 @@ class StockModelOptimizer:
             "objective": "regression",
             "metric": "rmse",
             "verbosity": -1,
+            "device": "gpu" if get_device() == "cuda" else "cpu",
             "seed": self.random_state,
             "force_col_wise": True,
             # Learning parameters
