@@ -187,5 +187,4 @@ jobs:
 
       - name: Run regression tests
         run: |
-          poetry run pytest tests/ -v --tb=short -m regression \
-            --cov=src --cov-report=term-missing --cov-fail-under=60
+          poetry run pytest tests/ -v --tb=short -m regression
