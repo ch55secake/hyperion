@@ -87,7 +87,15 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
         def _download_interval(interval):
             downloader = StockDataDownloader(self.symbols, period=self.period, interval=interval)
-            return interval, downloader, downloader.download_data()
+            interval_data, failed = downloader.download_data()
+            if failed:
+                logger.warning(
+                    "%d symbol(s) failed to download for interval '%s' and will be excluded: %s",
+                    len(failed),
+                    interval,
+                    failed,
+                )
+            return interval, downloader, interval_data
 
         interval_downloaders: dict[str, StockDataDownloader] = {}
         with ThreadPoolExecutor(max_workers=len(self.intervals)) as executor:
@@ -149,7 +157,7 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
                     logger.info(f"Processing {symbol}...")
 
                     features = FeatureEngineering(self._stock_data[interval][symbol])
-                    features.create_target_features()
+                    features.create_target_features(target_days=self.target_days)
                     x, y, dates, prices, _ = features.prepare_features()
 
                     x = self._add_stock_features(x, symbol)
@@ -411,11 +419,15 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         self._test_results = self._model.evaluate(self._x_test_dict, aligned_targets[self.default_interval])
 
         model_name: str = "ALL_STOCKS"
-        save_trained_model(self._model, model_name, self._test_results)
+        save_trained_model(
+            self._model, model_name, self._test_results, self.r2_save_threshold, self.r2_invalid_threshold
+        )
 
         return self
 
-    def simulate(self, initial_capital: float = 10000, tickers=None, strategy_name: str = None):
+    def simulate(
+        self, initial_capital: float = 10000, transaction_cost: float = 0.001, tickers=None, strategy_name: str = None
+    ):
         """
         Use the stacked trained model to simulate trading day by day, per ticker
         :return:
@@ -493,16 +505,18 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
                     additional_data = strategy_class.get_extra_params(ticker_data.set_index("date")["price"])
 
-                    simulator = TradingSimulator(initial_capital=int(initial_capital))
+                    simulator = TradingSimulator(
+                        initial_capital=int(initial_capital), transaction_cost=transaction_cost
+                    )
                     strategy = StrategyRegistry.create(
                         name=strategy_key, simulator=simulator, capital=int(initial_capital), **additional_data
                     )
 
                     ticker_data_reset = ticker_data.reset_index(drop=True)
 
-                    train_predictions = predictions[self._split_idx :]
+                    ticker_predictions = ticker_data_reset["prediction"].to_numpy()
 
-                    threshold = np.percentile(np.abs(train_predictions), 75)
+                    threshold = np.percentile(np.abs(ticker_predictions), 75)
 
                     results = simulator.simulate(
                         predictions=ticker_data_reset["prediction"],
@@ -571,7 +585,7 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         :param y_test:
         :return:
         """
-        optimizer = StockModelOptimizer(x_train_daily, y_train, x_test_daily, y_test, n_trials=200, n_jobs=1)
+        optimizer = StockModelOptimizer(x_train_daily, y_train, x_test_daily, y_test, n_trials=self.n_trials, n_jobs=1)
         optimizer.optimize_both()
         optimizer.visualize_studies(save_path="plots/optuna")
         optimizer.save_results(f"params/ALL_STOCKS_best_params.json")
