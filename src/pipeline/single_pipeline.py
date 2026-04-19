@@ -87,7 +87,13 @@ class SingleModelTrainingPipeline(BaseTrainingPipeline):
         self._x_test_dict = {"daily": x_test_daily}
         test_results = self._model.evaluate(x_test_daily, self._y_test)
 
-        save_trained_model(self._model, f"{self.model_type.upper()}_MODEL", test_results, self.r2_save_threshold, self.r2_invalid_threshold)
+        save_trained_model(
+            self._model,
+            f"{self.model_type.upper()}_MODEL",
+            test_results,
+            self.r2_save_threshold,
+            self.r2_invalid_threshold,
+        )
         logger.info(f"{self.model_type.upper()} model training complete!")
 
         return self
