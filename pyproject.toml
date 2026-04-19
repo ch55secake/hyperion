@@ -37,6 +37,9 @@ pytest-cov = ">=4.0"
 testpaths = ["tests"]
 addopts = "-v"
 pythonpath = ["."]
+markers = [
+    "regression: marks tests as regression tests (may be slower)",
+]
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

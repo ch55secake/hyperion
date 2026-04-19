@@ -17,8 +17,11 @@ def std(series: pd.Series, window: int) -> pd.Series:
 
 def wma(series: pd.Series, window: int) -> pd.Series:
     """Weighted moving average"""
-    weights = np.arange(1, window + 1)
-    return series.rolling(window).apply(lambda x: np.dot(x, weights) / weights.sum(), raw=True)
+    weights = np.arange(1, window + 1, dtype=float)
+    weights /= weights.sum()
+    result = np.convolve(series.values, weights[::-1], mode="full")[: len(series)]
+    result[: window - 1] = np.nan
+    return pd.Series(result, index=series.index)
 
 
 def hma(series: pd.Series, window: int) -> pd.Series:
@@ -106,7 +109,8 @@ def cci(high: pd.Series, low: pd.Series, close: pd.Series, window: int = 20) -> 
     """Commodity Channel Index"""
     tp = (high + low + close) / 3
     sma_tp = tp.rolling(window).mean()
-    mean_dev = tp.rolling(window).apply(lambda x: np.mean(np.abs(x - x.mean())), raw=True)
+    # Approximate mean absolute deviation using std * sqrt(2/π) ≈ 0.7979 (assumes normal distribution)
+    mean_dev = tp.rolling(window).std() * 0.7979
     return (tp - sma_tp) / (0.015 * mean_dev)
 
 
@@ -179,9 +183,11 @@ def bollinger_bands(
     close: pd.Series, window: int = 20
 ) -> tuple[pd.Series, pd.Series, pd.Series, pd.Series, pd.Series, pd.Series]:
     """Bollinger Bands"""
-    bb_upper = bollinger_bands_upper(close, window)
-    bb_lower = bollinger_bands_lower(close, window)
-    bb_middle = bollinger_bands_middle(close, window)
+    mid = sma(close, window)
+    rolling_std = std(close, window)
+    bb_upper = mid + 2 * rolling_std
+    bb_lower = mid - 2 * rolling_std
+    bb_middle = mid
 
     bb_width = bollinger_bands_width(bb_upper, bb_lower)
     bb_width_ratio = bollinger_bands_width_ratio(bb_width, bb_middle)
