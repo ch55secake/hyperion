@@ -35,7 +35,7 @@ class FeatureEngineering:
         for col in _required_cols:
             if col not in df.columns:
                 raise ValueError(f"Missing required column: {col}")
-        return df.copy()
+        return df.sort_index().copy()
 
     def get_df(self) -> DataFrame:
         return self.df

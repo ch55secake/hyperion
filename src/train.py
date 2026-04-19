@@ -61,6 +61,22 @@ def simple_train_test_split(
     dates_test = dates[test_split_idx:]
     prices_test = prices.iloc[test_split_idx:]
 
+    train_end = dates[val_split_idx - 1] if val_split_idx > 0 else "N/A"
+    val_start = dates[val_split_idx] if val_split_idx < len(dates) else "N/A"
+    val_end = dates[test_split_idx - 1] if test_split_idx > 0 else "N/A"
+    test_start = dates[test_split_idx] if test_split_idx < len(dates) else "N/A"
+    logger.info(
+        "%s: temporal split — %d train (up to %s), %d val (%s–%s), %d test (from %s)",
+        symbol,
+        val_split_idx,
+        train_end,
+        test_split_idx - val_split_idx,
+        val_start,
+        val_end,
+        len(x_daily) - test_split_idx,
+        test_start,
+    )
+
     # Hyperparameter search uses the validation set — the held-out test set is
     # never visible during optimisation, which prevents data leakage.
     optimizer = StockModelOptimizer(x_train_daily, y_train, x_val_daily, y_val)

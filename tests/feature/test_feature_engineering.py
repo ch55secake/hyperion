@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 
 from src.feature.feature_engineering import FeatureEngineering
+from tests.helpers import make_ohlcv
 
 
 def _make_df(n=100, seed=42):
@@ -200,3 +201,44 @@ class TestPrepareFeaturesWithScale:
 
         assert len(x_scaled) == len(x_unscaled)
         assert len(y_scaled) == len(y_unscaled)
+
+
+class TestTemporalOrdering:
+    def test_shuffled_input_is_sorted_chronologically(self):
+        """FeatureEngineering must sort data by date even when input is shuffled."""
+        ohlcv = make_ohlcv(n=120, seed=0)
+        shuffled = ohlcv.sample(frac=1, random_state=99)
+        # Sorting happens in __init__ via _ensure_required_columns; check immediately.
+        fe = FeatureEngineering(shuffled)
+        assert fe.get_df().index.is_monotonic_increasing
+
+    def test_prepare_features_index_is_sorted(self):
+        """prepare_features must return x/y/dates in chronological order."""
+        ohlcv = make_ohlcv(n=120, seed=1)
+        shuffled = ohlcv.sample(frac=1, random_state=7)
+        fe = FeatureEngineering(shuffled)
+        fe.create_target_features(target_days=5)
+        x, y, dates, prices, _ = fe.prepare_features()
+        assert list(dates) == sorted(dates)
+
+    def test_positional_split_is_temporal(self):
+        """A positional 80/20 split on sorted data must have all train dates before test dates."""
+        ohlcv = make_ohlcv(n=200, seed=42)
+        fe = FeatureEngineering(ohlcv)
+        fe.create_target_features(target_days=5)
+        x, y, dates, prices, _ = fe.prepare_features()
+        split = int(len(x) * 0.8)
+        train_dates = dates[:split]
+        test_dates = dates[split:]
+        assert max(train_dates) < min(test_dates)
+
+    def test_positional_split_is_temporal_on_shuffled_input(self):
+        """An 80/20 split must still be temporal even if input data was shuffled."""
+        ohlcv = make_ohlcv(n=200, seed=42)
+        shuffled = ohlcv.sample(frac=1, random_state=13)
+        fe = FeatureEngineering(shuffled)
+        fe.create_target_features(target_days=5)
+        x, y, dates, prices, _ = fe.prepare_features()
+        split = int(len(x) * 0.8)
+        assert split > 0 and split < len(x)
+        assert max(dates[:split]) < min(dates[split:])

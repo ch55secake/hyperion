@@ -147,7 +147,12 @@ class BaseTrainingPipeline(ABC):
                 test_prices.append(prices_daily.iloc[self._split_idx :])
                 test_symbols.extend([symbol] * (len(x_daily) - self._split_idx))
 
-                logger.info(f"{symbol}: {self._split_idx} train samples, {len(x_daily) - self._split_idx} test samples")
+                train_end = dates_daily[self._split_idx - 1] if self._split_idx > 0 else "N/A"
+                test_start = dates_daily[self._split_idx] if self._split_idx < len(dates_daily) else "N/A"
+                logger.info(
+                    f"{symbol}: {self._split_idx} train samples (up to {train_end}), "
+                    f"{len(x_daily) - self._split_idx} test samples (from {test_start})"
+                )
 
             except Exception as e:
                 logger.error(f"Error processing {symbol}: {str(e)}")
