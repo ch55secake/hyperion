@@ -1,12 +1,9 @@
 import argparse
 import os
-import warnings
 
 from src.config import HyperionConfig
 from src.pipeline.stacked_pipeline import StackedModelTrainingPipeline
 from src.pipeline.time_series_stacked_pipeline import TimeSeriesStackedModelTrainingPipeline
-
-warnings.filterwarnings("ignore")
 
 os.makedirs("./historic_data", exist_ok=True)
 os.makedirs("./plots", exist_ok=True)
