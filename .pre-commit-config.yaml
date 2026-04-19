@@ -66,3 +66,12 @@ repos:
       - id: black
         description: Reformats code with black
         language_version: python3.12
+
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest
+        entry: poetry run pytest tests/ -x -q --tb=short -m "not regression"
+        language: system
+        pass_filenames: false
+        stages: [pre-push]

@@ -23,12 +23,20 @@ class BaseTrainingPipeline(ABC):
         interval: str = "1d",
         test_size: float = 0.2,
         should_optimise: bool = False,
+        n_trials: int = 1000,
+        target_days: int = 10,
+        r2_save_threshold: float = 0.0012,
+        r2_invalid_threshold: float = -0.3,
     ):
         self.symbols = symbols
         self.period = period
         self.interval = interval
         self.test_size = test_size
         self.should_optimise = should_optimise
+        self.n_trials = n_trials
+        self.target_days = target_days
+        self.r2_save_threshold = r2_save_threshold
+        self.r2_invalid_threshold = r2_invalid_threshold
 
         self._downloader = None
         self._stock_data = None
@@ -75,7 +83,10 @@ class BaseTrainingPipeline(ABC):
             raise Exception("Please run read_tickers(), before trying to run download_data()")
 
         self._downloader = StockDataDownloader(self.symbols, period=self.period, interval=self.interval)
-        self._stock_data = self._downloader.download_data()
+        self._stock_data, failed = self._downloader.download_data()
+
+        if failed:
+            logger.warning("%d symbol(s) failed to download and will be excluded: %s", len(failed), failed)
 
         if not self._stock_data:
             logger.warning("No data downloaded. Exiting.")
@@ -111,7 +122,7 @@ class BaseTrainingPipeline(ABC):
                 logger.info(f"Processing {symbol}...")
 
                 features_daily = FeatureEngineering(self._stock_data[symbol])
-                features_daily.create_target_features()
+                features_daily.create_target_features(target_days=self.target_days)
                 x_daily, y_daily, dates_daily, prices_daily, _ = features_daily.prepare_features()
 
                 x_daily = self._add_stock_features(x_daily, symbol)
@@ -262,7 +273,7 @@ class BaseTrainingPipeline(ABC):
         pass
 
     @abstractmethod
-    def simulate(self, initial_capital: float = 10000) -> Any:
+    def simulate(self, initial_capital: float = 10000, transaction_cost: float = 0.001) -> Any:
         """
         Simulate trading day by day based on the model predictions
         :return:
