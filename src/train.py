@@ -20,7 +20,10 @@ from src.simulation.strategy.adaptive import AdaptiveThresholdStrategy
 from src.simulation.strategy.hold_days import HoldDaysStrategy
 from src.simulation.strategy.strategy import Strategy
 
-TEST_SIZE = 0.3  # Train/test split ratio
+from src.config import HyperionConfig
+
+_DEFAULT_CONFIG = HyperionConfig()
+TEST_SIZE = _DEFAULT_CONFIG.test_size  # Train/test split ratio
 USE_WALK_FORWARD = False  # Set to False for a simple train / test split
 
 
@@ -94,7 +97,7 @@ def train_model(symbols=None, period: str = "5y", interval: str = "1h", visualiz
     logger.info("=" * 60)
 
     # Download data hourly (interval='1h')
-    stock_data_downloader = StockDataDownloader(symbols, period="2y", interval=interval)
+    stock_data_downloader = StockDataDownloader(symbols, period=_DEFAULT_CONFIG.period, interval=interval)
 
     stock_data_hourly = stock_data_downloader.download_data()
 
@@ -207,7 +210,7 @@ def run_trade_simulation(
     test_results["predictions"] = preds
 
     # Initialize capital for all strategies
-    initial_capital = 10000
+    initial_capital = _DEFAULT_CONFIG.initial_capital
 
     # Run directional strategy
     logger.info("--- Strategy 1: Directional Trading ---")
