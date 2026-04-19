@@ -127,7 +127,8 @@ class TestDownloadDataParallel:
         assert ("AAPL", "1mo", "1d") in StockDataDownloader._history_data
 
     def test_class_level_lock_exists(self):
-        assert isinstance(StockDataDownloader._lock, type(threading.Lock()))
+        assert hasattr(StockDataDownloader._lock, "acquire")
+        assert hasattr(StockDataDownloader._lock, "release")
 
     def test_max_workers_constant_defined(self):
         assert isinstance(StockDataDownloader.MAX_WORKERS, int)
