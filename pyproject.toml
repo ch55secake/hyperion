@@ -50,7 +50,10 @@ markers = [
 
 [tool.ty]
 # https://docs.astral.sh/ty/
-# Using default configuration
+# Exclude tests directory — tests use stubs, monkey-patching, and private
+# attribute access that ty cannot statically verify.
+[tool.ty.src]
+exclude = ["tests"]
 
 [build-system]
 requires = ["hatchling"]

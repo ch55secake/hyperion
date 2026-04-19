@@ -14,7 +14,7 @@ def persist_results(
     x: DataFrame,
     x_test: Dict[str, DataFrame],
     x_train: Dict[str, DataFrame],
-    best_strategy: dict[str, DataFrame | float | int | Any],
+    best_strategy: tuple[str, dict[str, DataFrame | float | int | Any], "TradingSimulator"],
     period: str,
     sim_results: (
         tuple[str, dict[str, DataFrame | float | int | Any], "TradingSimulator"]
@@ -81,7 +81,7 @@ def persist_results(
 def output_best_strategy(
     valid_strategies: list[tuple[str, dict[str, DataFrame | float | int | Any], "TradingSimulator"]],
 ) -> tuple[
-    dict[str, DataFrame | float | int | Any], tuple[str, dict[str, DataFrame | float | int | Any], "TradingSimulator"]
+    tuple[str, dict[str, DataFrame | float | int | Any], "TradingSimulator"], dict[str, DataFrame | float | int | Any]
 ]:
     best_strategy = max(valid_strategies, key=lambda x: (x[1]["total_return"], x[1]["num_trades"]))
     logger.info("=" * 60)

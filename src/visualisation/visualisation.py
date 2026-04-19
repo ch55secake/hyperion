@@ -616,7 +616,7 @@ def combined_feature_importance(stacked_predictor):
 def generate_plots(
     dates_test: Any,
     df_features,
-    predictor: dict[str, np.ndarray[Any, np.dtype[Any]] | list[Any] | dict[str, float | Any] | float | Any] | Any,
+    predictor: Any,
     symbol,
     test_results: Series | Any,
     y_test: Series | Any,
