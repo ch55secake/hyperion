@@ -141,6 +141,7 @@ class TestEvaluate:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.regression
 class TestSaveLoadModel:
     def test_save_creates_file(self):
         m = _DummyModel()
