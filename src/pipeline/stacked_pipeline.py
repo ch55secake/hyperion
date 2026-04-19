@@ -15,6 +15,7 @@ from src.model import StackedStockPredictor
 from src.model import XGBoostStockPredictor
 from src.optimise import StockModelOptimizer
 from src.pipeline.base_pipeline import BaseTrainingPipeline
+from src.ranking import StockRanker
 from src.simulation import TradingSimulator
 from src.simulation.strategy.strategy_registry import StrategyRegistry
 from src.util import logger
@@ -603,6 +604,98 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
                 )
 
         return self
+
+    def rank_and_allocate(
+        self,
+        total_funds: float = 100_000.0,
+        min_confidence: float = 0.6,
+        max_allocation_pct: float = 1.0,
+    ) -> pd.DataFrame:
+        """Rank stocks by expected profitability and allocate capital.
+
+        Uses the most recent prediction for each symbol to compute:
+        - expected return
+        - confidence score
+        - historical volatility
+        - priority score
+        - proportional capital allocation
+
+        :param total_funds: Total capital to allocate across all stocks.
+        :param min_confidence: Minimum confidence score to include a stock (0–1).
+        :param max_allocation_pct: Maximum fraction of *total_funds* for any single stock.
+        :return: Ranked and allocated DataFrame.  Returns an empty DataFrame when
+                 predictions are unavailable or no stock meets the threshold.
+        """
+        predictions = self._test_results.get("predictions") if self._test_results else None
+        if predictions is None:
+            print("⚠️  No predictions available. Run train() before rank_and_allocate().")
+            return pd.DataFrame()
+
+        pred_len = len(predictions)
+        test_data: dict[str, Any] = {"prediction": predictions}
+        test_data = self.validate_data_required_for_simulation(pred_len, test_data)
+        test_df = pd.DataFrame(test_data)
+
+        if test_df.empty or "symbol" not in test_df.columns:
+            print("⚠️  Insufficient test data for ranking.")
+            return pd.DataFrame()
+
+        latest_per_symbol = test_df.sort_values("date").groupby("symbol").last().reset_index()
+
+        pred_map = dict(zip(latest_per_symbol["symbol"], latest_per_symbol["prediction"]))
+        price_map = dict(zip(latest_per_symbol["symbol"], latest_per_symbol["price"]))
+
+        prices_history: dict[str, pd.Series] = {}
+        for symbol in pred_map:
+            sym_data = test_df[test_df["symbol"] == symbol].sort_values("date")
+            if not sym_data.empty:
+                prices_history[symbol] = sym_data.set_index("date")["price"]
+
+        ranker = StockRanker(
+            min_confidence=min_confidence,
+            total_funds=total_funds,
+            max_allocation_pct=max_allocation_pct,
+        )
+
+        ranked_df = ranker.rank_and_allocate(
+            predictions=pred_map,
+            current_prices=price_map,
+            prices_history=prices_history,
+            predictions_are_returns=True,
+        )
+
+        if ranked_df.empty:
+            return ranked_df
+
+        print("\n" + "=" * 60)
+        print("Stock Ranking and Capital Allocation")
+        print("=" * 60)
+        print(f"Total funds: ${total_funds:,.2f}")
+        print(f"Minimum confidence: {min_confidence:.0%}")
+        print(f"Stocks ranked: {len(ranked_df)}\n")
+
+        col_fmt = "{:<8} {:>14} {:>12} {:>12} {:>14} {:>5} {:>14}"
+        header = col_fmt.format(
+            "Symbol", "Exp Return", "Confidence", "Volatility", "Priority", "Rank", "Allocation ($)"
+        )
+        separator = "-" * len(header)
+        print(header)
+        print(separator)
+        for _, row in ranked_df.iterrows():
+            print(
+                col_fmt.format(
+                    row["symbol"],
+                    f"{row['expected_return'] * 100:+.2f}%",
+                    f"{row['confidence']:.4f}",
+                    f"{row['volatility']:.6f}",
+                    f"{row['priority_score']:.4f}",
+                    int(row["rank"]),
+                    f"${row['allocation']:,.2f}",
+                )
+            )
+        print("=" * 60)
+
+        return ranked_df
 
     def validate_data_required_for_simulation(self, pred_len: int, test_data: dict[str, Any]):
         if self._symbols_test is not None and len(self._symbols_test) >= pred_len:
