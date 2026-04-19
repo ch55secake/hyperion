@@ -10,7 +10,6 @@ import pytest
 from src.model.model import Model
 from src.model.stacker.weighted_ensemble import StackedStockPredictor
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

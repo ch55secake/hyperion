@@ -24,7 +24,6 @@ from src.simulation.strategy.strategy_registry import StrategyRegistry
 from src.simulation.strategy.time_stop import TimeStopStrategy
 from src.simulation.strategy.volatility_adjusted_threshold import VolatilityAdjustedStrategy
 
-
 # ---------------------------------------------------------------------------
 # Fake simulator stub
 # ---------------------------------------------------------------------------
