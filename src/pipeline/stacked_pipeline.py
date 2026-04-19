@@ -566,12 +566,24 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
             logger.warning("Predictions missing, computing via predictor.predict()")
             predictions = self._get_predictions()
 
-        min_len = min(
-            len(predictions), len(self._y_test), len(self._symbols_test), len(self._dates_test), len(self._prices_test)
-        )
+        lengths = {
+            "predictions": len(predictions),
+            "y_test": len(self._y_test),
+            "symbols_test": len(self._symbols_test),
+            "dates_test": len(self._dates_test),
+            "prices_test": len(self._prices_test),
+        }
+        min_len = min(lengths.values())
+        max_len = max(lengths.values())
+        tolerance = max(1, int(max_len * 0.01))
+        if max_len - min_len > tolerance:
+            raise ValueError(
+                f"Test data arrays are misaligned beyond the allowed tolerance ({tolerance} sample(s)). "
+                f"Lengths: {lengths}. Run train() again to rebuild aligned test data."
+            )
 
-        if len(predictions) != min_len:
-            logger.warning(f"Truncating all test data to {min_len} samples for alignment")
+        if max_len != min_len:
+            logger.warning(f"Truncating all test data to {min_len} samples for alignment. Lengths: {lengths}")
 
         pred_len = len(predictions)
 
