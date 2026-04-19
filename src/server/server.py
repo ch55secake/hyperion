@@ -133,7 +133,7 @@ class ModelServer:
 def parse_prediction_file(content: str) -> dict:
     """Parse prediction text file into structured data"""
 
-    result = {
+    result: Dict[str, Any] = {
         "ticker": None,
         "generated_at": None,
         "data_date": None,
@@ -214,16 +214,17 @@ def parse_trading_results(content: str) -> Dict[str, Any]:
         Dictionary with structured prediction data
     """
 
-    result = {
+    trading_simulation: Dict[str, Any] = {
+        "initial_capital": None,
+        "strategies": {"directional": {}, "adaptive_threshold": {}, "hold_days": {}},
+        "buy_and_hold_return": None,
+        "best_strategy": {"name": None, "final_value": None, "total_return": None, "number_of_trades": None},
+    }
+    result: Dict[str, Any] = {
         "ticker": None,
         "data_info": {"period": None, "total_samples": None, "train_samples": None, "test_samples": None},
         "model_performance": {"test_rmse": None, "test_mae": None, "test_r2": None},
-        "trading_simulation": {
-            "initial_capital": None,
-            "strategies": {"directional": {}, "adaptive_threshold": {}, "hold_days": {}},
-            "buy_and_hold_return": None,
-            "best_strategy": {"name": None, "final_value": None, "total_return": None, "number_of_trades": None},
-        },
+        "trading_simulation": trading_simulation,
     }
 
     # Extract ticker
