@@ -12,8 +12,20 @@ from src.util.logger import Logger
     [
         ("debug", ("Debug %s", "value")),
         ("info", ("Info %s", "value")),
-        ("warning", ("Warning %s", "value")),
-        ("error", ("Error %s", "value")),
+        (
+            "warning",
+            (
+                "Warning %s",
+                "value",
+            ),
+        ),
+        (
+            "error",
+            (
+                "Error %s",
+                "value",
+            ),
+        ),
     ],
 )
 def test_logger_methods_support_lazy_formatting(method_name, expected_call):

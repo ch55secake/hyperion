@@ -28,7 +28,7 @@ class FeatureEngineering:
         self.df: DataFrame = self._ensure_required_columns(df)
         self.__n_rows: int = len(self.df)
         self.__calculated: bool = False
-        self.__df_prepared: DataFrame | None = None
+        self.__df_prepared = None
 
     @staticmethod
     def _ensure_required_columns(df: DataFrame) -> DataFrame:
@@ -354,7 +354,7 @@ class FeatureEngineering:
             x = x.copy()
             x[num_cols] = scaler.fit_transform(x[num_cols])
 
-        self.__df_prepared = x, y, dates, prices, feature_columns.tolist()
+        self.__df_prepared = x, y, dates, prices, feature_columns.tolist()  # type: ignore[assignment]
         return self.__df_prepared
 
     def create_target_features(self, target_days: int = 10):

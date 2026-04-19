@@ -12,9 +12,9 @@ from src.util import logger
 
 
 class Model(ABC):
-    def __init__(self, model_name: str, params=None):
+    def __init__(self, model_name: str, params: dict | None = None):
         self.model_name = model_name
-        self.params = params
+        self.params: dict = params if params is not None else {}
         self.model = None
         self.feature_importance = None
         self.feature_columns = None
@@ -82,7 +82,7 @@ class Model(ABC):
         with open(filename, "rb") as f:
             model_data = pickle.load(f)
 
-        instance = cls(params=model_data["params"])
+        instance = cls(model_name=model_data.get("model_name", "unknown"), params=model_data["params"])
         instance.model = model_data["model"]
         instance.scaler = model_data["scaler"]
         instance.feature_importance = model_data["feature_importance"]

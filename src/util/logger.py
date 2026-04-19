@@ -31,37 +31,37 @@ class Logger:
         handler.setFormatter(formatter)
         self.__logger.addHandler(handler)
 
-    def debug(self, message: str, *args: object) -> None:
+    def debug(self, message: str, *args: object, **kwargs: object) -> None:
         """
         Log a debug message
         :param message: the message to log
         :return: nothing, will log a message
         """
-        self.__logger.debug(message, *args)
+        self.__logger.debug(message, *args, **kwargs)
 
-    def info(self, message: str, *args: object) -> None:
+    def info(self, message: str, *args: object, **kwargs: object) -> None:
         """
         Log an info message
         :param message: the message to log
         :return: nothing, will log a message
         """
-        self.__logger.info(message, *args)
+        self.__logger.info(message, *args, **kwargs)
 
-    def warning(self, message: str, *args: object) -> None:
+    def warning(self, message: str, *args: object, **kwargs: object) -> None:
         """
         Log a warning message
         :param message: the message to log
         :return: nothing, will log a message
         """
-        self.__logger.warning(message, *args)
+        self.__logger.warning(message, *args, **kwargs)
 
-    def error(self, message: str, *args: object) -> None:
+    def error(self, message: str, *args: object, **kwargs: object) -> None:
         """
         Log an error message
         :param message: the message to log
         :return: nothing, will log a message
         """
-        self.__logger.error(message, *args)
+        self.__logger.error(message, *args, **kwargs)
 
     def critical(self, message: str, *args: object) -> None:
         """
@@ -70,6 +70,14 @@ class Logger:
         :return: nothing, will log a message
         """
         self.__logger.critical(message, *args)
+
+    def exception(self, message: str, *args: object) -> None:
+        """
+        Log an exception message
+        :param message: the message to log
+        :return: nothing, will log a message
+        """
+        self.__logger.exception(message, *args)
 
 
 logger = Logger()

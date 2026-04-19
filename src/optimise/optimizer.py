@@ -229,7 +229,7 @@ class StockModelOptimizer:
 
         mae = mean_absolute_error(self.y_val, y_pred)
         r2 = r2_score(self.y_val, y_pred)
-        dir_acc = (np.sign(y_pred) == np.sign(self.y_val)).mean()
+        dir_acc = (np.sign(y_pred) == np.sign(self.y_val)).mean()  # type: ignore[no-overload]
 
         trial.set_user_attr("mae", mae)
         trial.set_user_attr("r2", r2)
@@ -238,7 +238,7 @@ class StockModelOptimizer:
 
         return rmse
 
-    def optimize_xgboost(self, timeout: int = None) -> Dict[str, Any]:
+    def optimize_xgboost(self, timeout: int | None = None) -> Dict[str, Any]:
         """
         Optimize XGBoost hyperparameters
 
@@ -280,7 +280,7 @@ class StockModelOptimizer:
             "study": self.xgb_study,
         }
 
-    def optimize_lightgbm(self, timeout: int = None) -> Dict[str, Any]:
+    def optimize_lightgbm(self, timeout: int | None = None) -> Dict[str, Any]:
         """
         Optimize LightGBM hyperparameters
 
@@ -322,7 +322,7 @@ class StockModelOptimizer:
             "study": self.lgb_study,
         }
 
-    def optimize_both(self, timeout: int = None) -> Tuple[Dict, Dict]:
+    def optimize_both(self, timeout: int | None = None) -> Tuple[Dict, Dict]:
         """
         Optimize both XGBoost and LightGBM
 

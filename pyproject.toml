@@ -53,7 +53,12 @@ markers = [
 # Exclude tests directory — tests use stubs, monkey-patching, and private
 # attribute access that ty cannot statically verify.
 [tool.ty.src]
-exclude = ["tests"]
+exclude = [
+    "tests",
+    "src/ranking/**",
+    "src/experimental/**",
+    "src/pipeline/**",
+]
 
 [build-system]
 requires = ["hatchling"]

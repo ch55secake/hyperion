@@ -18,7 +18,7 @@ class BaseTrainingPipeline(ABC):
 
     def __init__(
         self,
-        symbols: list[str] = None,
+        symbols: list[str] | None = None,
         period: str = "2y",
         interval: str = "1d",
         test_size: float = 0.2,
