@@ -151,7 +151,7 @@ jobs:
 
       - name: Run unit tests
         run: |
-          poetry run pytest tests/ -v --tb=short \
+          poetry run pytest tests/ -v --tb=short -m "not regression" \
             --cov=src --cov-report=term-missing --cov-fail-under=40
 
   regression-tests:
