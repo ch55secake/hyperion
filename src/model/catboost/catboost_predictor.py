@@ -1,6 +1,7 @@
 from catboost import CatBoostRegressor, Pool
 
 from src.model.model import Model
+from src.util import get_device
 
 
 class CatBoostStockPredictor(Model):
@@ -25,6 +26,8 @@ class CatBoostStockPredictor(Model):
                 # Performance and stability
                 "bootstrap_type": "Bayesian",
                 "sampling_frequency": "PerTree",
+                # GPU / CPU selection
+                "task_type": "GPU" if get_device() == "cuda" else "CPU",
                 # Early stopping and seeds
                 "random_seed": 42,
                 "early_stopping_rounds": 100,
