@@ -128,6 +128,14 @@ class PPOAgent:
     ):
         self._update_every = update_every
 
+        # On Apple Silicon the Accelerate/vecLib BLAS routines used by PyTorch's
+        # CPU backend are not thread-safe in all call patterns.  Pinning intra-op
+        # parallelism to a single thread eliminates the SIGSEGV that otherwise
+        # appears in softmax / orthogonal_ during SB3 policy initialisation and
+        # the first gradient update.  This has no meaningful performance impact for
+        # the small networks used here.
+        torch.set_num_threads(1)
+
         env = _TradingEnv()
         # Force CPU device to avoid MPS/CUDA issues in multiprocessing
         self.model = SB3PPO(
@@ -144,7 +152,13 @@ class PPOAgent:
             seed=seed,
             verbose=0,
             device="cpu",  # Force CPU to ensure compatibility with ProcessPoolExecutor
-            policy_kwargs={"net_arch": [hidden_dim, hidden_dim]},
+            policy_kwargs={
+                "net_arch": [hidden_dim, hidden_dim],
+                # Disable orthogonal weight initialisation: SB3's default ortho_init
+                # calls torch.nn.init.orthogonal_() which segfaults on Apple Silicon
+                # (MPS / Accelerate BLAS) even when the device is forced to CPU.
+                "ortho_init": False,
+            },
         )
         self.model.set_logger(configure_logger(0, None, ""))
 

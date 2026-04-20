@@ -2,10 +2,10 @@
 
 Background
 ----------
-On macOS (Apple Silicon), LightGBM bundles Homebrew's ``libomp.dylib``
-(resolved via ``/opt/homebrew/opt/libomp/lib``), while PyTorch bundles its
-own build of ``libomp.dylib`` from ``/opt/llvm-openmp``.  When both are
-loaded in the same OS process they create **named POSIX semaphores** in the
+On macOS (Apple Silicon), LightGBM bundles Homebrew's ""libomp.dylib""
+(resolved via ""/opt/homebrew/opt/libomp/lib""), while PyTorch bundles its
+own build of ""libomp.dylib"" from ""/opt/llvm-openmp"".  When both are
+loaded in the same OS process, they create **named POSIX semaphores** in the
 global kernel namespace.  Whichever library initialises second finds those
 semaphores in a corrupted/leaked state and either deadlocks or crashes with
 SIGSEGV (-11).
@@ -15,34 +15,8 @@ and locking those semaphores.  Any subprocess spawned *after* that point
 inherits the corrupted semaphore state in the kernel and crashes when
 PyTorch tries to acquire the same names on its own initialisation.
 
-The fix
--------
-Start the PPO worker subprocess **before any ML library is imported** in the
-parent process.  At that point the global POSIX semaphore namespace is clean,
-so the subprocess can safely initialise torch's libomp on its own without
-conflict.  The subprocess then stays alive for the entire program lifetime
-and processes work requests via multiprocessing queues.
-
-Usage
------
-In ``main.py``, call :func:`initialize` as the very first action — before
-importing ``src.pipeline`` or anything else that pulls in LightGBM or torch::
-
-    import src.ppo_worker as _ppo_worker
-    _ppo_worker.initialize()
-
-    from src.pipeline.stacked_pipeline import StackedModelTrainingPipeline
-    ...
-
-From ``stacked_pipeline.simulate()`` use :func:`submit_work` / :func:`get_results`
-to delegate work to the already-running subprocess::
-
-    import src.ppo_worker as _ppo_worker
-    _ppo_worker.submit_work(ticker_batches, strategy_key, initial_capital, tc)
-    all_batch_results = _ppo_worker.get_results()
-
 IMPORTANT: This module must have **zero ML imports at module level**.  Only
-the standard-library ``multiprocessing`` import is safe here.
+the standard-library ""multiprocessing"" import is safe here.
 """
 
 from __future__ import annotations
@@ -142,6 +116,11 @@ def _worker_loop(ready_q: mp.Queue, work_q: mp.Queue, result_q: mp.Queue) -> Non
 # ---------------------------------------------------------------------------
 
 
+def is_initialized() -> bool:
+    """Return ""True"" if the worker subprocess has been started."""
+    return _worker_proc is not None
+
+
 def initialize() -> None:
     """Start the PPO worker subprocess and block until it is ready.
 
@@ -222,7 +201,7 @@ def shutdown() -> None:
     global _worker_proc, _work_q, _result_q
 
     if _work_q is not None:
-        _work_q.put(None)  # sentinel
+        _work_q.put(None)
 
     if _worker_proc is not None:
         _worker_proc.join(timeout=30)
