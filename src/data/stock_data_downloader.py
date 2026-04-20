@@ -154,8 +154,13 @@ class StockDataDownloader:
         Get stock info from yfinance
         :param symbol: the stock symbol
         """
-        if symbol not in StockDataDownloader._stock_info.keys():
-            StockDataDownloader._stock_info[symbol] = yf.Ticker(symbol).info
+        with StockDataDownloader._lock:
+            if symbol not in StockDataDownloader._stock_info:
+                try:
+                    StockDataDownloader._stock_info[symbol] = yf.Ticker(symbol).info
+                except Exception as e:
+                    logger.warning(f"Failed to fetch stock info for {symbol}: {e}")
+                    StockDataDownloader._stock_info[symbol] = {}
 
     @staticmethod
     def get_sector(symbol):

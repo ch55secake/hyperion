@@ -1,4 +1,3 @@
-import logging
 import warnings
 from typing import Dict, Any, Tuple
 
@@ -16,10 +15,10 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.preprocessing import StandardScaler
 
-warnings.filterwarnings("ignore")
+from src.util import logger
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+warnings.filterwarnings("ignore", category=optuna.exceptions.ExperimentalWarning)
+warnings.filterwarnings("ignore", message=".*LightGBM.*", category=UserWarning)
 
 
 class StockModelOptimizer:

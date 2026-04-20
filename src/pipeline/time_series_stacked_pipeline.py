@@ -1,6 +1,5 @@
 import pickle
 import time
-import traceback
 
 import numpy as np
 import pandas as pd
@@ -176,8 +175,7 @@ class TimeSeriesStackedModelTrainingPipeline(BaseTrainingPipeline):
             elapsed = time.time() - start_time
             logger.info(f"TimeSeriesStacker initialized successfully in {elapsed:.2f}s")
         except Exception as e:
-            logger.error(f"Error initializing TimeSeriesStacker: {e}")
-            traceback.print_exc()
+            logger.exception(f"Error initializing TimeSeriesStacker: {e}")
             raise
 
         logger.info("Generating out-of-fold predictions and training meta-learner...")
@@ -349,8 +347,7 @@ class TimeSeriesStackedModelTrainingPipeline(BaseTrainingPipeline):
                     logger.info(f"Return: {results['total_return'] * 100:.2f}%")
 
                 except Exception as e:
-                    logger.error(f"Error running {strategy_key} on {symbol}: {e}")
-                    traceback.print_exc()
+                    logger.exception(f"Error running {strategy_key} on {symbol}: {e}")
 
             all_results[strategy_key] = strategy_results
 

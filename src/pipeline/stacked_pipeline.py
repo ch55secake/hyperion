@@ -1,4 +1,3 @@
-import traceback
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from typing import Any
 
@@ -214,8 +213,7 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
             )
             return symbol, x, y, dates, prices, val_split_idx, test_split_idx
         except Exception as e:
-            logger.error(f"Error processing {symbol}: {str(e)}")
-            traceback.print_exc()
+            logger.exception(f"Error processing {symbol}: {str(e)}")
             return symbol, None, None, None, None, None, None
 
     @override
@@ -589,7 +587,7 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         if len(predictions) != min_len:
             logger.warning(f"Truncating all test data to {min_len} samples for alignment")
 
-        pred_len = len(predictions)
+        pred_len = min_len
 
         aligned_y_test = ensure_prediction_alignment(predictions, self._y_test)
 
@@ -710,7 +708,7 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         """
         predictions = self._test_results.get("predictions") if self._test_results else None
         if predictions is None:
-            print("⚠️  No predictions available. Run train() before rank_and_allocate().")
+            logger.warning("⚠️  No predictions available. Run train() before rank_and_allocate().")
             return pd.DataFrame()
 
         pred_len = len(predictions)
@@ -719,7 +717,7 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         test_df = pd.DataFrame(test_data)
 
         if test_df.empty or "symbol" not in test_df.columns:
-            print("⚠️  Insufficient test data for ranking.")
+            logger.warning("⚠️  Insufficient test data for ranking.")
             return pd.DataFrame()
 
         latest_per_symbol = test_df.sort_values("date").groupby("symbol").last().reset_index()
@@ -749,33 +747,34 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         if ranked_df.empty:
             return ranked_df
 
-        print("\n" + "=" * 60)
-        print("Stock Ranking and Capital Allocation")
-        print("=" * 60)
-        print(f"Total funds: ${total_funds:,.2f}")
-        print(f"Minimum confidence: {min_confidence:.0%}")
-        print(f"Stocks ranked: {len(ranked_df)}\n")
-
         col_fmt = "{:<8} {:>14} {:>12} {:>12} {:>14} {:>5} {:>14}"
         header = col_fmt.format(
             "Symbol", "Exp Return", "Confidence", "Volatility", "Priority", "Rank", "Allocation ($)"
         )
         separator = "-" * len(header)
-        print(header)
-        print(separator)
-        for _, row in ranked_df.iterrows():
-            print(
-                col_fmt.format(
-                    row["symbol"],
-                    f"{row['expected_return'] * 100:+.2f}%",
-                    f"{row['confidence']:.4f}",
-                    f"{row['volatility']:.6f}",
-                    f"{row['priority_score']:.4f}",
-                    int(row["rank"]),
-                    f"${row['allocation']:,.2f}",
-                )
+        rows = "\n".join(
+            col_fmt.format(
+                row["symbol"],
+                f"{row['expected_return'] * 100:+.2f}%",
+                f"{row['confidence']:.4f}",
+                f"{row['volatility']:.6f}",
+                f"{row['priority_score']:.4f}",
+                int(row["rank"]),
+                f"${row['allocation']:,.2f}",
             )
-        print("=" * 60)
+            for _, row in ranked_df.iterrows()
+        )
+        logger.info(
+            "Stock Ranking and Capital Allocation\n"
+            "Total funds: $%s | Minimum confidence: %s | Stocks ranked: %d\n"
+            "%s\n%s\n%s",
+            f"{total_funds:,.2f}",
+            f"{min_confidence:.0%}",
+            len(ranked_df),
+            header,
+            separator,
+            rows,
+        )
 
         return ranked_df
 
