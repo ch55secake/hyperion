@@ -227,10 +227,12 @@ class BaseTrainingPipeline(ABC):
         df["ticker"] = symbol
         df["sector"] = self._downloader.get_sector(symbol)
         df["industry"] = self._downloader.get_industry(symbol)
-        df["beta"] = self._downloader.get_beta(symbol)
-        df["avg_volume_log"] = np.log(self._downloader.get_avg_volume(symbol) + 1)
+        df["beta"] = np.float32(self._downloader.get_beta(symbol))
+        df["avg_volume_log"] = np.float32(np.log(self._downloader.get_avg_volume(symbol) + 1))
         raw_market_cap = self._downloader.get_market_cap(symbol)
-        df["market_cap_log"] = np.log(raw_market_cap + 1) if raw_market_cap is not None else np.nan
+        df["market_cap_log"] = (
+            np.float32(np.log(raw_market_cap + 1)) if raw_market_cap is not None else np.float32(np.nan)
+        )
 
         return df
 
