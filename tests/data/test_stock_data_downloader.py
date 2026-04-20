@@ -458,8 +458,8 @@ class TestDownloadFailurePaths:
         os.makedirs(historic_dir, exist_ok=True)
 
         # Write garbage bytes to simulate a corrupted parquet
-        corrupt_path = historic_dir / "AAPL_1mo_1d.parquet"
-        corrupt_path.write_bytes(b"this is not a valid parquet file")
+        corrupted_path = historic_dir / "AAPL_1mo_1d.parquet"
+        corrupted_path.write_bytes(b"this is not a valid parquet file")
 
         good_df = _make_fresh_price_df()
         mock_ticker = MagicMock()
