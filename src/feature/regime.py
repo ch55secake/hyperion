@@ -164,6 +164,7 @@ def detect_gmm_regime(
     raw_labels = gmm.fit_predict(features)
 
     # Sort by mean return so that label 0 == most bearish
+    assert gmm.means_ is not None, "GaussianMixture.means_ should be set after fit_predict"
     component_means = gmm.means_[:, 0]
     order = np.argsort(component_means)
     remap = {int(old): int(new) for new, old in enumerate(order)}
