@@ -350,6 +350,25 @@ class TestPrepareFeatures:
         with pytest.raises(ValueError, match="No valid data"):
             fe.prepare_features()
 
+    def test_numeric_feature_columns_are_float32(self):
+        """Numeric feature columns must be stored as float32, not float64."""
+        df = _make_df(n=120)
+        fe = FeatureEngineering(df)
+        fe.create_target_features(target_days=5)
+        x, _, _, _, _ = fe.prepare_features()
+        float64_cols = [c for c in x.columns if x[c].dtype == "float64"]
+        assert float64_cols == [], f"Expected no float64 columns, found: {float64_cols}"
+
+    def test_categorical_columns_not_downcast(self):
+        """Categorical string columns (ticker, sector, industry) must not be cast to float32."""
+        df = _make_df_with_categoricals(n=120)
+        fe = FeatureEngineering(df)
+        fe.create_target_features(target_days=5)
+        x, _, _, _, _ = fe.prepare_features()
+        for col in ("ticker", "sector", "industry"):
+            if col in x.columns:
+                assert x[col].dtype != "float32", f"Column '{col}' should not be float32"
+
 
 class TestPrepareFeaturesWithScale:
     def test_scale_preserves_categorical_columns(self):

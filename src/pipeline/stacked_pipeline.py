@@ -281,16 +281,21 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
                 test_prices[interval].append(prices.iloc[test_split_idx:])
                 test_symbols[interval].extend([symbol] * (len(x) - test_split_idx))
 
+        # Release raw OHLCV data now that per-ticker features have been computed.
+        self._stock_data = None
+
         logger.info("=" * 60)
         logger.info("Combining Training Data")
         logger.info("=" * 60)
         train_intervals = dict()
         for interval in self.intervals:
             train_intervals[interval] = pd.concat(train_features[interval], axis=0, ignore_index=False)
+            train_features[interval] = []
 
         train_targets_dict = dict()
         for interval in self.intervals:
             train_targets_dict[interval] = pd.concat(train_targets[interval], axis=0, ignore_index=False)
+            train_targets[interval] = []
 
         train_dates = pd.concat(train_dates[self.default_interval], axis=0, ignore_index=False)
         train_prices = pd.concat(train_prices[self.default_interval], axis=0, ignore_index=False)
@@ -302,10 +307,12 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         val_intervals = dict()
         for interval in self.intervals:
             val_intervals[interval] = pd.concat(val_features[interval], axis=0, ignore_index=False)
+            val_features[interval] = []
 
         val_targets_dict = dict()
         for interval in self.intervals:
             val_targets_dict[interval] = pd.concat(val_targets[interval], axis=0, ignore_index=False)
+            val_targets[interval] = []
 
         val_symbols_series = pd.Series(
             val_symbols[self.default_interval], index=val_intervals[self.default_interval].index
@@ -315,10 +322,12 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         test_intervals = dict()
         for interval in self.intervals:
             test_intervals[interval] = pd.concat(test_features[interval], axis=0, ignore_index=False)
+            test_features[interval] = []
 
         test_targets_dict = dict()
         for interval in self.intervals:
             test_targets_dict[interval] = pd.concat(test_targets[interval], axis=0, ignore_index=False)
+            test_targets[interval] = []
 
         test_dates = pd.concat(test_dates[self.default_interval], axis=0, ignore_index=False)
         test_prices = pd.concat(test_prices[self.default_interval], axis=0, ignore_index=False)
