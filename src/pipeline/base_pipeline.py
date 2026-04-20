@@ -8,6 +8,7 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
 from src.data import StockDataDownloader
 from src.feature import FeatureEngineering
+from src.feature.regime import classify_regime, COL_REGIME_TREND
 from src.util import logger
 
 
@@ -26,6 +27,11 @@ class BaseTrainingPipeline(ABC):
         should_optimise: bool = False,
         n_trials: int = 1000,
         target_days: int = 10,
+        target_horizons: list[int] | None = None,
+        target_risk_adjusted: bool = False,
+        target_classification: bool = False,
+        target_up_threshold: float = 0.02,
+        target_down_threshold: float = -0.02,
         r2_save_threshold: float = 0.0012,
         r2_invalid_threshold: float = -0.3,
     ):
@@ -37,6 +43,11 @@ class BaseTrainingPipeline(ABC):
         self.should_optimise = should_optimise
         self.n_trials = n_trials
         self.target_days = target_days
+        self.target_horizons = target_horizons
+        self.target_risk_adjusted = target_risk_adjusted
+        self.target_classification = target_classification
+        self.target_up_threshold = target_up_threshold
+        self.target_down_threshold = target_down_threshold
         self.r2_save_threshold = r2_save_threshold
         self.r2_invalid_threshold = r2_invalid_threshold
 
@@ -124,7 +135,14 @@ class BaseTrainingPipeline(ABC):
                 logger.info(f"Processing {symbol}...")
 
                 features_daily = FeatureEngineering(self._stock_data[symbol])
-                features_daily.create_target_features(target_days=self.target_days)
+                features_daily.create_target_features(
+                    target_days=self.target_days,
+                    horizons=self.target_horizons,
+                    risk_adjusted=self.target_risk_adjusted,
+                    classification=self.target_classification,
+                    up_threshold=self.target_up_threshold,
+                    down_threshold=self.target_down_threshold,
+                )
                 x_daily, y_daily, dates_daily, prices_daily, _ = features_daily.prepare_features()
 
                 x_daily = self._add_stock_features(x_daily, symbol)
@@ -132,6 +150,8 @@ class BaseTrainingPipeline(ABC):
                 x_hourly = x_daily.copy()
 
                 self._split_idx = int(len(x_daily) * (1 - self.test_size))
+
+                self._log_regime_coverage(prices_daily, self._split_idx, symbol)
 
                 train_daily_features.append(x_daily.iloc[: self._split_idx])
                 train_hourly_features.append(x_hourly.iloc[: self._split_idx])
@@ -313,6 +333,47 @@ class BaseTrainingPipeline(ABC):
         train_prices = pd.concat(train_prices, axis=0, ignore_index=False)
 
         return train_daily, train_hourly, train_targets, train_dates, train_prices
+
+    @staticmethod
+    def _log_regime_coverage(prices: pd.Series, split_idx: int, symbol: str) -> None:
+        """Log regime coverage for train and test splits to aid in evaluation.
+
+        Warns when the test split contains only a single regime, which can make
+        performance metrics misleadingly optimistic.
+
+        Parameters
+        ----------
+        prices:
+            Full closing-price series for the symbol (chronologically sorted).
+        split_idx:
+            Index position separating the training set (before) from the test
+            set (from this index onwards).
+        symbol:
+            Ticker used in log messages.
+        """
+        if split_idx <= 0 or split_idx >= len(prices):
+            return
+
+        returns = prices.pct_change(1).fillna(0)
+        regime_df = classify_regime(prices, returns)
+        trend = regime_df[COL_REGIME_TREND]
+
+        train_regimes = set(trend.iloc[:split_idx].unique())
+        test_regimes = set(trend.iloc[split_idx:].unique())
+
+        regime_names = {0: "bull", 1: "bear", 2: "sideways"}
+        train_labels = {regime_names.get(r, str(r)) for r in train_regimes}
+        test_labels = {regime_names.get(r, str(r)) for r in test_regimes}
+
+        logger.debug("%s — train regimes: %s | test regimes: %s", symbol, train_labels, test_labels)
+
+        if len(test_regimes) < 2:
+            logger.warning(
+                "%s — test split contains only '%s' regime(s). "
+                "Consider a longer test period for more robust evaluation.",
+                symbol,
+                test_labels,
+            )
 
     def evaluate_model(self):
         """

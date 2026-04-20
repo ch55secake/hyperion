@@ -201,6 +201,22 @@ class TestStackedPipelineRegression:
         with pytest.raises(Exception, match="prepare_features"):
             pipeline.train()
 
+    def test_cross_stage_alignment_after_train(self, trained_pipeline):
+        """After train(), predictions and all test arrays must have the same length."""
+        preds = trained_pipeline._test_results["predictions"]
+        assert len(preds) == len(trained_pipeline._symbols_test), (
+            f"Predictions length {len(preds)} != symbols_test length {len(trained_pipeline._symbols_test)}"
+        )
+        assert len(preds) == len(trained_pipeline._dates_test), (
+            f"Predictions length {len(preds)} != dates_test length {len(trained_pipeline._dates_test)}"
+        )
+        assert len(preds) == len(trained_pipeline._prices_test), (
+            f"Predictions length {len(preds)} != prices_test length {len(trained_pipeline._prices_test)}"
+        )
+        assert len(preds) == len(trained_pipeline._y_test), (
+            f"Predictions length {len(preds)} != y_test length {len(trained_pipeline._y_test)}"
+        )
+
     def test_feature_partitions_populated_after_prepare(self, prepared_pipeline):
         """After prepare_features(), feature partition dicts must be filled."""
         assert prepared_pipeline.feature_partitions, "feature_partitions should not be empty"
