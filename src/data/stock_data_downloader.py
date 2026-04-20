@@ -1,6 +1,7 @@
 import json
 import os
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from typing import Any
@@ -92,7 +93,22 @@ class StockDataDownloader:
         if not os.path.isfile(complete_path) or needs_refresh:
             logger.info(f"Downloading {symbol} ({self.period} {self.interval} data)...")
             ticker = yf.Ticker(symbol)
-            df = ticker.history(period=self.period, interval=self.interval)
+
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    df = ticker.history(period=self.period, interval=self.interval)
+                    break
+                except Exception as e:
+                    if "database is locked" in str(e).lower() and attempt < max_retries - 1:
+                        wait = 2**attempt
+                        logger.warning(
+                            f"SQLite lock contention downloading {symbol} (attempt {attempt + 1}/{max_retries}), "
+                            f"retrying in {wait}s..."
+                        )
+                        time.sleep(wait)
+                    else:
+                        raise
 
             with self._lock:
                 self._history_data[(symbol, self.period, self.interval)] = df

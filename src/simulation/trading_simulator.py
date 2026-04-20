@@ -39,7 +39,9 @@ class TradingSimulator:
         pred_array = np.asarray(predictions)
         actual_array = np.asarray(actual_returns)
         price_array = np.asarray(prices) if prices is not None else None
-        date_array = np.asarray(dates) if dates is not None else None
+        # Use a plain list so that date objects (e.g. pd.Timestamp) keep their
+        # original type for dict key lookups in indicator-based strategies.
+        date_array = list(dates) if dates is not None else None
 
         if price_array is None:
             raise ValueError("prices must be provided for simulation")
