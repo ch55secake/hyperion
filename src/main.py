@@ -2,9 +2,12 @@ import argparse
 import os
 import warnings
 
+# ppo_worker has no ML imports at module level — safe to import before
+# LightGBM / PyTorch are loaded.  initialize() must be called first thing
+# inside __main__ to start the worker in a clean OpenMP environment.
+import src.util.ppo_worker as _ppo_worker
+
 from src.config import HyperionConfig
-from src.pipeline.stacked_pipeline import StackedModelTrainingPipeline
-from src.pipeline.time_series_stacked_pipeline import TimeSeriesStackedModelTrainingPipeline
 
 warnings.filterwarnings("ignore")
 
@@ -124,6 +127,21 @@ def _parse_args() -> HyperionConfig:
 
 
 if __name__ == "__main__":
+    # ------------------------------------------------------------------ #
+    # Start the PPO worker subprocess BEFORE any ML library is imported.  #
+    # LightGBM and PyTorch each bundle their own libomp.dylib; loading    #
+    # both in the parent process corrupts OS-level POSIX semaphores that  #
+    # torch tries to re-acquire in any later spawned subprocess.          #
+    # Starting the worker here gives it a clean OpenMP environment.       #
+    # ------------------------------------------------------------------ #
+    _ppo_worker.initialize()
+
+    # ML pipeline imports happen after the worker is running so they can
+    # load LightGBM (and later torch in the parent) without risk — the
+    # worker subprocess is already isolated.
+    from src.pipeline.stacked_pipeline import StackedModelTrainingPipeline
+    from src.pipeline.time_series_stacked_pipeline import TimeSeriesStackedModelTrainingPipeline
+
     config = _parse_args()
 
     stacked_pipeline: StackedModelTrainingPipeline = StackedModelTrainingPipeline(

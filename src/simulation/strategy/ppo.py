@@ -129,6 +129,7 @@ class PPOAgent:
         self._update_every = update_every
 
         env = _TradingEnv()
+        # Force CPU device to avoid MPS/CUDA issues in multiprocessing
         self.model = SB3PPO(
             "MlpPolicy",
             env,
@@ -142,9 +143,10 @@ class PPOAgent:
             batch_size=update_every,
             seed=seed,
             verbose=0,
+            device="cpu",  # Force CPU to ensure compatibility with ProcessPoolExecutor
             policy_kwargs={"net_arch": [hidden_dim, hidden_dim]},
         )
-        self.model.set_logger(configure_logger(0, None, None))
+        self.model.set_logger(configure_logger(0, None, ""))
 
         self._states: list[np.ndarray] = []
         self._actions: list[int] = []
@@ -170,8 +172,12 @@ class PPOAgent:
         obs = self._to_tensor(state)
         with torch.no_grad():
             dist = self.model.policy.get_distribution(obs)
-            action_tensor = dist.distribution.sample()
-            log_prob = dist.distribution.log_prob(action_tensor)
+            # dist.distribution is typed as Distribution | list[Distribution];
+            # for a discrete action space it is always a single Distribution.
+            action_dist = dist.distribution
+            assert not isinstance(action_dist, list), "Expected scalar distribution for discrete action space"
+            action_tensor = action_dist.sample()
+            log_prob = action_dist.log_prob(action_tensor)
         return int(action_tensor.item()), float(log_prob.item())
 
     def store(self, state: np.ndarray, action: int, log_prob: float, reward: float, done: bool) -> None:
@@ -203,19 +209,29 @@ class PPOAgent:
     # ------------------------------------------------------------------
 
     def _ppo_update(self) -> None:
-        """Populate SB3's rollout buffer with stored transitions and run PPO."""
+        """Populate SB3's rollout buffer with stored transitions and run PPO.
+
+        Values for all stored states are computed in a single batched forward
+        pass rather than one call per step, which avoids repeated Python/C++
+        round-trip overhead for the full rollout.
+        """
         buffer = self.model.rollout_buffer
         buffer.reset()
 
-        for state, action, log_prob, reward in zip(self._states, self._actions, self._log_probs, self._rewards):
+        # Batch all value predictions in one forward pass instead of N serial calls.
+        states_arr = np.stack(self._states)  # (N, state_dim)
+        obs_batch = torch.as_tensor(states_arr, dtype=torch.float32)
+        with torch.no_grad():
+            all_values = self.model.policy.predict_values(obs_batch)  # (N, 1)
+
+        for i, (state, action, log_prob, reward) in enumerate(
+            zip(self._states, self._actions, self._log_probs, self._rewards)
+        ):
             obs = state.reshape(1, -1)
             act = np.array([[action]])
             rew = np.array([reward])
             episode_start = np.array([False])
-
-            with torch.no_grad():
-                val = self.model.policy.predict_values(self._to_tensor(state))
-
+            val = all_values[i : i + 1]
             lp = torch.tensor([[log_prob]], dtype=torch.float32)
             buffer.add(obs, act, rew, episode_start, val, lp)
 
@@ -349,7 +365,7 @@ class PPOStrategy(Strategy):
         return np.array([pred, position_flag, portfolio_ratio, days_held, abs_pred], dtype=np.float32)
 
     @staticmethod
-    def get_extra_params(price_series: pd.Series) -> Dict[str, Any]:  # noqa: ARG004
+    def get_extra_params(prices_series: pd.Series) -> Dict[str, Any]:  # noqa: ARG004
         return {}
 
     @staticmethod
