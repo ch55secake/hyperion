@@ -220,6 +220,7 @@ def do_walk_forward_validation(
         logger.warning(f"Walk-forward analysis failed: {e}")
         logger.warning("Falling back to simple train/test split")
         use_walk_forward = False
+        wf_results = {}
 
     return use_walk_forward, wf_results
 

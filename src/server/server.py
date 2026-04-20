@@ -1,4 +1,6 @@
+import os
 import re
+from pathlib import Path
 from typing import Dict, Any
 
 from flask import Flask, request, jsonify
@@ -14,6 +16,22 @@ class ModelServer:
         self.port = port
         self._setup_routes()
 
+    _TICKER_RE = re.compile(r"^[A-Z0-9.\-]{1,10}$")
+    _RESULTS_DIR = Path("results")
+
+    @classmethod
+    def _validate_ticker_path(cls, ticker: str, suffix: str) -> Path:
+        """Return a safe, resolved path inside the results directory.
+
+        Raises ValueError for invalid tickers or path-traversal attempts.
+        """
+        if not cls._TICKER_RE.match(ticker):
+            raise ValueError(f"Invalid ticker symbol: {ticker!r}")
+        target = (cls._RESULTS_DIR / f"{ticker}{suffix}").resolve()
+        if not target.is_relative_to(cls._RESULTS_DIR.resolve()):
+            raise ValueError(f"Path traversal detected for ticker: {ticker!r}")
+        return target
+
     def _setup_routes(self):
         @self.app.route("/trading-results/<ticker>", methods=["GET"])
         def results(ticker: str):
@@ -21,7 +39,8 @@ class ModelServer:
                 if not isinstance(ticker, str) or not ticker:
                     return jsonify({"error": "ticker must be a non-empty string"}), 400
 
-                with open(f"results/{ticker}_results.txt", "r") as f:
+                path = self._validate_ticker_path(ticker, "_results.txt")
+                with open(path, "r") as f:
                     trading_results: str = f.read()
 
                 return jsonify(
@@ -57,7 +76,8 @@ class ModelServer:
                 if not result:
                     return jsonify({"error": "Prediction returned empty result"}), 500
 
-                with open(f"results/{ticker}_latest_prediction.txt", "r") as f:
+                path = self._validate_ticker_path(ticker, "_latest_prediction.txt")
+                with open(path, "r") as f:
                     predictions: str = f.read()
 
                 return jsonify(
@@ -126,7 +146,8 @@ class ModelServer:
                 return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 
     def run(self):
-        self.app.run(host="0.0.0.0", port=self.port, debug=True)
+        debug = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
+        self.app.run(host="0.0.0.0", port=self.port, debug=debug)
 
 
 def parse_prediction_file(content: str) -> dict:

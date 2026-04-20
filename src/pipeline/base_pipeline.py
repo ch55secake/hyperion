@@ -1,4 +1,3 @@
-import traceback
 from abc import ABC, abstractmethod
 from typing import Any
 
@@ -155,8 +154,7 @@ class BaseTrainingPipeline(ABC):
                 )
 
             except Exception as e:
-                logger.error(f"Error processing {symbol}: {str(e)}")
-                traceback.print_exc()
+                logger.exception(f"Error processing {symbol}: {str(e)}")
                 continue
 
         logger.info("=" * 60)

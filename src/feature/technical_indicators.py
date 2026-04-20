@@ -280,7 +280,7 @@ def bull_engulfing(open_: pd.Series, close: pd.Series) -> pd.Series:
 
 def doji(open_: pd.Series, close: pd.Series, high: pd.Series, low: pd.Series) -> pd.Series:
     """Doji"""
-    return (abs(close - open_) / (high - low) < 0.1).astype(int)
+    return (abs(close - open_) / (high - low).replace(0, np.nan) < 0.1).astype(int)
 
 
 def candlestick_patterns(
