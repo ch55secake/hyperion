@@ -28,8 +28,7 @@ hyperion/
 │   ├── util/         # Shared utilities (logger singleton)
 │   ├── visualisation/# Plots and charts
 │   ├── writer/       # Results / model persistence
-│   ├── main.py       # CLI entry-point
-│   └── train.py      # Training entry-point
+│   └── main.py       # CLI entry-point
 ├── resources/        # Static assets / ticker lists
 ├── pyproject.toml    # uv project definition
 ├── Makefile          # Developer commands (see below)
