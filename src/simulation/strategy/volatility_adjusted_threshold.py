@@ -15,7 +15,7 @@ class VolatilityAdjustedStrategy(Strategy):
         self.vol_series = vol_series
 
     def execute(self, date, price, pred_return, actual_return):
-        vol = self.vol_series.get(date, 0.01)
+        vol = self.vol_series.get(date, 0.01) if self.vol_series is not None else 0.01
         threshold = self.k * vol
 
         if self.position is None and pred_return > threshold:

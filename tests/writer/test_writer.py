@@ -1,11 +1,8 @@
 """Unit tests for src/writer/model_writer.py and src/writer/result_writer.py."""
 
-import os
-import tempfile
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
-import pytest
 
 from src.writer.model_writer import save_trained_model
 from src.writer.result_writer import output_best_strategy, persist_results
@@ -111,8 +108,6 @@ class TestPersistResults:
     def _call_persist(self, tmpdir, strategies=None, valid_strategies=None):
         """Convenience wrapper around persist_results that writes to tmpdir."""
         symbol = "TEST"
-        # Patch the results directory to use tmpdir
-        results_file = os.path.join(tmpdir, f"{symbol}_results.txt")
 
         if strategies is None:
             strategies = _make_valid_strategies(2)

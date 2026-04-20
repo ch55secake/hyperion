@@ -2,7 +2,6 @@
 
 import numpy as np
 import pandas as pd
-import pytest
 
 # Import strategy subpackage so all strategies register themselves.
 import src.simulation.strategy  # noqa: F401
@@ -34,9 +33,9 @@ class TestSimulationRegression:
         sim2 = TradingSimulator(initial_capital=10_000)
         result2 = sim2.simulate(predictions, actual_returns, prices=prices, dates=dates)
 
-        assert (
-            result1["final_value"] == result2["final_value"]
-        ), "Simulation final value is not deterministic for identical inputs"
+        assert result1["final_value"] == result2["final_value"], (
+            "Simulation final value is not deterministic for identical inputs"
+        )
         assert result1["num_trades"] == result2["num_trades"], "Trade count is not deterministic for identical inputs"
 
     def test_all_strategies_run_without_error(self):

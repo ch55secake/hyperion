@@ -41,6 +41,9 @@ class TradingSimulator:
         price_array = np.asarray(prices) if prices is not None else None
         date_array = np.asarray(dates) if dates is not None else None
 
+        if price_array is None:
+            raise ValueError("prices must be provided for simulation")
+
         if threshold == "auto":
             threshold = np.percentile(np.abs(pred_array), 25)
             logger.debug(f"Auto threshold (25th percentile): {threshold:.6f}")
@@ -106,7 +109,7 @@ class TradingSimulator:
         if price_array is not None:
             buy_hold_return = (price_array[-1] - price_array[0]) / price_array[0]
 
-        if total_return - buy_hold_return > 0:
+        if buy_hold_return is not None and total_return - buy_hold_return > 0:
             logger.info("=" * 60)
             logger.info("Trading Simulation Results")
             logger.info("=" * 60)

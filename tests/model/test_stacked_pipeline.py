@@ -107,9 +107,9 @@ class TestStackedPipelineRegression:
         """Predictions array length should match the test set size."""
         predictions = trained_pipeline._get_predictions()
         y_test = trained_pipeline._y_test
-        assert len(predictions) == len(
-            y_test
-        ), f"Prediction length {len(predictions)} != test target length {len(y_test)}"
+        assert len(predictions) == len(y_test), (
+            f"Prediction length {len(predictions)} != test target length {len(y_test)}"
+        )
 
     def test_predictions_are_deterministic(self, monkeypatch):
         """Two pipeline runs with the same seed produce identical predictions."""

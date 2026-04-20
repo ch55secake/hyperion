@@ -209,7 +209,12 @@ def do_walk_forward_validation(
 
         # Perform walk-forward validation
         wf_results = wf_validator.validate(
-            x, y, dates, prices, XGBoostStockPredictor, predictor_params=None  # Uses default params
+            x,
+            y,
+            dates,
+            prices,
+            XGBoostStockPredictor,
+            predictor_params=None,  # Uses default params
         )
     except ValueError as e:
         logger.warning(f"Walk-forward analysis failed: {e}")

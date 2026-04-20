@@ -15,7 +15,7 @@ class StackedStockPredictor:
     Stacked predictor combining multiple base models (e.g., daily + hourly).
     """
 
-    def __init__(self, models: Dict[str, Any], weights: Dict[str, float] = None):
+    def __init__(self, models: Dict[str, Any], weights: Dict[str, float] | None = None):
         """
         :param models: dict of models, e.g., {"daily": XGBoostStockPredictor(), "hourly": LightGBMStockPredictor()}
         :param weights: optional dict of weights for stacking
@@ -34,7 +34,6 @@ class StackedStockPredictor:
         if not isinstance(y_val, pd.Series):
             y_val = pd.Series(y_val)
 
-        reference_index = y_val.index
         target_length = len(y_val)
 
         for name, model in self.models.items():
