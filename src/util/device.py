@@ -19,7 +19,7 @@ def get_device() -> str:
     deal with GPU detection failures.
     """
     try:
-        import torch  # type: ignore[import-untyped]  # optional dependency
+        import torch  # type: ignore[import-untyped]  # ty: ignore[unresolved-import]  # optional dependency
 
         if torch.cuda.is_available():
             return "cuda"
