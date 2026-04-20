@@ -59,8 +59,7 @@ hyperion/
 │   ├── util/           # Shared utilities (logger singleton)
 │   ├── visualisation/  # Plots and charts
 │   ├── writer/         # Results and model persistence
-│   ├── main.py         # CLI entry point
-│   └── train.py        # Training entry point
+│   └── main.py         # CLI entry point
 ├── tests/              # Unit tests (pytest)
 ├── resources/          # Ticker lists
 ├── pyproject.toml      # uv project definition
