@@ -7,6 +7,7 @@ from pandas import DataFrame
 from sklearn.preprocessing import StandardScaler
 
 import src.feature.technical_indicators as ti
+from src.feature.regime import classify_regime
 
 _required_cols = ["Open", "High", "Low", "Close", "Volume"]
 _all_cols = ["Open", "High", "Low", "Close", "Volume", "Dividends", "Stock Splits"]
@@ -281,6 +282,13 @@ class FeatureEngineering:
             self.df[f"Sharpe_{w}"] = ti.sharpe(self.df["Return_1d"], w)
         return self
 
+    def _add_regime_features(self) -> FeatureEngineering:
+        returns = self.df["Close"].pct_change(1).fillna(0)
+        regime_df = classify_regime(self.df["Close"], returns)
+        for col in regime_df.columns:
+            self.df[col] = regime_df[col]
+        return self
+
     def _add_candlestick_patterns(self) -> FeatureEngineering:
         self.df["Bull_Engulfing"], self.df["Doji"] = ti.candlestick_patterns(
             self.df["Open"], self.df["Close"], self.df["High"], self.df["Low"]
@@ -312,6 +320,7 @@ class FeatureEngineering:
             ._add_directional_indicators()
             ._add_sharpe()
             ._add_candlestick_patterns()
+            ._add_regime_features()
         )
 
         # Shift all features by 1 day
