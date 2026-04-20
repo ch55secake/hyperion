@@ -9,6 +9,7 @@ from typing_extensions import override
 
 from src.align import align_targets_across_intervals, ensure_prediction_alignment
 from src.data import StockDataDownloader
+from src.experimental import WalkForwardValidator, WindowType
 from src.feature import FeatureEngineering
 from src.model import LightGBMStockPredictor
 from src.model import StackedStockPredictor
@@ -74,6 +75,11 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         intervals: list[str],
         interval_roles: dict[str, str] | None = None,
         short_term_threshold: int = 20,
+        use_walk_forward: bool = False,
+        walk_forward_window_type: WindowType = "expanding",
+        walk_forward_train_window: int = 252,
+        walk_forward_test_window: int = 21,
+        walk_forward_retrain_freq: int = 21,
         *args,
         **kwargs,
     ):
@@ -91,6 +97,13 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
         self.interval_feature_sets: dict[str, list[str]] = {}
         self.feature_partitions: dict[str, FeaturePartition] = {}
+
+        self.use_walk_forward = use_walk_forward
+        self.walk_forward_window_type: WindowType = walk_forward_window_type
+        self.walk_forward_train_window = walk_forward_train_window
+        self.walk_forward_test_window = walk_forward_test_window
+        self.walk_forward_retrain_freq = walk_forward_retrain_freq
+        self._walk_forward_results: dict[str, Any] | None = None
 
     def load_model(self):
         """
@@ -459,10 +472,66 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         """
         return self._model.predict(self._x_test_dict)
 
+    def walk_forward_validate(self) -> dict[str, Any]:
+        """Run walk-forward cross-validation on the combined training set.
+
+        Validation is performed on the default interval using ``XGBoostStockPredictor``
+        as a lightweight surrogate to measure cross-period stability before the full
+        stacked model is trained.
+
+        The method populates ``self._walk_forward_results`` and returns the same dict.
+        Call this after :meth:`prepare_features`.
+
+        Returns a dictionary with keys:
+            * ``fold_metrics`` — per-fold R², RMSE, MAE, directional accuracy, Sharpe
+            * ``metrics`` — aggregate metrics across all folds
+            * ``regime_sensitive`` — ``True`` when cross-fold degradation is detected
+            * ``predictions`` / ``actuals`` / ``dates`` / ``prices`` — full arrays
+            * ``fold_boundaries`` — date metadata per fold
+        """
+        if self._test_train_data is None:
+            raise Exception("Please run prepare_features(), before trying to run walk_forward_validate()")
+
+        x_train = self._test_train_data["train"][self.default_interval]
+        y_train_dict = self._test_train_data["train"]["targets"]
+        if isinstance(y_train_dict, dict):
+            y_train = y_train_dict[self.default_interval]
+        else:
+            y_train = y_train_dict
+
+        dates_train = self._test_train_data["train"]["dates"]
+        prices_train = self._test_train_data["train"]["prices"]
+
+        x_selected = self._select_interval_features(self.default_interval, x_train)
+
+        validator = WalkForwardValidator(
+            train_window=self.walk_forward_train_window,
+            test_window=self.walk_forward_test_window,
+            retrain_frequency=self.walk_forward_retrain_freq,
+            window_type=self.walk_forward_window_type,
+        )
+
+        try:
+            results = validator.validate(
+                x_selected,
+                y_train,
+                dates_train,
+                prices_train,
+                XGBoostStockPredictor,
+            )
+        except ValueError as exc:
+            logger.warning("Walk-forward validation skipped: %s", exc)
+            results = {}
+
+        self._walk_forward_results = results
+        return results
+
     def train(self):
         """
         Train both the daily and hourly models on the combined training data using interval-specific targets.
         Uses multi-interval target organization and alignment for proper model training.
+        When ``use_walk_forward`` is ``True``, walk-forward cross-validation is run on the
+        training data before the final model is fitted, to surface cross-period stability.
         :return:
         """
         if self._test_train_data is None:
@@ -497,6 +566,10 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         self._validate_data_consistency()
 
         self._log_feature_split_summary()
+
+        if self.use_walk_forward:
+            logger.info("Walk-forward cross-validation enabled (%s window)", self.walk_forward_window_type)
+            self.walk_forward_validate()
 
         logger.info("=" * 60)
         logger.info("Training Stacked Model")
