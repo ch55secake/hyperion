@@ -1,12 +1,10 @@
-"""PPO (Proximal Policy Optimisation) trading strategy.
+"""PPO (Proximal Policy Optimisation) trading strategy using stable-baselines3.
 
-The :class:`PPOAgent` implements a minimal, dependency-free PPO learner
-built on NumPy.  It maintains two small feed-forward networks:
-
-* **Policy network** – maps the current observation to a probability
-  distribution over three discrete actions (HOLD, BUY, SELL).
-* **Value network** – estimates the expected discounted return from the
-  current state (used as a baseline to reduce gradient variance).
+The :class:`PPOAgent` wraps a ``stable_baselines3.PPO`` model to provide
+online PPO learning within a single simulation run.  A minimal
+:class:`_TradingEnv` satisfies the ``gymnasium.Env`` interface required by
+SB3 for model initialisation; the actual environment interaction happens
+step-by-step through :meth:`PPOAgent.store` and :meth:`PPOAgent.maybe_update`.
 
 The :class:`PPOStrategy` wraps the agent inside the :class:`Strategy`
 interface.  On every ``execute()`` call it:
@@ -25,11 +23,16 @@ the simulator.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 import numpy as np
 import pandas as pd
+
+import torch
+import gymnasium as gym
+from gymnasium import spaces
+from stable_baselines3 import PPO as SB3PPO
+from stable_baselines3.common.utils import configure_logger
 
 from .strategy import Strategy
 from .strategy_registry import register_strategy
@@ -47,97 +50,32 @@ _ACTION_SELL = 2
 
 
 # ---------------------------------------------------------------------------
-# Tiny NumPy neural-network helpers
+# Minimal gymnasium environment for SB3 PPO initialisation
 # ---------------------------------------------------------------------------
 
 
-def _xavier_init(fan_in: int, fan_out: int, rng: np.random.Generator) -> np.ndarray:
-    scale = np.sqrt(2.0 / (fan_in + fan_out))
-    return rng.normal(0, scale, (fan_in, fan_out))
+class _TradingEnv(gym.Env):
+    """Minimal trading environment used to initialise the SB3 PPO model.
 
+    The observation space is a 5-dimensional continuous vector and the action
+    space is a discrete set of three actions (HOLD, BUY, SELL).  During actual
+    trading the environment interaction is driven step-by-step via
+    :class:`PPOAgent` rather than through this class's ``step`` method.
+    """
 
-def _softmax(x: np.ndarray) -> np.ndarray:
-    x = x - x.max()
-    exp_x = np.exp(x)
-    return exp_x / (exp_x.sum() + 1e-12)
+    metadata: dict[str, Any] = {"render_modes": []}  # rendering not supported
 
+    def __init__(self) -> None:
+        super().__init__()
+        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(_STATE_DIM,), dtype=np.float32)
+        self.action_space = spaces.Discrete(_ACTION_DIM)
 
-def _tanh(x: np.ndarray) -> np.ndarray:
-    return np.tanh(x)
+    def reset(self, *, seed: int | None = None, options: dict | None = None) -> tuple[np.ndarray, dict]:
+        super().reset(seed=seed)
+        return np.zeros(_STATE_DIM, dtype=np.float32), {}
 
-
-def _tanh_grad(x: np.ndarray) -> np.ndarray:
-    return 1.0 - np.tanh(x) ** 2
-
-
-# ---------------------------------------------------------------------------
-# Network
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class _NetworkGrads:
-    """Accumulated gradients for a two-layer network."""
-
-    grad_w1: np.ndarray
-    grad_b1: np.ndarray
-    grad_w2: np.ndarray
-    grad_b2: np.ndarray
-
-    def __add__(self, other: "_NetworkGrads") -> "_NetworkGrads":
-        return _NetworkGrads(
-            self.grad_w1 + other.grad_w1,
-            self.grad_b1 + other.grad_b1,
-            self.grad_w2 + other.grad_w2,
-            self.grad_b2 + other.grad_b2,
-        )
-
-    def as_list(self) -> List[np.ndarray]:
-        return [self.grad_w1, self.grad_b1, self.grad_w2, self.grad_b2]
-
-
-class _Network:
-    """Two-layer feed-forward network with tanh hidden activations."""
-
-    def __init__(self, in_dim: int, hidden_dim: int, out_dim: int, rng: np.random.Generator):
-        self.w1 = _xavier_init(in_dim, hidden_dim, rng)
-        self.b1 = np.zeros(hidden_dim)
-        self.w2 = _xavier_init(hidden_dim, out_dim, rng)
-        self.b2 = np.zeros(out_dim)
-
-        # Adam optimiser state
-        self._adam_m = [np.zeros_like(p) for p in self._params()]
-        self._adam_v = [np.zeros_like(p) for p in self._params()]
-        self._adam_t = 0
-
-    def _params(self) -> List[np.ndarray]:
-        return [self.w1, self.b1, self.w2, self.b2]
-
-    def zero_grads(self) -> _NetworkGrads:
-        """Return a zeroed gradient container matching this network's shapes."""
-        return _NetworkGrads(
-            np.zeros_like(self.w1),
-            np.zeros_like(self.b1),
-            np.zeros_like(self.w2),
-            np.zeros_like(self.b2),
-        )
-
-    def forward(self, x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """Return ``(pre_activations_h1, output)``."""
-        pre_h1 = x @ self.w1 + self.b1
-        h1 = _tanh(pre_h1)
-        out = h1 @ self.w2 + self.b2
-        return pre_h1, out
-
-    def adam_update(self, grads: _NetworkGrads, lr: float, beta1: float = 0.9, beta2: float = 0.999) -> None:
-        self._adam_t += 1
-        t = self._adam_t
-        for idx, (p, g) in enumerate(zip(self._params(), grads.as_list())):
-            self._adam_m[idx] = beta1 * self._adam_m[idx] + (1 - beta1) * g
-            self._adam_v[idx] = beta2 * self._adam_v[idx] + (1 - beta2) * g**2
-            m_hat = self._adam_m[idx] / (1 - beta1**t)
-            v_hat = self._adam_v[idx] / (1 - beta2**t)
-            p -= lr * m_hat / (np.sqrt(v_hat) + 1e-8)
+    def step(self, action: int) -> tuple[np.ndarray, float, bool, bool, dict]:
+        return np.zeros(_STATE_DIM, dtype=np.float32), 0.0, False, False, {}
 
 
 # ---------------------------------------------------------------------------
@@ -145,40 +83,19 @@ class _Network:
 # ---------------------------------------------------------------------------
 
 
-@dataclass
-class _ReplayBuffer:
-    """Stores transitions collected between PPO updates."""
+class PPOAgent:
+    """PPO agent backed by ``stable_baselines3.PPO``.
 
-    states: List[np.ndarray] = field(default_factory=list)
-    actions: List[int] = field(default_factory=list)
-    log_probs: List[float] = field(default_factory=list)
-    rewards: List[float] = field(default_factory=list)
-    dones: List[bool] = field(default_factory=list)
-
-    @property
-    def size(self) -> int:
-        return len(self.states)
-
-    def clear(self) -> None:
-        self.states.clear()
-        self.actions.clear()
-        self.log_probs.clear()
-        self.rewards.clear()
-        self.dones.clear()
-
-
-class PPOAgent:  # pylint: disable=too-many-instance-attributes
-    """Lightweight PPO agent for stock trading decisions.
-
-    The agent uses two small networks:
-
-    * ``policy_net``:  state → action logits (softmax → probabilities)
-    * ``value_net``:   state → scalar value estimate
+    Transitions are collected manually via :meth:`store` and fed into SB3's
+    :class:`~stable_baselines3.common.buffers.RolloutBuffer` when
+    :meth:`maybe_update` triggers a gradient update.  This preserves the same
+    online-learning interaction pattern as the original implementation while
+    delegating all neural-network and optimisation logic to SB3.
 
     Parameters
     ----------
     hidden_dim:
-        Number of hidden units in each network.
+        Number of hidden units in each network layer.
     lr:
         Learning rate for the Adam optimiser.
     gamma:
@@ -209,23 +126,40 @@ class PPOAgent:  # pylint: disable=too-many-instance-attributes
         update_every: int = 32,
         seed: int = 42,
     ):
-        self.gamma = gamma
-        self.clip_eps = clip_eps
-        self.entropy_coef = entropy_coef
-        self.value_coef = value_coef
-        self.update_epochs = update_epochs
-        self.update_every = update_every
-        self.lr = lr
+        self._update_every = update_every
 
-        rng = np.random.default_rng(seed)
-        self._rng = rng
-        self.policy_net = _Network(_STATE_DIM, hidden_dim, _ACTION_DIM, rng)
-        self.value_net = _Network(_STATE_DIM, hidden_dim, 1, rng)
-        self._buffer = _ReplayBuffer()
+        env = _TradingEnv()
+        self.model = SB3PPO(
+            "MlpPolicy",
+            env,
+            learning_rate=lr,
+            gamma=gamma,
+            clip_range=clip_eps,
+            ent_coef=entropy_coef,
+            vf_coef=value_coef,
+            n_epochs=update_epochs,
+            n_steps=update_every,
+            batch_size=update_every,
+            seed=seed,
+            verbose=0,
+            policy_kwargs={"net_arch": [hidden_dim, hidden_dim]},
+        )
+        self.model.set_logger(configure_logger(0, None, None))
+
+        self._states: list[np.ndarray] = []
+        self._actions: list[int] = []
+        self._log_probs: list[float] = []
+        self._rewards: list[float] = []
+        self._dones: list[bool] = []
 
     # ------------------------------------------------------------------
     # Public interface
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _to_tensor(state: np.ndarray) -> torch.Tensor:
+        """Convert a state array to a batched float tensor for the SB3 policy."""
+        return torch.as_tensor(state[None], dtype=torch.float32)
 
     def select_action(self, state: np.ndarray) -> tuple[int, float]:
         """Sample an action from the current policy.
@@ -233,131 +167,68 @@ class PPOAgent:  # pylint: disable=too-many-instance-attributes
         Returns ``(action, log_prob)`` where *action* is an integer
         (0 = HOLD, 1 = BUY, 2 = SELL).
         """
-        _, logits = self.policy_net.forward(state)
-        probs = _softmax(logits)
-        action = int(self._rng.choice(_ACTION_DIM, p=probs))
-        log_prob = float(np.log(probs[action] + 1e-12))
-        return action, log_prob
+        obs = self._to_tensor(state)
+        with torch.no_grad():
+            dist = self.model.policy.get_distribution(obs)
+            action_tensor = dist.distribution.sample()
+            log_prob = dist.distribution.log_prob(action_tensor)
+        return int(action_tensor.item()), float(log_prob.item())
 
     def store(self, state: np.ndarray, action: int, log_prob: float, reward: float, done: bool) -> None:
         """Store a transition in the replay buffer."""
-        self._buffer.states.append(state.copy())
-        self._buffer.actions.append(action)
-        self._buffer.log_probs.append(log_prob)
-        self._buffer.rewards.append(reward)
-        self._buffer.dones.append(done)
+        self._states.append(state.copy())
+        self._actions.append(action)
+        self._log_probs.append(log_prob)
+        self._rewards.append(reward)
+        self._dones.append(done)
 
     def maybe_update(self) -> None:
         """Run a PPO update if enough steps have been collected."""
-        if self._buffer.size >= self.update_every:
+        if len(self._states) >= self._update_every:
             self._ppo_update()
-            self._buffer.clear()
+            self._states.clear()
+            self._actions.clear()
+            self._log_probs.clear()
+            self._rewards.clear()
+            self._dones.clear()
 
     def value(self, state: np.ndarray) -> float:
         """Estimate the value of *state*."""
-        _, v_out = self.value_net.forward(state)
-        return float(v_out[0])
+        with torch.no_grad():
+            val = self.model.policy.predict_values(self._to_tensor(state))
+        return float(val.item())
 
     # ------------------------------------------------------------------
-    # PPO update
+    # PPO update via SB3 rollout buffer
     # ------------------------------------------------------------------
-
-    def _compute_returns(self, rewards: np.ndarray, dones: np.ndarray) -> np.ndarray:
-        """Compute discounted returns using Monte-Carlo rollouts.
-
-        Each return is the sum of discounted future rewards up to the end of the
-        episode (or buffer boundary).  The ``dones`` array resets the running sum
-        at terminal steps.
-        """
-        returns = np.zeros_like(rewards)
-        running = 0.0
-        for t in reversed(range(len(rewards))):
-            running = rewards[t] + self.gamma * running * (1.0 - dones[t])
-            returns[t] = running
-        return returns
-
-    def _value_step_grads(self, state: np.ndarray, ret: float) -> _NetworkGrads:
-        """Compute value-network gradients for a single transition."""
-        n = self._buffer.size
-        pre_h1, v_out = self.value_net.forward(state)
-        v_pred = v_out[0]
-
-        dl_dv = 2.0 * (v_pred - ret) * self.value_coef / n
-        dv_dz2 = np.array([1.0])
-        h1 = _tanh(pre_h1)
-        grad_w2 = np.outer(h1, dv_dz2 * dl_dv)
-        grad_b2 = dv_dz2 * dl_dv
-        dl_dh1 = (dv_dz2 * dl_dv) @ self.value_net.w2.T
-        dl_dz1 = dl_dh1 * _tanh_grad(pre_h1)
-        grad_w1 = np.outer(state, dl_dz1)
-        grad_b1 = dl_dz1
-
-        return _NetworkGrads(grad_w1, grad_b1, grad_w2, grad_b2)
-
-    def _policy_step_grads(
-        self, state: np.ndarray, action: int, old_log_prob: float, advantage: float
-    ) -> _NetworkGrads:
-        """Compute policy-network gradients for a single transition."""
-        n = self._buffer.size
-        pre_h1, logits = self.policy_net.forward(state)
-        probs = _softmax(logits)
-        new_log_prob = float(np.log(probs[action] + 1e-12))
-
-        ratio = np.exp(new_log_prob - old_log_prob)
-        clipped = np.clip(ratio, 1.0 - self.clip_eps, 1.0 + self.clip_eps)
-        loss = -min(ratio * advantage, clipped * advantage) / n
-        entropy = -float(np.sum(probs * np.log(probs + 1e-12)))
-        loss -= self.entropy_coef * entropy / n
-
-        indicator = np.zeros(_ACTION_DIM)
-        indicator[action] = 1.0
-        dl_dlogits = (probs - indicator) * loss
-
-        h1 = _tanh(pre_h1)
-        grad_w2 = np.outer(h1, dl_dlogits)
-        grad_b2 = dl_dlogits
-        dl_dh1 = dl_dlogits @ self.policy_net.w2.T
-        dl_dz1 = dl_dh1 * _tanh_grad(pre_h1)
-        grad_w1 = np.outer(state, dl_dz1)
-        grad_b1 = dl_dz1
-
-        return _NetworkGrads(grad_w1, grad_b1, grad_w2, grad_b2)
 
     def _ppo_update(self) -> None:
-        """Run PPO gradient updates over the collected buffer."""
-        states = np.array(self._buffer.states, dtype=np.float32)
-        actions = np.array(self._buffer.actions, dtype=np.int32)
-        old_log_probs = np.array(self._buffer.log_probs, dtype=np.float32)
-        rewards = np.array(self._buffer.rewards, dtype=np.float32)
-        dones = np.array(self._buffer.dones, dtype=np.float32)
+        """Populate SB3's rollout buffer with stored transitions and run PPO."""
+        buffer = self.model.rollout_buffer
+        buffer.reset()
 
-        returns = self._compute_returns(rewards, dones)
-        returns = (returns - returns.mean()) / (returns.std() + 1e-8)
+        for state, action, log_prob, reward in zip(self._states, self._actions, self._log_probs, self._rewards):
+            obs = state.reshape(1, -1)
+            act = np.array([[action]])
+            rew = np.array([reward])
+            episode_start = np.array([False])
 
-        for _ in range(self.update_epochs):
-            policy_grads = self.policy_net.zero_grads()
-            value_grads = self.value_net.zero_grads()
+            with torch.no_grad():
+                val = self.model.policy.predict_values(self._to_tensor(state))
 
-            for idx, state in enumerate(states):
-                action = int(actions[idx])
-                old_lp = float(old_log_probs[idx])
-                ret = float(returns[idx])
+            lp = torch.tensor([[log_prob]], dtype=torch.float32)
+            buffer.add(obs, act, rew, episode_start, val, lp)
 
-                vg = self._value_step_grads(state, ret)
-                value_grads = value_grads + vg
+        with torch.no_grad():
+            last_val = self.model.policy.predict_values(self._to_tensor(self._states[-1]))
 
-                _, v_out = self.value_net.forward(state)
-                advantage = ret - float(v_out[0])
-                pg = self._policy_step_grads(state, action, old_lp, advantage)
-                policy_grads = policy_grads + pg
-
-            self.policy_net.adam_update(policy_grads, self.lr)
-            self.value_net.adam_update(value_grads, self.lr)
+        buffer.compute_returns_and_advantage(last_values=last_val, dones=np.array([False]))
+        self.model.train()
 
     @property
     def buffer_size(self) -> int:
         """Number of transitions currently stored in the replay buffer."""
-        return self._buffer.size
+        return len(self._states)
 
 
 # ---------------------------------------------------------------------------
@@ -367,12 +238,13 @@ class PPOAgent:  # pylint: disable=too-many-instance-attributes
 
 @register_strategy("ppo")
 class PPOStrategy(Strategy):
-    """Trading strategy driven by a Proximal Policy Optimisation agent.
+    """Trading strategy driven by a ``stable_baselines3`` PPO agent.
 
     The agent observes both raw market data *and* the ML model's predicted
     return, then decides whether to buy, sell, or hold.  Over time it
     learns when the ML predictions are reliable and how to size positions
-    accordingly.
+    accordingly.  All neural-network and optimisation logic is delegated to
+    ``stable_baselines3.PPO``.
 
     Parameters
     ----------
@@ -385,7 +257,7 @@ class PPOStrategy(Strategy):
         Reference capital used to normalise the portfolio ratio
         observation.  Defaults to *capital*.
     hidden_dim:
-        Number of hidden units in each PPO network.
+        Number of hidden units in each PPO network layer.
     lr:
         Learning rate for the Adam optimiser inside the PPO agent.
     gamma:
