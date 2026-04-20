@@ -9,10 +9,10 @@ Three complementary regime signals are provided:
 * **Trend regime** — compares the closing price to a fast and a slow
   moving average to identify bull / bear / sideways markets.
 
-* **HMM regime** — fits a Gaussian Mixture Model (a tractable
-  approximation of a Hidden Markov Model) on rolling return features and
-  labels each period with the most likely latent state, sorted so that
-  state 0 is always the most bearish.
+* **GMM regime** — fits a Gaussian Mixture Model on rolling return
+  features to identify latent market states.  Each period is assigned
+  to the most likely component, and components are sorted so that
+  state 0 is always the most bearish (lowest mean return).
 
 All three signals are assembled by :func:`classify_regime`, which returns a
 ``DataFrame`` that can be merged directly into a feature matrix.
@@ -39,7 +39,7 @@ REGIME_VOL_HIGH = 2
 # Column names emitted by classify_regime
 COL_REGIME_VOLATILITY = "Regime_Volatility"
 COL_REGIME_TREND = "Regime_Trend"
-COL_REGIME_HMM = "Regime_HMM"
+COL_REGIME_GMM = "Regime_GMM"
 
 _MIN_SAMPLES_FOR_GMM = 10
 
@@ -114,18 +114,20 @@ def detect_trend_regime(
     return regime
 
 
-def detect_hmm_regime(
+def detect_gmm_regime(
     returns: pd.Series,
     n_states: int = 2,
     random_state: int = 42,
 ) -> pd.Series:
-    """Detect latent regimes via a Gaussian Mixture Model on rolling features.
+    """Detect latent market regimes via Gaussian Mixture Model clustering.
 
-    The model is fitted on two rolling statistics (mean return and realised
-    volatility) computed over a 20-period window.  States are relabelled so
-    that state 0 always has the *lowest* mean return (most bearish) and
-    state ``n_states - 1`` has the highest (most bullish), making the labels
-    consistent across different datasets.
+    A GMM is fitted on two rolling statistics (mean return and realised
+    volatility) computed over a 20-period window.  Each observation is
+    assigned to the most likely mixture component.
+
+    Components are relabelled so that component 0 always has the *lowest*
+    mean return (most bearish) and component ``n_states - 1`` has the
+    highest (most bullish), making labels consistent across datasets.
 
     If too few samples are available the function falls back to a single
     "unknown" regime (all zeros).
@@ -135,7 +137,7 @@ def detect_hmm_regime(
     returns:
         Return series (e.g. ``Close.pct_change()``).
     n_states:
-        Number of latent states.  Must be ≥ 2.
+        Number of mixture components (latent states).  Must be ≥ 2.
     random_state:
         Random seed passed to :class:`~sklearn.mixture.GaussianMixture`.
 
@@ -176,7 +178,7 @@ def classify_regime(
     fast_ma: int = 50,
     slow_ma: int = 200,
     vol_window: int = 20,
-    n_hmm_states: int = 2,
+    n_gmm_states: int = 2,
 ) -> pd.DataFrame:
     """Compute all regime features and return them as a DataFrame.
 
@@ -195,25 +197,25 @@ def classify_regime(
         Slow MA window for trend regime detection.
     vol_window:
         Rolling window for volatility regime detection.
-    n_hmm_states:
-        Number of latent states for the GMM-based regime.
+    n_gmm_states:
+        Number of mixture components for the GMM-based regime.
 
     Returns
     -------
     pd.DataFrame with columns:
         * ``Regime_Volatility`` — 0 (low) / 1 (medium) / 2 (high)
         * ``Regime_Trend``      — 0 (bull) / 1 (bear) / 2 (sideways)
-        * ``Regime_HMM``        — 0 (most bearish) … n_hmm_states-1 (most bullish)
+        * ``Regime_GMM``        — 0 (most bearish) … n_gmm_states-1 (most bullish)
     """
     vol_regime = detect_volatility_regime(returns, window=vol_window)
     trend_regime = detect_trend_regime(close, fast_ma=fast_ma, slow_ma=slow_ma)
-    hmm_regime = detect_hmm_regime(returns, n_states=n_hmm_states)
+    gmm_regime = detect_gmm_regime(returns, n_states=n_gmm_states)
 
     return pd.DataFrame(
         {
             COL_REGIME_VOLATILITY: vol_regime,
             COL_REGIME_TREND: trend_regime,
-            COL_REGIME_HMM: hmm_regime,
+            COL_REGIME_GMM: gmm_regime,
         },
         index=close.index,
     )

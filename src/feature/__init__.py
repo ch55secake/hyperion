@@ -5,7 +5,7 @@ from .regime import (
     classify_regime,
     detect_volatility_regime,
     detect_trend_regime,
-    detect_hmm_regime,
+    detect_gmm_regime,
     REGIME_BULL,
     REGIME_BEAR,
     REGIME_SIDEWAYS,
@@ -14,5 +14,5 @@ from .regime import (
     REGIME_VOL_HIGH,
     COL_REGIME_VOLATILITY,
     COL_REGIME_TREND,
-    COL_REGIME_HMM,
+    COL_REGIME_GMM,
 )

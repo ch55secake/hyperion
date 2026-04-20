@@ -10,11 +10,11 @@ from src.feature.regime import (
     REGIME_VOL_HIGH,
     REGIME_VOL_LOW,
     REGIME_VOL_MEDIUM,
-    COL_REGIME_HMM,
+    COL_REGIME_GMM,
     COL_REGIME_TREND,
     COL_REGIME_VOLATILITY,
     classify_regime,
-    detect_hmm_regime,
+    detect_gmm_regime,
     detect_trend_regime,
     detect_volatility_regime,
 )
@@ -133,41 +133,41 @@ class TestDetectTrendRegime:
 class TestDetectHmmRegime:
     def test_returns_series_same_length(self):
         returns = _make_returns(200)
-        result = detect_hmm_regime(returns)
+        result = detect_gmm_regime(returns)
         assert len(result) == len(returns)
         assert result.index.equals(returns.index)
 
     def test_labels_within_range_2_states(self):
         returns = _make_returns(200)
-        result = detect_hmm_regime(returns, n_states=2)
+        result = detect_gmm_regime(returns, n_states=2)
         assert set(result.unique()).issubset({0, 1})
 
     def test_labels_within_range_3_states(self):
         returns = _make_returns(200)
-        result = detect_hmm_regime(returns, n_states=3)
+        result = detect_gmm_regime(returns, n_states=3)
         assert set(result.unique()).issubset({0, 1, 2})
 
     def test_fallback_on_tiny_series(self):
         """Too few samples should return all-zero fallback without raising."""
         returns = _make_returns(n=5)
-        result = detect_hmm_regime(returns, n_states=2)
+        result = detect_gmm_regime(returns, n_states=2)
         assert len(result) == 5
         assert (result == 0).all()
 
     def test_n_states_clamped_to_minimum_2(self):
         returns = _make_returns(100)
-        result = detect_hmm_regime(returns, n_states=1)
+        result = detect_gmm_regime(returns, n_states=1)
         assert set(result.unique()).issubset({0, 1})
 
     def test_dtype_is_int8(self):
         returns = _make_returns(100)
-        result = detect_hmm_regime(returns)
+        result = detect_gmm_regime(returns)
         assert result.dtype == np.int8
 
     def test_deterministic_with_fixed_seed(self):
         returns = _make_returns(200, seed=7)
-        r1 = detect_hmm_regime(returns, random_state=0)
-        r2 = detect_hmm_regime(returns, random_state=0)
+        r1 = detect_gmm_regime(returns, random_state=0)
+        r2 = detect_gmm_regime(returns, random_state=0)
         pd.testing.assert_series_equal(r1, r2)
 
 
@@ -184,7 +184,7 @@ class TestClassifyRegime:
         assert isinstance(result, pd.DataFrame)
         assert COL_REGIME_VOLATILITY in result.columns
         assert COL_REGIME_TREND in result.columns
-        assert COL_REGIME_HMM in result.columns
+        assert COL_REGIME_GMM in result.columns
 
     def test_output_length_matches_input(self):
         close = _make_close(200)
@@ -202,7 +202,7 @@ class TestClassifyRegime:
         close = _make_close(200)
         returns = close.pct_change(1).fillna(0)
         result = classify_regime(close, returns)
-        for col in [COL_REGIME_VOLATILITY, COL_REGIME_TREND, COL_REGIME_HMM]:
+        for col in [COL_REGIME_VOLATILITY, COL_REGIME_TREND, COL_REGIME_GMM]:
             assert np.issubdtype(result[col].dtype, np.integer), f"{col} should be integer"
 
     def test_no_nan_values(self):
@@ -214,8 +214,8 @@ class TestClassifyRegime:
     def test_custom_n_hmm_states(self):
         close = _make_close(200)
         returns = close.pct_change(1).fillna(0)
-        result = classify_regime(close, returns, n_hmm_states=3)
-        assert set(result[COL_REGIME_HMM].unique()).issubset({0, 1, 2})
+        result = classify_regime(close, returns, n_gmm_states=3)
+        assert set(result[COL_REGIME_GMM].unique()).issubset({0, 1, 2})
 
     def test_works_with_short_series(self):
         close = _make_close(n=15)
@@ -237,7 +237,7 @@ class TestRegimeInFeatureEngineering:
         fe = FeatureEngineering(ohlcv)
         fe.create_target_features(target_days=5)
         x, _, _, _, feature_cols = fe.prepare_features()
-        for col in [COL_REGIME_VOLATILITY, COL_REGIME_TREND, COL_REGIME_HMM]:
+        for col in [COL_REGIME_VOLATILITY, COL_REGIME_TREND, COL_REGIME_GMM]:
             assert col in x.columns, f"Expected {col!r} in feature matrix"
 
     def test_regime_columns_have_no_nan_after_prepare(self):
@@ -247,5 +247,5 @@ class TestRegimeInFeatureEngineering:
         fe = FeatureEngineering(ohlcv)
         fe.create_target_features(target_days=5)
         x, _, _, _, _ = fe.prepare_features()
-        for col in [COL_REGIME_VOLATILITY, COL_REGIME_TREND, COL_REGIME_HMM]:
+        for col in [COL_REGIME_VOLATILITY, COL_REGIME_TREND, COL_REGIME_GMM]:
             assert not x[col].isna().any(), f"{col} should have no NaN"

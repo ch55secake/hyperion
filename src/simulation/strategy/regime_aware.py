@@ -25,6 +25,7 @@ from src.feature.regime import (
     REGIME_BEAR,
     REGIME_BULL,
     REGIME_SIDEWAYS,
+    COL_REGIME_TREND,
     classify_regime,
 )
 from src.simulation.strategy.strategy import Strategy
@@ -119,10 +120,18 @@ class RegimeAwareStrategy(Strategy):
     @override
     @staticmethod
     def get_extra_params(prices_series: pd.Series) -> Dict[str, Any]:
-        """Build a ``regime_series`` dict from raw prices."""
+        """Build a ``regime_series`` dict from raw prices.
+
+        The trend regime (price relative to moving averages) is used here
+        because it provides the clearest directional signal for routing
+        between momentum and mean-reversion logic.  Volatility and GMM
+        signals are available from :func:`~src.feature.regime.classify_regime`
+        and can be substituted by passing a custom ``regime_series`` directly
+        to the constructor.
+        """
         returns = prices_series.pct_change(1).fillna(0)
         regime_df = classify_regime(prices_series, returns)
-        return {"regime_series": regime_df["Regime_Trend"].to_dict()}
+        return {"regime_series": regime_df[COL_REGIME_TREND].to_dict()}
 
     @override
     @staticmethod
