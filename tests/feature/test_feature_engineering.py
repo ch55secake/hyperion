@@ -243,9 +243,7 @@ class TestClassificationTargets:
         """All returns above 5% should be labelled 1 with up_threshold=0.05."""
         df = _make_df(n=120)
         fe = FeatureEngineering(df)
-        result = fe.create_target_features(
-            target_days=5, classification=True, up_threshold=0.05, down_threshold=-0.05
-        )
+        result = fe.create_target_features(target_days=5, classification=True, up_threshold=0.05, down_threshold=-0.05)
         forward_return = result["Close"].pct_change(5).shift(-5)
         binary = result["Target_Binary"]
         mask = forward_return > 0.05
