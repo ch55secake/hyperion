@@ -324,6 +324,7 @@ def do_walk_forward_validation(
     logger.info("Using Walk-Forward Analysis")
     logger.info("=" * 60)
 
+    # Default to empty dict; reassigned inside the try block on success.
     wf_results: dict[str, Any] = {}
     try:
         # Initialize walk-forward validator

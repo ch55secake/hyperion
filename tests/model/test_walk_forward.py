@@ -34,7 +34,8 @@ def _make_dataset(n: int = 400, seed: int = 0) -> tuple[pd.DataFrame, pd.Series,
 
 def _fast_xgb_factory(params):
     """Factory compatible with WalkForwardValidator.validate() signature."""
-    return XGBoostStockPredictor(params=fast_xgb_params())
+    effective_params = params if params is not None else fast_xgb_params()
+    return XGBoostStockPredictor(params=effective_params)
 
 
 class _StubDownloader:
