@@ -27,6 +27,11 @@ class BaseTrainingPipeline(ABC):
         should_optimise: bool = False,
         n_trials: int = 1000,
         target_days: int = 10,
+        target_horizons: list[int] | None = None,
+        target_risk_adjusted: bool = False,
+        target_classification: bool = False,
+        target_up_threshold: float = 0.02,
+        target_down_threshold: float = -0.02,
         r2_save_threshold: float = 0.0012,
         r2_invalid_threshold: float = -0.3,
     ):
@@ -38,6 +43,11 @@ class BaseTrainingPipeline(ABC):
         self.should_optimise = should_optimise
         self.n_trials = n_trials
         self.target_days = target_days
+        self.target_horizons = target_horizons
+        self.target_risk_adjusted = target_risk_adjusted
+        self.target_classification = target_classification
+        self.target_up_threshold = target_up_threshold
+        self.target_down_threshold = target_down_threshold
         self.r2_save_threshold = r2_save_threshold
         self.r2_invalid_threshold = r2_invalid_threshold
 
@@ -125,7 +135,14 @@ class BaseTrainingPipeline(ABC):
                 logger.info(f"Processing {symbol}...")
 
                 features_daily = FeatureEngineering(self._stock_data[symbol])
-                features_daily.create_target_features(target_days=self.target_days)
+                features_daily.create_target_features(
+                    target_days=self.target_days,
+                    horizons=self.target_horizons,
+                    risk_adjusted=self.target_risk_adjusted,
+                    classification=self.target_classification,
+                    up_threshold=self.target_up_threshold,
+                    down_threshold=self.target_down_threshold,
+                )
                 x_daily, y_daily, dates_daily, prices_daily, _ = features_daily.prepare_features()
 
                 x_daily = self._add_stock_features(x_daily, symbol)
