@@ -42,7 +42,15 @@ def _make_foresight_inputs(n: int = 120, seed: int = 0):
 # Strategies that do not use the prediction signal for entry/exit decisions,
 # are non-deterministic (coinflip), or are explicitly designed to bet against
 # the signal (contrarian).  These are excluded from signal-quality checks.
-_NON_SIGNAL_STRATEGIES: frozenset[str] = frozenset({"coinflip", "contrarian", "momentum", "bb_reversion", "ema_cross"})
+#
+# "ppo" is excluded because it is a model-free RL agent: it samples actions
+# stochastically from a learned policy regardless of the prediction magnitude.
+# A zero prediction is simply one feature in the observation vector — it does
+# not prevent the agent from buying or selling.  Signal-quality checks that
+# require zero-signal → zero-trades do not apply to RL-based strategies.
+_NON_SIGNAL_STRATEGIES: frozenset[str] = frozenset(
+    {"coinflip", "contrarian", "momentum", "bb_reversion", "ema_cross", "ppo"}
+)
 
 _SIGNAL_DRIVEN_STRATEGIES: list[str] = [k for k in StrategyRegistry.list() if k not in _NON_SIGNAL_STRATEGIES]
 

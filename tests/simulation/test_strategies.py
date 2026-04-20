@@ -18,6 +18,7 @@ from src.simulation.strategy.ema_cross import EMACrossStrategy
 from src.simulation.strategy.hold_days import HoldDaysStrategy
 from src.simulation.strategy.hybrid_trend_ml import HybridTrendMLStrategy
 from src.simulation.strategy.momentum import MomentumStrategy
+from src.simulation.strategy.ppo import PPOAgent, PPOStrategy
 from src.simulation.strategy.sltp import StopLossTakeProfitStrategy
 from src.simulation.strategy.sma_trend import SMATrendStrategy
 from src.simulation.strategy.strategy_registry import StrategyRegistry
@@ -82,6 +83,7 @@ class TestStrategyRegistry:
             "bb_reversion",
             "hybrid_trend_ml",
             "volatility_adjusted",
+            "ppo",
         }
         assert expected.issubset(set(registered))
 
@@ -633,3 +635,133 @@ class TestStrategyBuySellMechanics:
         s.buy(date=0, price=self._PRICE)
         expected_shares = (self._CAPITAL * (1 - sim.transaction_cost)) / self._PRICE
         assert s.shares == pytest.approx(expected_shares, rel=1e-9)
+
+
+# ---------------------------------------------------------------------------
+# PPOAgent
+# ---------------------------------------------------------------------------
+
+
+class TestPPOAgent:
+    def test_select_action_returns_valid_action_and_log_prob(self):
+        agent = PPOAgent(seed=0)
+        state = np.zeros(5, dtype=np.float32)
+        action, log_prob = agent.select_action(state)
+        assert action in (0, 1, 2)
+        assert log_prob <= 0.0  # log of a probability ≤ 1 is ≤ 0
+
+    def test_store_increments_step_counter(self):
+        agent = PPOAgent(seed=0)
+        state = np.zeros(5, dtype=np.float32)
+        action, log_prob = agent.select_action(state)
+        agent.store(state, action, log_prob, reward=0.01, done=False)
+        assert agent.buffer_size == 1
+
+    def test_maybe_update_clears_buffer_after_threshold(self):
+        agent = PPOAgent(seed=0, update_every=4)
+        state = np.zeros(5, dtype=np.float32)
+        for _ in range(4):
+            action, log_prob = agent.select_action(state)
+            agent.store(state, action, log_prob, reward=0.0, done=False)
+        agent.maybe_update()
+        assert agent.buffer_size == 0  # buffer cleared after update
+
+    def test_value_returns_scalar(self):
+        agent = PPOAgent(seed=0)
+        state = np.array([0.01, 0.0, 1.0, 0.0, 0.01], dtype=np.float32)
+        v = agent.value(state)
+        assert isinstance(v, float)
+
+    def test_ppo_update_does_not_crash(self):
+        """Running a full PPO update cycle must not raise."""
+        agent = PPOAgent(seed=0, update_every=8, update_epochs=2)
+        rng = np.random.default_rng(0)
+        for _ in range(8):
+            state = rng.random(5).astype(np.float32)
+            action, log_prob = agent.select_action(state)
+            agent.store(state, action, log_prob, reward=float(rng.normal()), done=False)
+        agent.maybe_update()  # triggers _ppo_update internally
+
+
+# ---------------------------------------------------------------------------
+# PPOStrategy
+# ---------------------------------------------------------------------------
+
+
+class TestPPOStrategy:
+    def test_is_registered(self):
+        assert "ppo" in StrategyRegistry.list()
+
+    def test_execute_returns_four_tuple(self):
+        sim = _Sim()
+        s = PPOStrategy(sim, capital=10_000, seed=0)
+        result = s.execute(date=0, price=100.0, pred_return=0.01, actual_return=0.0)
+        assert len(result) == 4
+
+    def test_position_is_none_or_long_after_execute(self):
+        sim = _Sim()
+        s = PPOStrategy(sim, capital=10_000, seed=0)
+        s.execute(date=0, price=100.0, pred_return=0.01, actual_return=0.0)
+        assert s.position in (None, "long")
+
+    def test_capital_non_negative_after_many_steps(self):
+        sim = _Sim()
+        s = PPOStrategy(sim, capital=10_000, seed=42)
+        rng = np.random.default_rng(1)
+        prices = np.clip(100 + np.cumsum(rng.normal(0, 1, 50)), 10, None)
+        preds = rng.normal(0, 0.02, 50)
+        actuals = np.diff(prices, prepend=prices[0]) / prices
+        for i in range(50):
+            s.execute(date=i, price=float(prices[i]), pred_return=float(preds[i]), actual_return=float(actuals[i]))
+        current_value = s.shares * prices[-1] if s.position == "long" else s.capital
+        assert current_value >= 0.0
+
+    def test_get_minimum_data_points(self):
+        assert PPOStrategy.get_minimum_data_points() == 10
+
+    def test_get_extra_params_returns_empty_dict(self):
+        prices = pd.Series(np.ones(30))
+        assert PPOStrategy.get_extra_params(prices) == {}
+
+    def test_registry_create_returns_ppo_strategy(self):
+        sim = _Sim()
+        strategy = StrategyRegistry.create("ppo", simulator=sim, capital=10_000)
+        assert isinstance(strategy, PPOStrategy)
+
+    def test_build_state_shape(self):
+        sim = _Sim()
+        s = PPOStrategy(sim, capital=10_000, seed=0)
+        state = s._build_state(pred_return=0.02, price=100.0)
+        assert state.shape == (5,)
+        assert state.dtype == np.float32
+
+    def test_build_state_clips_large_prediction(self):
+        sim = _Sim()
+        s = PPOStrategy(sim, capital=10_000, seed=0)
+        state = s._build_state(pred_return=999.0, price=100.0)
+        assert state[0] == pytest.approx(1.0)
+
+    def test_full_simulation_run(self):
+        """End-to-end smoke test: PPOStrategy through TradingSimulator."""
+        from src.simulation.trading_simulator import TradingSimulator
+
+        rng = np.random.default_rng(7)
+        n = 60
+        prices = np.clip(100 + np.cumsum(rng.normal(0, 1, n)), 10, None)
+        preds = rng.normal(0, 0.02, n)
+        actuals = np.diff(prices, prepend=prices[0]) / prices
+        dates = list(range(n))
+
+        sim = TradingSimulator(initial_capital=10_000, transaction_cost=0.001)
+        strategy = PPOStrategy(sim, capital=10_000, seed=0)
+        results = sim.simulate(
+            predictions=preds,
+            actual_returns=actuals,
+            prices=prices,
+            dates=dates,
+            strategy=strategy,
+            threshold=0,
+        )
+        assert "final_value" in results
+        assert results["final_value"] >= 0.0
+        assert "portfolio_history" in results

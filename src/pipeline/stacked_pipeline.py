@@ -1,3 +1,4 @@
+import time
 import traceback
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from typing import Any
@@ -7,6 +8,7 @@ import pandas as pd
 from joblib import Parallel, delayed
 from typing_extensions import override
 
+import src.util.ppo_worker as _ppo_worker
 from src.align import align_targets_across_intervals, ensure_prediction_alignment
 from src.data import StockDataDownloader
 from src.feature import FeatureEngineering
@@ -35,13 +37,13 @@ def _simulate_ticker_worker(
 ) -> tuple[str, dict | None, str | None]:
     """Simulate a single ticker; designed for parallel execution via ProcessPoolExecutor.
 
-    Returns a 3-tuple ``(symbol, results, skip_reason)`` where:
-    - *results* is the simulation result dict on success, or ``None`` when the
+    Returns a 3-tuple "(symbol, results, skip_reason)" where:
+    - *results* are the simulation result dict on success, or "None" when the
       ticker is skipped.
-    - *skip_reason* describes why the ticker was skipped; ``None`` on success.
+    - *skip_reason* describes why the ticker was skipped; "None" on success.
 
     Unexpected errors are not caught here and will propagate to the caller via
-    ``Future.result()``.
+    "Future.result()".
     """
     symbol = str(ticker_df["symbol"].iloc[0])
     strategy_class = StrategyRegistry.get(strategy_key)
@@ -652,27 +654,106 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         ticker_dfs = [test_df[test_df["symbol"] == symbol].sort_values("date") for symbol in unique_symbols]
         ticker_batches = [ticker_dfs[i : i + _TICKER_BATCH_SIZE] for i in range(0, len(ticker_dfs), _TICKER_BATCH_SIZE)]
 
-        with ProcessPoolExecutor() as pool:
-            for strategy_key in strategies_to_run:
-                logger.info("=" * 60)
-                logger.info(f"Strategy: {strategy_key}")
-                logger.info("=" * 60)
+        # Partition strategies: PyTorch-based ones must run on the main thread
+        # *before* ProcessPoolExecutor is created (see below).
+        torch_based_strategies = {"ppo"}  # Add other torch-based strategies here if needed
+        process_safe_strategies = [s for s in strategies_to_run if s not in torch_based_strategies]
+        main_thread_strategies = [s for s in strategies_to_run if s in torch_based_strategies]
 
-                strategy_results: dict[str, Any] = {}
+        # ------------------------------------------------------------------ #
+        # PyTorch-based strategies — delegated to the pre-started worker.    #
+        #                                                                      #
+        # Root cause (macOS-specific dual-libomp deadlock):                   #
+        #   LightGBM bundles Homebrew's libomp.dylib; PyTorch bundles its     #
+        #   own from /opt/llvm-openmp.  Both initialise their OpenMP thread   #
+        #   pool lazily; whichever initialises second corrupts the OS-level   #
+        #   named POSIX semaphores, causing any subsequent subprocess to       #
+        #   crash with SIGSEGV when torch tries to acquire those names.       #
+        #                                                                      #
+        #   src/ppo_worker.py starts a subprocess in main.py BEFORE any ML   #
+        #   library is loaded, so it gets a clean semaphore namespace.  Work  #
+        #   is sent via multiprocessing queues; results come back the same    #
+        #   way.  No subprocess is spawned here at simulation time.           #
+        #                                                                      #
+        #   When ppo_worker has NOT been pre-initialised (e.g. in the test    #
+        #   suite), we fall back to running PPO in the main process.  This    #
+        #   is safe because PPOAgent sets torch.set_num_threads(1) and        #
+        #   disables orthogonal weight initialisation, eliminating the Apple  #
+        #   Silicon crashes that motivated the worker approach.               #
+        # ------------------------------------------------------------------ #
+        if main_thread_strategies:
+            if _ppo_worker.is_initialized():
+                logger.info("Running PyTorch-based strategies via pre-started ppo_worker subprocess")
+                for strategy_key in main_thread_strategies:
+                    logger.info("=" * 60)
+                    logger.info(f"Strategy: {strategy_key}")
+                    logger.info("=" * 60)
+                    _strategy_start = time.perf_counter()
 
-                batch_futures = [
-                    (
-                        pool.submit(
-                            _simulate_ticker_batch_worker, batch, strategy_key, int(initial_capital), transaction_cost
-                        ),
-                        batch,
-                    )
-                    for batch in ticker_batches
-                ]
+                    strategy_results: dict[str, Any] = {}
 
-                for future, batch in batch_futures:
-                    try:
-                        batch_results = future.result()
+                    _ppo_worker.submit_work(ticker_batches, strategy_key, int(initial_capital), transaction_cost)
+                    all_batch_results = _ppo_worker.get_results()
+
+                    worker_exit = _ppo_worker.exitcode()
+                    if worker_exit is not None and worker_exit != 0:
+                        logger.error(
+                            "ppo_worker subprocess exited with code %d during strategy '%s'",
+                            worker_exit,
+                            strategy_key,
+                        )
+                    else:
+                        for batch_results, batch in zip(all_batch_results, ticker_batches):
+                            for sym, results, skip_reason in batch_results:
+                                if results is None:
+                                    logger.warning(f"Skipping {sym}: {skip_reason}")
+                                else:
+                                    strategy_results[sym] = results
+                                    logger.info(f"--- {sym} ({len(results['portfolio_history'])} samples) ---")
+                                    logger.info(f"Final Value: ${results['final_value']:,.2f}")
+                                    logger.info(f"Return: {results['total_return'] * 100:.2f}%")
+
+                    all_results[strategy_key] = strategy_results
+
+                    logger.info("=" * 60)
+                    logger.info(f"Summary for {strategy_key}")
+                    logger.info("=" * 60)
+                    logger.info("Strategy '%s' completed in %.2fs", strategy_key, time.perf_counter() - _strategy_start)
+
+                    if strategy_results:
+                        total_final_value = sum(r["final_value"] for r in strategy_results.values())
+                        avg_return = np.mean([r["total_return"] for r in strategy_results.values()])
+                        winning_tickers = sum(1 for r in strategy_results.values() if r["total_return"] > 0)
+
+                        logger.info(f"Tickers simulated: {len(strategy_results)}")
+                        logger.info(f"Total final value: ${total_final_value:,.2f}")
+                        logger.info(f"Average return: {avg_return * 100:.2f}%")
+                        logger.info(
+                            "Winning tickers: %d/%d (%.1f%%)",
+                            winning_tickers,
+                            len(strategy_results),
+                            winning_tickers / len(strategy_results) * 100,
+                        )
+            else:
+                # Fallback: ppo_worker was not pre-initialised (e.g. in the test
+                # suite).  Run PyTorch-based strategies directly in this process.
+                # Safe because PPOAgent sets torch.set_num_threads(1) and disables
+                # orthogonal weight init, avoiding Apple Silicon crashes.
+                logger.warning(
+                    "ppo_worker not pre-initialised — running PyTorch-based strategies in-process. "
+                    "Call ppo_worker.initialize() before any ML import for full pipeline isolation."
+                )
+                for strategy_key in main_thread_strategies:
+                    logger.info("=" * 60)
+                    logger.info(f"Strategy: {strategy_key} (in-process fallback)")
+                    logger.info("=" * 60)
+                    _strategy_start = time.perf_counter()
+
+                    strategy_results = {}
+                    for batch in ticker_batches:
+                        batch_results = _simulate_ticker_batch_worker(
+                            batch, strategy_key, int(initial_capital), transaction_cost
+                        )
                         for sym, results, skip_reason in batch_results:
                             if results is None:
                                 logger.warning(f"Skipping {sym}: {skip_reason}")
@@ -681,30 +762,96 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
                                 logger.info(f"--- {sym} ({len(results['portfolio_history'])} samples) ---")
                                 logger.info(f"Final Value: ${results['final_value']:,.2f}")
                                 logger.info(f"Return: {results['total_return'] * 100:.2f}%")
-                    except Exception:
-                        symbols_in_batch = [str(df["symbol"].iloc[0]) for df in batch]
-                        logger.exception(f"Error running {strategy_key} on batch {symbols_in_batch}")
 
-                all_results[strategy_key] = strategy_results
+                    all_results[strategy_key] = strategy_results
 
-                logger.info("=" * 60)
-                logger.info(f"Summary for {strategy_key}")
-                logger.info("=" * 60)
+                    logger.info("=" * 60)
+                    logger.info(f"Summary for {strategy_key}")
+                    logger.info("=" * 60)
+                    logger.info("Strategy '%s' completed in %.2fs", strategy_key, time.perf_counter() - _strategy_start)
 
-                if strategy_results:
-                    total_final_value = sum(r["final_value"] for r in strategy_results.values())
-                    avg_return = np.mean([r["total_return"] for r in strategy_results.values()])
-                    winning_tickers = sum(1 for r in strategy_results.values() if r["total_return"] > 0)
+                    if strategy_results:
+                        total_final_value = sum(r["final_value"] for r in strategy_results.values())
+                        avg_return = np.mean([r["total_return"] for r in strategy_results.values()])
+                        winning_tickers = sum(1 for r in strategy_results.values() if r["total_return"] > 0)
 
-                    logger.info(f"Tickers simulated: {len(strategy_results)}")
-                    logger.info(f"Total final value: ${total_final_value:,.2f}")
-                    logger.info(f"Average return: {avg_return * 100:.2f}%")
-                    logger.info(
-                        "Winning tickers: %d/%d (%.1f%%)",
-                        winning_tickers,
-                        len(strategy_results),
-                        winning_tickers / len(strategy_results) * 100,
-                    )
+                        logger.info(f"Tickers simulated: {len(strategy_results)}")
+                        logger.info(f"Total final value: ${total_final_value:,.2f}")
+                        logger.info(f"Average return: {avg_return * 100:.2f}%")
+                        logger.info(
+                            "Winning tickers: %d/%d (%.1f%%)",
+                            winning_tickers,
+                            len(strategy_results),
+                            winning_tickers / len(strategy_results) * 100,
+                        )
+
+        # Run process-safe strategies with ProcessPoolExecutor
+        if process_safe_strategies:
+            _proc_pool_start = time.perf_counter()
+            with ProcessPoolExecutor() as pool:
+                for strategy_key in process_safe_strategies:
+                    logger.info("=" * 60)
+                    logger.info(f"Strategy: {strategy_key}")
+                    logger.info("=" * 60)
+                    _strategy_start = time.perf_counter()
+
+                    strategy_results: dict[str, Any] = {}
+
+                    batch_futures = [
+                        (
+                            pool.submit(
+                                _simulate_ticker_batch_worker,
+                                batch,
+                                strategy_key,
+                                int(initial_capital),
+                                transaction_cost,
+                            ),
+                            batch,
+                        )
+                        for batch in ticker_batches
+                    ]
+
+                    for future, batch in batch_futures:
+                        try:
+                            batch_results = future.result()
+                            for sym, results, skip_reason in batch_results:
+                                if results is None:
+                                    logger.warning(f"Skipping {sym}: {skip_reason}")
+                                else:
+                                    strategy_results[sym] = results
+                                    logger.info(f"--- {sym} ({len(results['portfolio_history'])} samples) ---")
+                                    logger.info(f"Final Value: ${results['final_value']:,.2f}")
+                                    logger.info(f"Return: {results['total_return'] * 100:.2f}%")
+                        except Exception:
+                            symbols_in_batch = [str(df["symbol"].iloc[0]) for df in batch]
+                            logger.exception(f"Error running {strategy_key} on batch {symbols_in_batch}")
+
+                    all_results[strategy_key] = strategy_results
+
+                    logger.info("=" * 60)
+                    logger.info(f"Summary for {strategy_key}")
+                    logger.info("=" * 60)
+                    logger.info("Strategy '%s' completed in %.2fs", strategy_key, time.perf_counter() - _strategy_start)
+
+                    if strategy_results:
+                        total_final_value = sum(r["final_value"] for r in strategy_results.values())
+                        avg_return = np.mean([r["total_return"] for r in strategy_results.values()])
+                        winning_tickers = sum(1 for r in strategy_results.values() if r["total_return"] > 0)
+
+                        logger.info(f"Tickers simulated: {len(strategy_results)}")
+                        logger.info(f"Total final value: ${total_final_value:,.2f}")
+                        logger.info(f"Average return: {avg_return * 100:.2f}%")
+                        logger.info(
+                            "Winning tickers: %d/%d (%.1f%%)",
+                            winning_tickers,
+                            len(strategy_results),
+                            winning_tickers / len(strategy_results) * 100,
+                        )
+
+            logger.info(
+                "ProcessPoolExecutor block (all process-safe strategies + pool shutdown) took %.2fs",
+                time.perf_counter() - _proc_pool_start,
+            )
 
         return self
 
