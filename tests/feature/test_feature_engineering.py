@@ -129,8 +129,7 @@ class TestKnownInputSanity:
         result = fe.get_df()
 
         ma_cols = [
-            c for c in result.columns
-            if c.startswith(("SMA_", "EMA_", "WMA_", "HMA_")) and c.split("_")[-1].isdigit()
+            c for c in result.columns if c.startswith(("SMA_", "EMA_", "WMA_", "HMA_")) and c.split("_")[-1].isdigit()
         ]
         assert len(ma_cols) > 0, "Expected at least one moving-average column"
         for col in ma_cols:
@@ -161,9 +160,7 @@ class TestKnownInputSanity:
         momentum_cols = [c for c in result.columns if c.startswith("Momentum_") and "_Ratio_" not in c]
         assert len(momentum_cols) > 0, "Expected at least one Momentum column"
         for col in momentum_cols:
-            assert (result[col] == 0.0).all(), (
-                f"{col} should be 0 for constant price, got: {result[col].unique()}"
-            )
+            assert (result[col] == 0.0).all(), f"{col} should be 0 for constant price, got: {result[col].unique()}"
 
 
 class TestCreateTargetFeatures:
