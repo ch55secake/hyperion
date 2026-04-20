@@ -104,17 +104,16 @@ class ModelServer:
                 if not isinstance(period, str):
                     return jsonify({"error": "period must be a string"}), 400
 
-                from src.train import train_model
+                from src.pipeline import StackedModelTrainingPipeline
 
-                result = train_model(symbols=ticker, period=period, interval=interval, visualization=False)
+                pipeline = StackedModelTrainingPipeline(
+                    symbols=[ticker],
+                    period=period,
+                    intervals=[interval],
+                )
+                pipeline.read_tickers().download_data().prepare_features().train().evaluate_model().simulate()
 
-                if result is None:
-                    return jsonify({"error": "Model training failed - no result returned"}), 500
-
-                if not result:
-                    return jsonify({"error": "Model training returned empty result"}), 500
-
-                return jsonify({"status": "success", "result": result}), 200
+                return jsonify({"status": "success"}), 200
 
             except KeyError as e:
                 return jsonify({"error": f"Missing field: {str(e)}"}), 400
