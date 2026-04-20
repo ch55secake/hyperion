@@ -7,6 +7,7 @@ from . import hold_days
 from . import hybrid_trend_ml
 from . import momentum
 from . import ppo
+from . import regime_aware
 from . import sltp
 from . import sma_trend
 from . import time_stop

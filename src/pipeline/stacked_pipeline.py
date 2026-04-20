@@ -24,6 +24,8 @@ from src.feature.feature_split import FeaturePartition, derive_feature_split
 
 # Required for the usage of the strategy registry
 
+_TICKER_BATCH_SIZE = 10
+
 
 def _simulate_ticker_worker(
     ticker_df: pd.DataFrame,
@@ -66,6 +68,20 @@ def _simulate_ticker_worker(
     )
 
     return symbol, results, None
+
+
+def _simulate_ticker_batch_worker(
+    ticker_dfs: list[pd.DataFrame],
+    strategy_key: str,
+    initial_capital: int,
+    transaction_cost: float = 0.001,
+) -> list[tuple[str, dict | None, str | None]]:
+    """Simulate a batch of tickers for one strategy.
+
+    Wraps :func:`_simulate_ticker_worker` to amortise per-future serialisation
+    overhead when submitting many tickers to a :class:`ProcessPoolExecutor`.
+    """
+    return [_simulate_ticker_worker(df, strategy_key, initial_capital, transaction_cost) for df in ticker_dfs]
 
 
 class StackedModelTrainingPipeline(BaseTrainingPipeline):
@@ -265,16 +281,21 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
                 test_prices[interval].append(prices.iloc[test_split_idx:])
                 test_symbols[interval].extend([symbol] * (len(x) - test_split_idx))
 
+        # Release raw OHLCV data now that per-ticker features have been computed.
+        self._stock_data = None
+
         logger.info("=" * 60)
         logger.info("Combining Training Data")
         logger.info("=" * 60)
         train_intervals = dict()
         for interval in self.intervals:
             train_intervals[interval] = pd.concat(train_features[interval], axis=0, ignore_index=False)
+            train_features[interval] = []
 
         train_targets_dict = dict()
         for interval in self.intervals:
             train_targets_dict[interval] = pd.concat(train_targets[interval], axis=0, ignore_index=False)
+            train_targets[interval] = []
 
         train_dates = pd.concat(train_dates[self.default_interval], axis=0, ignore_index=False)
         train_prices = pd.concat(train_prices[self.default_interval], axis=0, ignore_index=False)
@@ -286,10 +307,12 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         val_intervals = dict()
         for interval in self.intervals:
             val_intervals[interval] = pd.concat(val_features[interval], axis=0, ignore_index=False)
+            val_features[interval] = []
 
         val_targets_dict = dict()
         for interval in self.intervals:
             val_targets_dict[interval] = pd.concat(val_targets[interval], axis=0, ignore_index=False)
+            val_targets[interval] = []
 
         val_symbols_series = pd.Series(
             val_symbols[self.default_interval], index=val_intervals[self.default_interval].index
@@ -299,10 +322,12 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         test_intervals = dict()
         for interval in self.intervals:
             test_intervals[interval] = pd.concat(test_features[interval], axis=0, ignore_index=False)
+            test_features[interval] = []
 
         test_targets_dict = dict()
         for interval in self.intervals:
             test_targets_dict[interval] = pd.concat(test_targets[interval], axis=0, ignore_index=False)
+            test_targets[interval] = []
 
         test_dates = pd.concat(test_dates[self.default_interval], axis=0, ignore_index=False)
         test_prices = pd.concat(test_prices[self.default_interval], axis=0, ignore_index=False)
@@ -566,12 +591,24 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
             logger.warning("Predictions missing, computing via predictor.predict()")
             predictions = self._get_predictions()
 
-        min_len = min(
-            len(predictions), len(self._y_test), len(self._symbols_test), len(self._dates_test), len(self._prices_test)
-        )
+        lengths = {
+            "predictions": len(predictions),
+            "y_test": len(self._y_test),
+            "symbols_test": len(self._symbols_test),
+            "dates_test": len(self._dates_test),
+            "prices_test": len(self._prices_test),
+        }
+        min_len = min(lengths.values())
+        max_len = max(lengths.values())
+        tolerance = max(1, int(max_len * 0.01))
+        if max_len - min_len > tolerance:
+            raise ValueError(
+                f"Test data arrays are misaligned beyond the allowed tolerance ({tolerance} sample(s)). "
+                f"Lengths: {lengths}. Run train() again to rebuild aligned test data."
+            )
 
-        if len(predictions) != min_len:
-            logger.warning(f"Truncating all test data to {min_len} samples for alignment")
+        if max_len != min_len:
+            logger.warning(f"Truncating all test data to {min_len} samples for alignment. Lengths: {lengths}")
 
         pred_len = len(predictions)
 
@@ -610,59 +647,64 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
 
         logger.info(f"Running strategies: {strategies_to_run}")
 
-        all_results = {}
+        all_results: dict[str, dict[str, Any]] = {}
 
-        for strategy_key in strategies_to_run:
-            logger.info("=" * 60)
-            logger.info(f"Strategy: {strategy_key}")
-            logger.info("=" * 60)
+        ticker_dfs = [test_df[test_df["symbol"] == symbol].sort_values("date") for symbol in unique_symbols]
+        ticker_batches = [ticker_dfs[i : i + _TICKER_BATCH_SIZE] for i in range(0, len(ticker_dfs), _TICKER_BATCH_SIZE)]
 
-            strategy_results = {}
+        with ProcessPoolExecutor() as pool:
+            for strategy_key in strategies_to_run:
+                logger.info("=" * 60)
+                logger.info(f"Strategy: {strategy_key}")
+                logger.info("=" * 60)
 
-            ticker_dfs = [test_df[test_df["symbol"] == symbol].sort_values("date") for symbol in unique_symbols]
+                strategy_results: dict[str, Any] = {}
 
-            with ProcessPoolExecutor() as pool:
-                futures = [
+                batch_futures = [
                     (
-                        pool.submit(_simulate_ticker_worker, df, strategy_key, int(initial_capital), transaction_cost),
-                        str(df["symbol"].iloc[0]),
+                        pool.submit(
+                            _simulate_ticker_batch_worker, batch, strategy_key, int(initial_capital), transaction_cost
+                        ),
+                        batch,
                     )
-                    for df in ticker_dfs
+                    for batch in ticker_batches
                 ]
 
-                for future, symbol in futures:
+                for future, batch in batch_futures:
                     try:
-                        sym, results, skip_reason = future.result()
-                        if results is None:
-                            logger.warning(f"Skipping {sym}: {skip_reason}")
-                        else:
-                            strategy_results[sym] = results
-                            logger.info(f"--- {sym} ({len(results['portfolio_history'])} samples) ---")
-                            logger.info(f"Final Value: ${results['final_value']:,.2f}")
-                            logger.info(f"Return: {results['total_return'] * 100:.2f}%")
+                        batch_results = future.result()
+                        for sym, results, skip_reason in batch_results:
+                            if results is None:
+                                logger.warning(f"Skipping {sym}: {skip_reason}")
+                            else:
+                                strategy_results[sym] = results
+                                logger.info(f"--- {sym} ({len(results['portfolio_history'])} samples) ---")
+                                logger.info(f"Final Value: ${results['final_value']:,.2f}")
+                                logger.info(f"Return: {results['total_return'] * 100:.2f}%")
                     except Exception:
-                        logger.exception(f"Error running {strategy_key} on {symbol}")
+                        symbols_in_batch = [str(df["symbol"].iloc[0]) for df in batch]
+                        logger.exception(f"Error running {strategy_key} on batch {symbols_in_batch}")
 
-            all_results[strategy_key] = strategy_results
+                all_results[strategy_key] = strategy_results
 
-            logger.info("=" * 60)
-            logger.info(f"Summary for {strategy_key}")
-            logger.info("=" * 60)
+                logger.info("=" * 60)
+                logger.info(f"Summary for {strategy_key}")
+                logger.info("=" * 60)
 
-            if strategy_results:
-                total_final_value = sum(r["final_value"] for r in strategy_results.values())
-                avg_return = np.mean([r["total_return"] for r in strategy_results.values()])
-                winning_tickers = sum(1 for r in strategy_results.values() if r["total_return"] > 0)
+                if strategy_results:
+                    total_final_value = sum(r["final_value"] for r in strategy_results.values())
+                    avg_return = np.mean([r["total_return"] for r in strategy_results.values()])
+                    winning_tickers = sum(1 for r in strategy_results.values() if r["total_return"] > 0)
 
-                logger.info(f"Tickers simulated: {len(strategy_results)}")
-                logger.info(f"Total final value: ${total_final_value:,.2f}")
-                logger.info(f"Average return: {avg_return * 100:.2f}%")
-                logger.info(
-                    "Winning tickers: %d/%d (%.1f%%)",
-                    winning_tickers,
-                    len(strategy_results),
-                    winning_tickers / len(strategy_results) * 100,
-                )
+                    logger.info(f"Tickers simulated: {len(strategy_results)}")
+                    logger.info(f"Total final value: ${total_final_value:,.2f}")
+                    logger.info(f"Average return: {avg_return * 100:.2f}%")
+                    logger.info(
+                        "Winning tickers: %d/%d (%.1f%%)",
+                        winning_tickers,
+                        len(strategy_results),
+                        winning_tickers / len(strategy_results) * 100,
+                    )
 
         return self
 
