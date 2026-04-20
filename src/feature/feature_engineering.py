@@ -351,9 +351,7 @@ class FeatureEngineering:
             forward_std = daily_returns.rolling(h).std().shift(-h)
 
             # Forward Sharpe
-            self.df[f"Target_Sharpe_{h}d"] = (
-                forward_mean / forward_std.replace(0, np.nan)
-            ) * np.sqrt(h)
+            self.df[f"Target_Sharpe_{h}d"] = (forward_mean / forward_std.replace(0, np.nan)) * np.sqrt(h)
 
             # MDD-adjusted return: raw return / (1 + drawdown from entry to window trough)
             forward_return = self.df["Close"].pct_change(h).shift(-h)
@@ -364,9 +362,7 @@ class FeatureEngineering:
 
             # Sortino-style target
             forward_downside_std = downside_returns.rolling(h).std().shift(-h)
-            self.df[f"Target_Sortino_{h}d"] = (
-                forward_mean / forward_downside_std.replace(0, np.nan)
-            ) * np.sqrt(h)
+            self.df[f"Target_Sortino_{h}d"] = (forward_mean / forward_downside_std.replace(0, np.nan)) * np.sqrt(h)
 
     def _create_classification_targets(
         self,
