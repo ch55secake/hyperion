@@ -10,7 +10,7 @@ class XGBoostStockPredictor(Model):
     XGBoost model for stock price prediction with categorical feature support
     """
 
-    def __init__(self, params=None):
+    def __init__(self, params: dict | None = None):
         if params is None:
             params = {
                 "objective": "reg:squarederror",
@@ -67,8 +67,7 @@ class XGBoostStockPredictor(Model):
 
         if len(feature_names) != len(feature_importances):
             logger.warning(
-                f"Feature name count ({len(feature_names)}) doesn't match importance count "
-                f"({len(feature_importances)})"
+                f"Feature name count ({len(feature_names)}) doesn't match importance count ({len(feature_importances)})"
             )
             feature_names = [f"feature_{i}" for i in range(len(feature_importances))]
 
@@ -86,4 +85,4 @@ class XGBoostStockPredictor(Model):
 
     def predict(self, x):
         """Make predictions"""
-        return self.model.predict(self._prepare_prediction(x))
+        return self.model.predict(self._prepare_prediction(x))  # ty: ignore[unresolved-attribute]

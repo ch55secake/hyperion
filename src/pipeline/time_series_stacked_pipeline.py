@@ -18,11 +18,9 @@ from src.util import logger
 from src.writer import save_trained_model
 
 # Required for the usage of the strategy registry
-import src.simulation.strategy  # pylint: disable=unused-import
 
 
 class TimeSeriesStackedModelTrainingPipeline(BaseTrainingPipeline):
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._xgb_params = None
@@ -199,7 +197,7 @@ class TimeSeriesStackedModelTrainingPipeline(BaseTrainingPipeline):
             logger.info("Converting test target index...")
             self._y_test.index = pd.to_datetime(self._y_test.index, utc=True)
 
-        test_meta_index = x_test_daily.index
+        test_meta_index = pd.DatetimeIndex(x_test_daily.index)
 
         logger.info("Concatenating train and test data...")
         base_models_full = [
@@ -259,13 +257,21 @@ class TimeSeriesStackedModelTrainingPipeline(BaseTrainingPipeline):
             pickle.dump(self._stacker, f)
         logger.info(f"Stacker saved to models/stacker_{model_name}.pkl")
 
-    def simulate(self, initial_capital: float = 10000, tickers=None, strategy_name: str = None):
+    def simulate(
+        self,
+        initial_capital: float = 10000,
+        transaction_cost: float = 0.001,
+        tickers=None,
+        strategy_name: str | None = None,
+    ):
         """
         Use the stacked trained model to simulate trading day by day, per ticker
         """
         if tickers is None:
             tickers = ["AAPL"]
 
+        if self._test_results is None:
+            raise Exception("Predictions missing. Run train() first.")
         predictions = self._test_results.get("predictions")
         if predictions is None:
             raise Exception("Predictions missing. Run train() first.")
@@ -367,6 +373,9 @@ class TimeSeriesStackedModelTrainingPipeline(BaseTrainingPipeline):
         """
         Run optimization for all base model types
         """
+        if x_train_daily is None or y_train is None or x_test_daily is None or y_test is None:
+            logger.warning("Skipping hyperparameter optimisation: training data not available")
+            return self
         optimizer = StockModelOptimizer(x_train_daily, y_train, x_test_daily, y_test, n_trials=200, n_jobs=1)
         optimizer.optimize_both()
 
@@ -389,11 +398,12 @@ class TimeSeriesStackedModelTrainingPipeline(BaseTrainingPipeline):
 
         if hasattr(self._stacker.fitted_meta, "coef_"):
             coeffs = self._stacker.fitted_meta.coef_
-            feature_names = self._stacker.meta_features.columns
+            if self._stacker.meta_features is not None:
+                feature_names = self._stacker.meta_features.columns
 
-            logger.info("Meta-Model Weights:")
-            for name, coef in zip(feature_names, coeffs):
-                logger.info(f"  {name}: {coef:.4f}")
+                logger.info("Meta-Model Weights:")
+                for name, coef in zip(feature_names, coeffs):
+                    logger.info(f"  {name}: {coef:.4f}")
 
         if self._base_predictions is not None:
             logger.info(f"Base Model Prediction Correlations:\n{self._base_predictions.corr()}")

@@ -28,10 +28,9 @@ hyperion/
 │   ├── util/         # Shared utilities (logger singleton)
 │   ├── visualisation/# Plots and charts
 │   ├── writer/       # Results / model persistence
-│   ├── main.py       # CLI entry-point
-│   └── train.py      # Training entry-point
+│   └── main.py       # CLI entry-point
 ├── resources/        # Static assets / ticker lists
-├── pyproject.toml    # Poetry project definition
+├── pyproject.toml    # uv project definition
 ├── Makefile          # Developer commands (see below)
 ├── .pre-commit-config.yaml
 └── AGENTS.md         # This file
@@ -44,25 +43,25 @@ hyperion/
 ### Setup
 
 ```bash
-make install   # poetry lock && poetry install
+make install   # uv sync
 ```
 
-Python **3.12** is required. Dependencies are managed with [Poetry](https://python-poetry.org/).
+Python **3.12** is required. Dependencies are managed with [uv](https://docs.astral.sh/uv/).
 
 ### Running
 
 ```bash
-make run       # poetry run python3 src/main.py
+make run       # uv run python3 src/main.py
 ```
 
 ### Code Style
 
-- **Formatter:** [Black](https://black.readthedocs.io/) — line length **120**.
-- **Linter:** [Pylint](https://pylint.org/) — max line length 120; several noisy checks disabled (see `.pylintrc`).
+- **Formatter / Linter:** [Ruff](https://docs.astral.sh/ruff/) — line length **120** (replaces Black and Pylint).
+- **Type checker:** [ty](https://docs.astral.sh/ty/) — static type analysis from the Astral ecosystem.
 - **Pre-commit hooks** (run automatically on commit and push):
-  - `poetry-lock`, `poetry-check`, `poetry-install`
   - Syntax checks: `check-ast`, `check-json`, `check-toml`, `check-yaml`
-  - Style: `end-of-file-fixer`, `trailing-whitespace`, `black`
+  - Style: `end-of-file-fixer`, `trailing-whitespace`, `ruff`, `ruff-format`
+  - Type checking: `ty`
 
 Install hooks once after cloning:
 ```bash
@@ -114,11 +113,13 @@ The logger is a singleton — importing it from any module always returns the sa
 
 ### Dependencies
 
-- Python: add dependencies via `poetry add <package>` — never edit `pyproject.toml` by hand for dependencies.
+- Python: add dependencies via `uv add <package>` — never edit `pyproject.toml` by hand for dependencies.
 
 ### Testing
 
 ```bash
-make test       # poetry run pytest tests/ -v --tb=short
+make test       # uv run pytest tests/ -v --tb=short
 make test-cov   # run tests with coverage report
+make typecheck  # uv run ty check
 ```
+

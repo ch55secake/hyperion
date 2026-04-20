@@ -17,8 +17,8 @@ from src.model.model import Model
 class _DummyModel(Model):
     """Trivial concrete subclass: simply stores and returns a constant."""
 
-    def __init__(self, params=None):
-        super().__init__("dummy", params=params)
+    def __init__(self, model_name: str = "dummy", params=None):
+        super().__init__(model_name, params=params)
         self._constant = None
         self.model = None
 

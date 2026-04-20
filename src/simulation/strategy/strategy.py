@@ -75,7 +75,7 @@ class Strategy(ABC):
         return sim_results, strategy.simulator
 
     @staticmethod
-    def get_extra_params(price_series: pd.Series) -> Dict[str, Any]:
+    def get_extra_params(prices_series: pd.Series) -> Dict[str, Any]:
         return {}
 
     @staticmethod

@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 
 class TradeAction(Enum):
@@ -11,7 +12,7 @@ class TradeAction(Enum):
 
 @dataclass
 class Trade:
-    date: str | None
+    date: Any
     action: str  # TradeAction
     predicted_return: float | None
     profit: float | None
@@ -21,7 +22,7 @@ class Trade:
 
 @dataclass
 class PortfolioHistory:
-    date: str
+    date: Any
     portfolio_value: float
     position: str
     prediction: float

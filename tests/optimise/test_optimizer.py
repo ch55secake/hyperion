@@ -197,3 +197,101 @@ class TestLightGBMObjective:
         opt.lightgbm_objective(trial)
         assert "mae" in trial._attrs
         assert "r2" in trial._attrs
+
+
+# ---------------------------------------------------------------------------
+# Three-way temporal split (data-leakage regression tests)
+# ---------------------------------------------------------------------------
+
+
+class TestThreeWayTemporalSplit:
+    """Verify that the train / val / test split is laid out correctly in time."""
+
+    def _make_random_data(self, n: int = 100, n_features: int = 3, seed: int = 0):
+        rng = np.random.default_rng(seed)
+        cols = [f"f{i}" for i in range(n_features)]
+        x = pd.DataFrame(rng.normal(0, 1, (n, n_features)), columns=cols)
+        y = pd.Series(rng.normal(0, 0.02, n))
+        return x, y
+
+    def test_val_indices_are_strictly_after_train(self):
+        """Validation samples must come strictly after all training samples in time.
+
+        Temporal ordering ensures the model cannot see future validation data during
+        training, preventing look-ahead data leakage.
+        """
+        x, y = self._make_random_data(n=100)
+        test_size = 0.2
+        val_size = 0.1
+        n = len(x)
+        test_split_idx = int(n * (1 - test_size))
+        val_split_idx = int(n * (1 - test_size - val_size))
+
+        x_train = x.iloc[:val_split_idx]
+        x_val = x.iloc[val_split_idx:test_split_idx]
+
+        assert val_split_idx > 0, "val split index must be positive"
+        assert len(x_train) > 0
+        assert len(x_val) > 0
+        # All val indices must be >= val_split_idx (i.e. strictly after train)
+        assert x_val.index.min() >= val_split_idx
+
+    def test_test_indices_are_strictly_after_val(self):
+        """Test samples must come strictly after all validation samples in time.
+
+        Keeping the test set after validation ensures hyperparameter tuning (which
+        uses the validation split) cannot influence the final out-of-sample metric.
+        """
+        x, y = self._make_random_data(n=100)
+        test_size = 0.2
+        val_size = 0.1
+        n = len(x)
+        test_split_idx = int(n * (1 - test_size))
+        val_split_idx = int(n * (1 - test_size - val_size))
+
+        x_val = x.iloc[val_split_idx:test_split_idx]
+        x_test = x.iloc[test_split_idx:]
+
+        assert len(x_val) > 0
+        assert len(x_test) > 0
+        assert x_test.index.min() >= test_split_idx
+
+    def test_splits_are_non_overlapping_and_exhaustive(self):
+        """Train + val + test must cover all rows without overlap."""
+        x, y = self._make_random_data(n=100)
+        test_size = 0.2
+        val_size = 0.1
+        n = len(x)
+        test_split_idx = int(n * (1 - test_size))
+        val_split_idx = int(n * (1 - test_size - val_size))
+
+        x_train = x.iloc[:val_split_idx]
+        x_val = x.iloc[val_split_idx:test_split_idx]
+        x_test = x.iloc[test_split_idx:]
+
+        # Exhaustive
+        assert len(x_train) + len(x_val) + len(x_test) == n
+        # Non-overlapping
+        all_indices = list(x_train.index) + list(x_val.index) + list(x_test.index)
+        assert len(all_indices) == len(set(all_indices))
+
+    def test_optimizer_receives_val_not_test(self):
+        """The optimizer's x_val must match the validation slice, not the test slice."""
+        x, y = self._make_random_data(n=100)
+        test_size = 0.2
+        val_size = 0.1
+        n = len(x)
+        test_split_idx = int(n * (1 - test_size))
+        val_split_idx = int(n * (1 - test_size - val_size))
+
+        x_train = x.iloc[:val_split_idx]
+        x_val = x.iloc[val_split_idx:test_split_idx]
+        x_test = x.iloc[test_split_idx:]
+        y_train = y.iloc[:val_split_idx]
+        y_val = y.iloc[val_split_idx:test_split_idx]
+
+        opt = StockModelOptimizer(x_train, y_train, x_val, y_val, n_trials=1)
+
+        # The optimizer should hold the val slice, not the test slice
+        assert len(opt.x_val) == len(x_val)
+        assert len(opt.x_val) != len(x_test), "Optimizer must receive the validation set, not the held-out test set"

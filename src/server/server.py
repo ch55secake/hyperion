@@ -89,7 +89,7 @@ class ModelServer:
                 missing_fields = [field for field in required_fields if field not in data]
 
                 if missing_fields:
-                    return jsonify({"error": f'Missing required fields: {", ".join(missing_fields)}'}), 400
+                    return jsonify({"error": f"Missing required fields: {', '.join(missing_fields)}"}), 400
 
                 ticker = data["ticker"]
                 interval = data["interval"]
@@ -104,17 +104,16 @@ class ModelServer:
                 if not isinstance(period, str):
                     return jsonify({"error": "period must be a string"}), 400
 
-                from src.train import train_model
+                from src.pipeline import StackedModelTrainingPipeline
 
-                result = train_model(symbols=ticker, period=period, interval=interval, visualization=False)
+                pipeline = StackedModelTrainingPipeline(
+                    symbols=[ticker],
+                    period=period,
+                    intervals=[interval],
+                )
+                pipeline.read_tickers().download_data().prepare_features().train().evaluate_model().simulate()
 
-                if result is None:
-                    return jsonify({"error": "Model training failed - no result returned"}), 500
-
-                if not result:
-                    return jsonify({"error": "Model training returned empty result"}), 500
-
-                return jsonify({"status": "success", "result": result}), 200
+                return jsonify({"status": "success"}), 200
 
             except KeyError as e:
                 return jsonify({"error": f"Missing field: {str(e)}"}), 400
@@ -133,7 +132,7 @@ class ModelServer:
 def parse_prediction_file(content: str) -> dict:
     """Parse prediction text file into structured data"""
 
-    result = {
+    result: Dict[str, Any] = {
         "ticker": None,
         "generated_at": None,
         "data_date": None,
@@ -214,16 +213,17 @@ def parse_trading_results(content: str) -> Dict[str, Any]:
         Dictionary with structured prediction data
     """
 
-    result = {
+    trading_simulation: Dict[str, Any] = {
+        "initial_capital": None,
+        "strategies": {"directional": {}, "adaptive_threshold": {}, "hold_days": {}},
+        "buy_and_hold_return": None,
+        "best_strategy": {"name": None, "final_value": None, "total_return": None, "number_of_trades": None},
+    }
+    result: Dict[str, Any] = {
         "ticker": None,
         "data_info": {"period": None, "total_samples": None, "train_samples": None, "test_samples": None},
         "model_performance": {"test_rmse": None, "test_mae": None, "test_r2": None},
-        "trading_simulation": {
-            "initial_capital": None,
-            "strategies": {"directional": {}, "adaptive_threshold": {}, "hold_days": {}},
-            "buy_and_hold_return": None,
-            "best_strategy": {"name": None, "final_value": None, "total_return": None, "number_of_trades": None},
-        },
+        "trading_simulation": trading_simulation,
     }
 
     # Extract ticker
