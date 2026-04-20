@@ -1,12 +1,18 @@
+import traceback
 from typing import Any
 
+import numpy as np
+import pandas as pd
+
 from src.model import LightGBMStockPredictor
+from src.model import XGBoostStockPredictor
 from src.model.catboost.catboost_predictor import CatBoostStockPredictor
 from src.optimise import StockModelOptimizer
 from src.pipeline.base_pipeline import BaseTrainingPipeline
+from src.simulation import TradingSimulator
+from src.simulation.strategy.strategy_registry import StrategyRegistry
 from src.util import logger
 from src.writer import save_trained_model
-from src.model import XGBoostStockPredictor
 
 
 class SingleModelTrainingPipeline(BaseTrainingPipeline):
@@ -85,6 +91,7 @@ class SingleModelTrainingPipeline(BaseTrainingPipeline):
 
         self._x_test_dict = {"daily": x_test_daily}
         test_results = self._model.evaluate(x_test_daily, self._y_test)
+        self._test_results = test_results
 
         save_trained_model(
             self._model,
@@ -94,5 +101,99 @@ class SingleModelTrainingPipeline(BaseTrainingPipeline):
             self.r2_invalid_threshold,
         )
         logger.info(f"{self.model_type.upper()} model training complete!")
+
+        return self
+
+    def simulate(
+        self,
+        initial_capital: float = 10000,
+        transaction_cost: float = 0.001,
+        tickers: list[str] | None = None,
+        strategy_name: str | None = None,
+    ):
+        """
+        Simulate trading day by day using the trained single model's predictions.
+        :param initial_capital: Starting capital for each ticker simulation.
+        :param transaction_cost: Fractional transaction cost applied on each trade.
+        :param tickers: Optional list of tickers to restrict simulation to.
+        :param strategy_name: Name of a specific strategy to run; runs all registered
+            strategies when ``None``.
+        :return: pipeline instance
+        """
+        if self._test_results is None:
+            raise RuntimeError("Predictions missing. Run train() first.")
+        predictions = self._test_results.get("predictions")
+        if predictions is None:
+            raise RuntimeError("Predictions missing. Run train() first.")
+
+        test_df = pd.DataFrame(
+            {
+                "symbol": self._symbols_test,
+                "date": self._dates_test,
+                "price": self._prices_test,
+                "prediction": predictions,
+                "actual_return": self._y_test,
+            }
+        )
+
+        if tickers is not None:
+            test_df = test_df[test_df["symbol"].isin(tickers)]
+            logger.info(f"Filtering to {len(tickers)} tickers: {tickers}")
+
+        unique_symbols = test_df["symbol"].unique()
+        logger.info(f"Simulating {len(unique_symbols)} tickers")
+
+        available_strategies = StrategyRegistry.list()
+        if strategy_name is not None:
+            if strategy_name not in available_strategies:
+                raise ValueError(f"Strategy '{strategy_name}' not found. Available: {available_strategies}")
+            strategies_to_run = [strategy_name]
+        else:
+            strategies_to_run = available_strategies
+
+        logger.info(f"Running strategies: {strategies_to_run}")
+
+        all_results = {}
+
+        for strategy_key in strategies_to_run:
+            logger.info(f"Strategy: {strategy_key}")
+            strategy_results = {}
+
+            for symbol in unique_symbols:
+                try:
+                    ticker_data = test_df[test_df["symbol"] == symbol].sort_values("date")
+                    strategy_class = StrategyRegistry.get(strategy_key)
+
+                    if len(ticker_data) < strategy_class.get_minimum_data_points():
+                        logger.info(f"Skipping {symbol}: insufficient data ({len(ticker_data)} rows)")
+                        continue
+
+                    logger.info(f"{symbol} ({len(ticker_data)} samples)")
+                    additional_data = strategy_class.get_extra_params(ticker_data.set_index("date")["price"])
+
+                    simulator = TradingSimulator(initial_capital=initial_capital, transaction_cost=transaction_cost)
+                    strategy = StrategyRegistry.create(
+                        name=strategy_key, simulator=simulator, capital=initial_capital, **additional_data
+                    )
+
+                    ticker_data_reset = ticker_data.reset_index(drop=True)
+                    threshold = np.percentile(np.abs(predictions), 75)
+
+                    results = simulator.simulate(
+                        predictions=ticker_data_reset["prediction"],
+                        actual_returns=ticker_data_reset["actual_return"],
+                        prices=ticker_data_reset["price"],
+                        dates=ticker_data_reset["date"],
+                        strategy=strategy,
+                        threshold=threshold,
+                    )
+                    strategy_results[symbol] = results
+                    logger.info(f"Final Value: ${results['final_value']:,.2f}")
+                    logger.info(f"Return: {results['total_return'] * 100:.2f}%")
+                except Exception as e:
+                    logger.error(f"Error running {strategy_key} on {symbol}: {e}")
+                    traceback.print_exc()
+
+            all_results[strategy_key] = strategy_results
 
         return self
