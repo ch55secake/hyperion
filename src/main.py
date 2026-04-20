@@ -45,6 +45,35 @@ def _parse_args() -> HyperionConfig:
         help="Number of forward days used to compute the return target.",
     )
     parser.add_argument(
+        "--target-horizons",
+        default=None,
+        help="Comma-separated list of additional forward-return horizons (e.g. '1,5,10,20').",
+    )
+    parser.add_argument(
+        "--target-risk-adjusted",
+        action="store_true",
+        default=defaults.target_risk_adjusted,
+        help="Add forward Sharpe, MDD-adjusted, and Sortino-style target columns.",
+    )
+    parser.add_argument(
+        "--target-classification",
+        action="store_true",
+        default=defaults.target_classification,
+        help="Add Target_Binary and Target_Ternary classification columns.",
+    )
+    parser.add_argument(
+        "--target-up-threshold",
+        type=float,
+        default=defaults.target_up_threshold,
+        help="Return threshold above which a sample is labelled 'up' for classification.",
+    )
+    parser.add_argument(
+        "--target-down-threshold",
+        type=float,
+        default=defaults.target_down_threshold,
+        help="Return threshold below which a sample is labelled 'down' for classification.",
+    )
+    parser.add_argument(
         "--n-trials",
         type=int,
         default=defaults.n_trials,
@@ -75,11 +104,17 @@ def _parse_args() -> HyperionConfig:
         help="Proportional transaction cost per trade (e.g. 0.001 = 0.1 %%).",
     )
     args = parser.parse_args()
+    horizons = [int(h.strip()) for h in args.target_horizons.split(",")] if args.target_horizons else None
     return HyperionConfig(
         period=args.period,
         intervals=[i.strip() for i in args.intervals.split(",")],
         test_size=args.test_size,
         target_days=args.target_days,
+        target_horizons=horizons,
+        target_risk_adjusted=args.target_risk_adjusted,
+        target_classification=args.target_classification,
+        target_up_threshold=args.target_up_threshold,
+        target_down_threshold=args.target_down_threshold,
         n_trials=args.n_trials,
         r2_save_threshold=args.r2_save_threshold,
         r2_invalid_threshold=args.r2_invalid_threshold,
@@ -97,6 +132,11 @@ if __name__ == "__main__":
         test_size=config.test_size,
         n_trials=config.n_trials,
         target_days=config.target_days,
+        target_horizons=config.target_horizons,
+        target_risk_adjusted=config.target_risk_adjusted,
+        target_classification=config.target_classification,
+        target_up_threshold=config.target_up_threshold,
+        target_down_threshold=config.target_down_threshold,
         r2_save_threshold=config.r2_save_threshold,
         r2_invalid_threshold=config.r2_invalid_threshold,
     )
@@ -116,6 +156,11 @@ if __name__ == "__main__":
         test_size=config.test_size,
         n_trials=config.n_trials,
         target_days=config.target_days,
+        target_horizons=config.target_horizons,
+        target_risk_adjusted=config.target_risk_adjusted,
+        target_classification=config.target_classification,
+        target_up_threshold=config.target_up_threshold,
+        target_down_threshold=config.target_down_threshold,
         r2_save_threshold=config.r2_save_threshold,
         r2_invalid_threshold=config.r2_invalid_threshold,
     )
