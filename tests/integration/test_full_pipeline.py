@@ -135,7 +135,7 @@ def full_single_pipeline():
 # TSSP uses TimeSeriesSplit internally, which requires unique timestamps per row.
 # The base prepare_features() produces duplicate timestamps when multiple tickers
 # are concatenated.  A single ticker avoids that limitation.
-_TS_TICKERS = ["AAPL"]
+_TS_TICKER = "AAPL"
 _TS_N_ROWS = 200  # more rows to ensure enough samples for n_splits=5 CV folds
 
 
@@ -153,14 +153,14 @@ def full_ts_stacked_pipeline():
     produces duplicate index entries that confuse the splitter.
     """
     pipeline = TimeSeriesStackedModelTrainingPipeline(
-        symbols=_TS_TICKERS,
+        symbols=[_TS_TICKER],
         test_size=0.2,
     )
     pipeline._xgb_params = {**fast_xgb_params(), "n_estimators": 5}
     pipeline._lgb_params = {**fast_lgb_params(), "n_estimators": 5}
     pipeline._cat_params = fast_cat_params()
 
-    mock_downloader = _make_mock_downloader(_TS_TICKERS, _TS_N_ROWS, seed_offset=300)
+    mock_downloader = _make_mock_downloader([_TS_TICKER], _TS_N_ROWS, seed_offset=300)
 
     with (
         patch("src.pipeline.base_pipeline.StockDataDownloader", return_value=mock_downloader),
@@ -327,8 +327,7 @@ class TestTSStackedPipelineAlignment:
 
     def test_ticker_represented_in_test_set(self, full_ts_stacked_pipeline):
         unique_syms = set(full_ts_stacked_pipeline._symbols_test.unique())
-        for ticker in _TS_TICKERS:
-            assert ticker in unique_syms, f"{ticker} missing from test set symbols"
+        assert _TS_TICKER in unique_syms, f"{_TS_TICKER} missing from test set symbols"
 
 
 class TestTSStackedPipelineSimulate:

@@ -1,4 +1,3 @@
-import traceback
 from typing import Any
 
 import numpy as np
@@ -191,8 +190,7 @@ class SingleModelTrainingPipeline(BaseTrainingPipeline):
                     logger.info(f"Final Value: ${results['final_value']:,.2f}")
                     logger.info(f"Return: {results['total_return'] * 100:.2f}%")
                 except Exception as e:
-                    logger.error(f"Error running {strategy_key} on {symbol}: {e}")
-                    traceback.print_exc()
+                    logger.error("Error running %s on %s: %s", strategy_key, symbol, e, exc_info=True)
 
             all_results[strategy_key] = strategy_results
 
