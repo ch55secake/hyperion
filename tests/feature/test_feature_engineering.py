@@ -104,6 +104,65 @@ class TestAddAllTechnicalIndicators:
         assert "RSI" not in result.columns
 
 
+def make_constant_price_df(n=120, price=100.0, volume=5000.0):
+    """OHLCV DataFrame where every price is identical (no movement at all)."""
+    return pd.DataFrame(
+        {
+            "Open": [price] * n,
+            "High": [price] * n,
+            "Low": [price] * n,
+            "Close": [price] * n,
+            "Volume": [volume] * n,
+        }
+    )
+
+
+class TestKnownInputSanity:
+    """Value-level checks for analytically predictable outputs on constant-price input."""
+
+    def test_sma_ema_wma_equal_constant_price(self):
+        """All moving average columns must equal the constant price when price never changes."""
+        price = 100.0
+        df = make_constant_price_df(price=price)
+        fe = FeatureEngineering(df)
+        fe.add_all_technical_indicators()
+        result = fe.get_df()
+
+        ma_cols = [
+            c for c in result.columns if c.startswith(("SMA_", "EMA_", "WMA_", "HMA_")) and c.split("_")[-1].isdigit()
+        ]
+        assert len(ma_cols) > 0, "Expected at least one moving-average column"
+        for col in ma_cols:
+            np.testing.assert_allclose(
+                result[col].to_numpy(),
+                price,
+                rtol=1e-10,
+                err_msg=f"{col} should equal {price} for constant input",
+            )
+
+    def test_atr_zero_for_constant_price(self):
+        """ATR must be 0 when High == Low == Close == constant."""
+        df = make_constant_price_df()
+        fe = FeatureEngineering(df)
+        fe.add_all_technical_indicators()
+        result = fe.get_df()
+
+        assert "ATR" in result.columns, "ATR column should be present"
+        assert (result["ATR"] == 0.0).all(), f"ATR should be 0 for constant price, got: {result['ATR'].unique()}"
+
+    def test_momentum_zero_for_constant_price(self):
+        """All Momentum_n columns must be 0 when price never changes."""
+        df = make_constant_price_df()
+        fe = FeatureEngineering(df)
+        fe.add_all_technical_indicators()
+        result = fe.get_df()
+
+        momentum_cols = [c for c in result.columns if c.startswith("Momentum_") and "_Ratio_" not in c]
+        assert len(momentum_cols) > 0, "Expected at least one Momentum column"
+        for col in momentum_cols:
+            assert (result[col] == 0.0).all(), f"{col} should be 0 for constant price, got: {result[col].unique()}"
+
+
 class TestCreateTargetFeatures:
     def test_target_column_added(self):
         df = _make_df(n=120)
