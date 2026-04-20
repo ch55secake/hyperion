@@ -726,33 +726,34 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
         if ranked_df.empty:
             return ranked_df
 
-        logger.info("=" * 60)
-        logger.info("Stock Ranking and Capital Allocation")
-        logger.info("=" * 60)
-        logger.info("Total funds: $%s", f"{total_funds:,.2f}")
-        logger.info("Minimum confidence: %s", f"{min_confidence:.0%}")
-        logger.info("Stocks ranked: %d", len(ranked_df))
-
         col_fmt = "{:<8} {:>14} {:>12} {:>12} {:>14} {:>5} {:>14}"
         header = col_fmt.format(
             "Symbol", "Exp Return", "Confidence", "Volatility", "Priority", "Rank", "Allocation ($)"
         )
         separator = "-" * len(header)
-        logger.info(header)
-        logger.info(separator)
-        for _, row in ranked_df.iterrows():
-            logger.info(
-                col_fmt.format(
-                    row["symbol"],
-                    f"{row['expected_return'] * 100:+.2f}%",
-                    f"{row['confidence']:.4f}",
-                    f"{row['volatility']:.6f}",
-                    f"{row['priority_score']:.4f}",
-                    int(row["rank"]),
-                    f"${row['allocation']:,.2f}",
-                )
+        rows = "\n".join(
+            col_fmt.format(
+                row["symbol"],
+                f"{row['expected_return'] * 100:+.2f}%",
+                f"{row['confidence']:.4f}",
+                f"{row['volatility']:.6f}",
+                f"{row['priority_score']:.4f}",
+                int(row["rank"]),
+                f"${row['allocation']:,.2f}",
             )
-        logger.info("=" * 60)
+            for _, row in ranked_df.iterrows()
+        )
+        logger.info(
+            "Stock Ranking and Capital Allocation\n"
+            "Total funds: $%s | Minimum confidence: %s | Stocks ranked: %d\n"
+            "%s\n%s\n%s",
+            f"{total_funds:,.2f}",
+            f"{min_confidence:.0%}",
+            len(ranked_df),
+            header,
+            separator,
+            rows,
+        )
 
         return ranked_df
 
