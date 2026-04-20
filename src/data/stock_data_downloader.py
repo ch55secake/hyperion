@@ -4,7 +4,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
 import yfinance as yf
@@ -109,6 +109,7 @@ class StockDataDownloader:
             df, needs_refresh = self._load_cached_parquet(complete_path, symbol)
             if not needs_refresh:
                 logger.info(f"Using cached data for {symbol}")
+                assert df is not None  # guaranteed: _load_cached_parquet only returns None when needs_refresh=True
                 with self._lock:
                     self._history_data[(symbol, self.period, self.interval)] = df
                 return symbol, df
@@ -120,7 +121,7 @@ class StockDataDownloader:
             max_retries = 3
             for attempt in range(max_retries):
                 try:
-                    df = ticker.history(period=self.period, interval=self.interval)
+                    df = cast(pd.DataFrame, ticker.history(period=self.period, interval=self.interval))
                     break
                 except Exception as e:
                     if "database is locked" in str(e).lower() and attempt < max_retries - 1:
@@ -134,6 +135,7 @@ class StockDataDownloader:
                         raise
 
             with self._lock:
+                assert isinstance(df, pd.DataFrame)  # loop always assigns via cast; narrows type
                 self._history_data[(symbol, self.period, self.interval)] = df
 
             if df.empty:
