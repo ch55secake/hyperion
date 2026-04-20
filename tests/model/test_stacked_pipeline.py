@@ -246,6 +246,4 @@ class TestStackedPipelineRegression:
         for split in ("train", "test"):
             df = prepared_pipeline._test_train_data[split][default_iv]
             float64_cols = [c for c in df.columns if df[c].dtype == "float64"]
-            assert float64_cols == [], (
-                f"Expected no float64 columns in {split} split, found: {float64_cols}"
-            )
+            assert float64_cols == [], f"Expected no float64 columns in {split} split, found: {float64_cols}"
