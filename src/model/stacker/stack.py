@@ -229,3 +229,56 @@ class TimeSeriesStacker:
                 evals["rmse"] = np.sqrt(mean_squared_error(y_test.loc[common_idx], meta_preds.loc[common_idx]))
 
         return {"base_preds": base_preds_df, "meta_preds": meta_preds, "evals": evals}
+
+    # ------------------------------------------------------------------
+    # Online meta-learner update
+    # ------------------------------------------------------------------
+
+    def partial_update(self, base_preds_dict: Dict[str, float], actual: float) -> None:
+        """
+        Incrementally update the fitted meta-learner with a single new observation.
+
+        Requires the meta model to support ``partial_fit`` (e.g.
+        ``sklearn.linear_model.SGDRegressor`` or ``PassiveAggressiveRegressor``).
+        Pass a ``meta_model`` that supports ``partial_fit`` when constructing
+        ``TimeSeriesStacker`` to enable this method.
+
+        :param base_preds_dict: dict mapping each base model name to its scalar prediction
+        :param actual: the observed actual target value for this step
+        :raises RuntimeError: if ``fit_meta()`` has not been called yet
+        :raises TypeError: if the meta model does not support ``partial_fit``
+        """
+        if self.fitted_meta is None:
+            raise RuntimeError("Meta model not trained. Call fit_meta() first.")
+        if not hasattr(self.fitted_meta, "partial_fit"):
+            raise TypeError(
+                f"Meta model {type(self.fitted_meta).__name__} does not support partial_fit. "
+                "Use an online learner such as sklearn.linear_model.SGDRegressor or "
+                "PassiveAggressiveRegressor."
+            )
+        model_names = [b["name"] for b in self.base_models]
+        x_new = np.array([[base_preds_dict[name] for name in model_names]])
+        y_new = np.array([actual])
+        self.fitted_meta.partial_fit(x_new, y_new)
+
+    def partial_update_batch(self, base_preds_df: "pd.DataFrame", actuals: "pd.Series") -> None:
+        """
+        Incrementally update the fitted meta-learner with a batch of new observations.
+
+        :param base_preds_df: DataFrame whose columns are base model names and rows are observations
+        :param actuals: pd.Series of observed target values aligned to *base_preds_df*
+        :raises RuntimeError: if ``fit_meta()`` has not been called yet
+        :raises TypeError: if the meta model does not support ``partial_fit``
+        """
+        if self.fitted_meta is None:
+            raise RuntimeError("Meta model not trained. Call fit_meta() first.")
+        if not hasattr(self.fitted_meta, "partial_fit"):
+            raise TypeError(
+                f"Meta model {type(self.fitted_meta).__name__} does not support partial_fit. "
+                "Use an online learner such as sklearn.linear_model.SGDRegressor or "
+                "PassiveAggressiveRegressor."
+            )
+        model_names = [b["name"] for b in self.base_models]
+        x_new = base_preds_df[model_names].values
+        y_new = actuals.values
+        self.fitted_meta.partial_fit(x_new, y_new)
