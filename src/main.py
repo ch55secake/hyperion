@@ -2,9 +2,12 @@ import argparse
 import os
 import warnings
 
+# ppo_worker has no ML imports at module level — safe to import before
+# LightGBM / PyTorch are loaded.  initialize() must be called first thing
+# inside __main__ to start the worker in a clean OpenMP environment.
+import src.util.ppo_worker as _ppo_worker
+
 from src.config import HyperionConfig
-from src.pipeline.stacked_pipeline import StackedModelTrainingPipeline
-from src.pipeline.time_series_stacked_pipeline import TimeSeriesStackedModelTrainingPipeline
 
 warnings.filterwarnings("ignore")
 
@@ -45,6 +48,35 @@ def _parse_args() -> HyperionConfig:
         help="Number of forward days used to compute the return target.",
     )
     parser.add_argument(
+        "--target-horizons",
+        default=None,
+        help="Comma-separated list of additional forward-return horizons (e.g. '1,5,10,20').",
+    )
+    parser.add_argument(
+        "--target-risk-adjusted",
+        action="store_true",
+        default=defaults.target_risk_adjusted,
+        help="Add forward Sharpe, MDD-adjusted, and Sortino-style target columns.",
+    )
+    parser.add_argument(
+        "--target-classification",
+        action="store_true",
+        default=defaults.target_classification,
+        help="Add Target_Binary and Target_Ternary classification columns.",
+    )
+    parser.add_argument(
+        "--target-up-threshold",
+        type=float,
+        default=defaults.target_up_threshold,
+        help="Return threshold above which a sample is labelled 'up' for classification.",
+    )
+    parser.add_argument(
+        "--target-down-threshold",
+        type=float,
+        default=defaults.target_down_threshold,
+        help="Return threshold below which a sample is labelled 'down' for classification.",
+    )
+    parser.add_argument(
         "--n-trials",
         type=int,
         default=defaults.n_trials,
@@ -75,11 +107,17 @@ def _parse_args() -> HyperionConfig:
         help="Proportional transaction cost per trade (e.g. 0.001 = 0.1 %%).",
     )
     args = parser.parse_args()
+    horizons = [int(h.strip()) for h in args.target_horizons.split(",")] if args.target_horizons else None
     return HyperionConfig(
         period=args.period,
         intervals=[i.strip() for i in args.intervals.split(",")],
         test_size=args.test_size,
         target_days=args.target_days,
+        target_horizons=horizons,
+        target_risk_adjusted=args.target_risk_adjusted,
+        target_classification=args.target_classification,
+        target_up_threshold=args.target_up_threshold,
+        target_down_threshold=args.target_down_threshold,
         n_trials=args.n_trials,
         r2_save_threshold=args.r2_save_threshold,
         r2_invalid_threshold=args.r2_invalid_threshold,
@@ -89,6 +127,21 @@ def _parse_args() -> HyperionConfig:
 
 
 if __name__ == "__main__":
+    # ------------------------------------------------------------------ #
+    # Start the PPO worker subprocess BEFORE any ML library is imported.  #
+    # LightGBM and PyTorch each bundle their own libomp.dylib; loading    #
+    # both in the parent process corrupts OS-level POSIX semaphores that  #
+    # torch tries to re-acquire in any later spawned subprocess.          #
+    # Starting the worker here gives it a clean OpenMP environment.       #
+    # ------------------------------------------------------------------ #
+    _ppo_worker.initialize()
+
+    # ML pipeline imports happen after the worker is running so they can
+    # load LightGBM (and later torch in the parent) without risk — the
+    # worker subprocess is already isolated.
+    from src.pipeline.stacked_pipeline import StackedModelTrainingPipeline
+    from src.pipeline.time_series_stacked_pipeline import TimeSeriesStackedModelTrainingPipeline
+
     config = _parse_args()
 
     stacked_pipeline: StackedModelTrainingPipeline = StackedModelTrainingPipeline(
@@ -97,6 +150,11 @@ if __name__ == "__main__":
         test_size=config.test_size,
         n_trials=config.n_trials,
         target_days=config.target_days,
+        target_horizons=config.target_horizons,
+        target_risk_adjusted=config.target_risk_adjusted,
+        target_classification=config.target_classification,
+        target_up_threshold=config.target_up_threshold,
+        target_down_threshold=config.target_down_threshold,
         r2_save_threshold=config.r2_save_threshold,
         r2_invalid_threshold=config.r2_invalid_threshold,
     )
@@ -116,6 +174,11 @@ if __name__ == "__main__":
         test_size=config.test_size,
         n_trials=config.n_trials,
         target_days=config.target_days,
+        target_horizons=config.target_horizons,
+        target_risk_adjusted=config.target_risk_adjusted,
+        target_classification=config.target_classification,
+        target_up_threshold=config.target_up_threshold,
+        target_down_threshold=config.target_down_threshold,
         r2_save_threshold=config.r2_save_threshold,
         r2_invalid_threshold=config.r2_invalid_threshold,
     )

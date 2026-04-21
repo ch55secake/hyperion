@@ -13,6 +13,14 @@ class HyperionConfig:
             (0 < val_size < 1 - test_size).  The three splits are laid out temporally as
             train | val | test so that no future data leaks into earlier sets.
         target_days: Number of forward days used to compute the return target.
+        target_horizons: Optional list of additional forward-return horizons (e.g. [1, 5, 10, 20]).
+            When set, ``Target_Nd`` columns are added alongside the primary ``Target``.
+        target_risk_adjusted: When True, forward Sharpe, MDD-adjusted, and Sortino-style
+            target columns are added for each horizon.
+        target_classification: When True, ``Target_Binary`` and ``Target_Ternary`` columns
+            are added using *target_up_threshold* and *target_down_threshold*.
+        target_up_threshold: Return threshold above which a sample is labelled "up" (default 0.02).
+        target_down_threshold: Return threshold below which a sample is labelled "down" (default -0.02).
         n_trials: Number of Optuna hyperparameter-search trials per model.
         r2_save_threshold: Minimum R² required to persist a model to disk.
         r2_invalid_threshold: R² below this value causes the model to be saved as invalid.
@@ -25,6 +33,11 @@ class HyperionConfig:
     test_size: float = 0.2
     val_size: float = 0.1
     target_days: int = 10
+    target_horizons: list[int] | None = None
+    target_risk_adjusted: bool = False
+    target_classification: bool = False
+    target_up_threshold: float = 0.02
+    target_down_threshold: float = -0.02
     n_trials: int = 1000
     r2_save_threshold: float = 0.0012
     r2_invalid_threshold: float = -0.3

@@ -1,14 +1,17 @@
 import json
 import os
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
 import yfinance as yf
 
 from src.util import logger
+
+REQUIRED_COLUMNS: frozenset[str] = frozenset({"Open", "High", "Low", "Close", "Volume"})
 
 
 class StockDataDownloader:
@@ -60,6 +63,34 @@ class StockDataDownloader:
         except Exception as e:
             logger.warning(f"Failed to save stock info: {e}")
 
+    @staticmethod
+    def _load_cached_parquet(path: str, symbol: str) -> tuple[pd.DataFrame | None, bool]:
+        """Try to load a parquet file and validate its schema and freshness.
+
+        Returns:
+            A tuple of (df, needs_refresh) where df is the loaded DataFrame (or None
+            if the file could not be read) and needs_refresh is True when the cache
+            must be replaced with a fresh download.
+        """
+        try:
+            df = pd.read_parquet(path)
+        except Exception as e:
+            logger.warning(f"Failed to read cached parquet for {symbol}: {e}. Re-downloading.")
+            return None, True
+
+        missing_cols = REQUIRED_COLUMNS - set(df.columns)
+        if missing_cols:
+            logger.warning(f"Cached parquet for {symbol} is missing columns {missing_cols}. Re-downloading.")
+            return df, True
+
+        last_date = pd.to_datetime(df.index[-1]).date()
+        lookback_date = (datetime.now() - timedelta(days=2)).date()
+        if last_date < lookback_date:
+            logger.warning(f"Cache is outdated (last date: {last_date}, lookback date: {lookback_date})")
+            return df, True
+
+        return df, False
+
     def _download_single(self, symbol: str) -> tuple[str, pd.DataFrame | None]:
         """
         Download or load cached data for a single symbol.
@@ -75,16 +106,10 @@ class StockDataDownloader:
         needs_refresh = False
 
         if os.path.isfile(complete_path):
-            df = pd.read_parquet(complete_path)
-
-            last_date = pd.to_datetime(df.index[-1]).date()
-            lookback_date = (datetime.now() - timedelta(days=2)).date()
-
-            if last_date < lookback_date:
-                logger.warning(f"Cache is outdated (last date: {last_date}, lookback date: {lookback_date})")
-                needs_refresh = True
-            else:
+            df, needs_refresh = self._load_cached_parquet(complete_path, symbol)
+            if not needs_refresh:
                 logger.info(f"Using cached data for {symbol}")
+                assert df is not None  # guaranteed: _load_cached_parquet only returns None when needs_refresh=True
                 with self._lock:
                     self._history_data[(symbol, self.period, self.interval)] = df
                 return symbol, df
@@ -92,9 +117,25 @@ class StockDataDownloader:
         if not os.path.isfile(complete_path) or needs_refresh:
             logger.info(f"Downloading {symbol} ({self.period} {self.interval} data)...")
             ticker = yf.Ticker(symbol)
-            df = ticker.history(period=self.period, interval=self.interval)
+
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    df = cast(pd.DataFrame, ticker.history(period=self.period, interval=self.interval))
+                    break
+                except Exception as e:
+                    if "database is locked" in str(e).lower() and attempt < max_retries - 1:
+                        wait = 2**attempt
+                        logger.warning(
+                            f"SQLite lock contention downloading {symbol} (attempt {attempt + 1}/{max_retries}), "
+                            f"retrying in {wait}s..."
+                        )
+                        time.sleep(wait)
+                    else:
+                        raise
 
             with self._lock:
+                assert isinstance(df, pd.DataFrame)  # loop always assigns via cast; narrows type
                 self._history_data[(symbol, self.period, self.interval)] = df
 
             if df.empty:

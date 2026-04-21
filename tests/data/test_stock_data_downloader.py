@@ -395,3 +395,105 @@ class TestParquetRoundTrip:
         df_loaded = pd.read_parquet(path)
 
         pd.testing.assert_frame_equal(df, df_loaded, check_freq=False)
+
+
+# ---------------------------------------------------------------------------
+# Failure-path tests
+# ---------------------------------------------------------------------------
+
+
+class TestDownloadFailurePaths:
+    """Tests for failure scenarios in download_data()."""
+
+    def setup_method(self):
+        _reset_class_caches()
+
+    @pytest.mark.parametrize("fail_count,total", [(1, 3), (2, 4), (3, 3)])
+    def test_partial_failure_returns_successful_data(self, tmp_path, monkeypatch, fail_count, total):
+        """N of M tickers fail — the other M-N are returned and failures are tracked."""
+        monkeypatch.chdir(tmp_path)
+        os.makedirs(tmp_path / "historic_data", exist_ok=True)
+
+        symbols = [f"SYM{i}" for i in range(total)]
+        failing = set(symbols[:fail_count])
+        good_df = _make_fresh_price_df()
+
+        def _ticker_factory(symbol):
+            mock = MagicMock()
+            if symbol in failing:
+                mock.history.side_effect = RuntimeError("network error")
+            else:
+                mock.history.return_value = good_df
+                mock.info = {}
+            return mock
+
+        with patch("src.data.stock_data_downloader.yf.Ticker", side_effect=_ticker_factory):
+            downloader = StockDataDownloader(symbols, period="1mo", interval="1d")
+            result, failed = downloader.download_data()
+
+        assert set(result.keys()) == set(symbols) - failing
+        assert set(failed) == failing
+
+    def test_all_tickers_fail_returns_empty_dict(self, tmp_path, monkeypatch):
+        """When all tickers fail the result must be an empty dict — no crash."""
+        monkeypatch.chdir(tmp_path)
+        os.makedirs(tmp_path / "historic_data", exist_ok=True)
+
+        def _ticker_factory(symbol):
+            mock = MagicMock()
+            mock.history.side_effect = RuntimeError("network unreachable")
+            return mock
+
+        with patch("src.data.stock_data_downloader.yf.Ticker", side_effect=_ticker_factory):
+            downloader = StockDataDownloader(["A", "B", "C"], period="1mo", interval="1d")
+            result, failed = downloader.download_data()
+
+        assert result == {}
+        assert set(failed) == {"A", "B", "C"}
+
+    def test_corrupted_parquet_triggers_redownload(self, tmp_path, monkeypatch):
+        """A truncated / invalid parquet file should trigger a re-download, not a crash."""
+        monkeypatch.chdir(tmp_path)
+        historic_dir = tmp_path / "historic_data"
+        os.makedirs(historic_dir, exist_ok=True)
+
+        # Write garbage bytes to simulate a corrupted parquet
+        corrupted_path = historic_dir / "AAPL_1mo_1d.parquet"
+        corrupted_path.write_bytes(b"this is not a valid parquet file")
+
+        good_df = _make_fresh_price_df()
+        mock_ticker = MagicMock()
+        mock_ticker.history.return_value = good_df
+        mock_ticker.info = {}
+
+        with patch("src.data.stock_data_downloader.yf.Ticker", return_value=mock_ticker) as mock_yf:
+            downloader = StockDataDownloader(["AAPL"], period="1mo", interval="1d")
+            result, failed = downloader.download_data()
+            mock_yf.assert_called_once_with("AAPL")
+
+        assert "AAPL" in result
+        assert failed == []
+
+    def test_schema_drift_triggers_redownload(self, tmp_path, monkeypatch):
+        """A cached parquet missing required columns must trigger a re-download."""
+        monkeypatch.chdir(tmp_path)
+        os.makedirs(tmp_path / "historic_data", exist_ok=True)
+
+        # Write a parquet that is missing 'Close' and 'Volume' (schema drift)
+        stale_df = _make_fresh_price_df().drop(columns=["Close", "Volume"])
+        stale_df.to_parquet("./historic_data/AAPL_1mo_1d.parquet")
+
+        good_df = _make_fresh_price_df()
+        mock_ticker = MagicMock()
+        mock_ticker.history.return_value = good_df
+        mock_ticker.info = {}
+
+        with patch("src.data.stock_data_downloader.yf.Ticker", return_value=mock_ticker) as mock_yf:
+            downloader = StockDataDownloader(["AAPL"], period="1mo", interval="1d")
+            result, failed = downloader.download_data()
+            mock_yf.assert_called_once_with("AAPL")
+
+        assert "AAPL" in result
+        assert "Close" in result["AAPL"].columns
+        assert "Volume" in result["AAPL"].columns
+        assert failed == []
