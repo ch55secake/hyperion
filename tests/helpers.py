@@ -19,6 +19,18 @@ def make_ohlcv(n: int = 200, seed: int = 42) -> pd.DataFrame:
     )
 
 
+def fast_cat_params() -> dict:
+    """Return lightweight CatBoost params for use in tests."""
+    return {
+        "iterations": 10,
+        "learning_rate": 0.1,
+        "depth": 3,
+        "loss_function": "RMSE",
+        "random_seed": 42,
+        "verbose": 0,
+    }
+
+
 def fast_xgb_params() -> dict:
     """Return lightweight XGBoost params for use in tests."""
     return {

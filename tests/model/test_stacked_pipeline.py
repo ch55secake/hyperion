@@ -201,6 +201,22 @@ class TestStackedPipelineRegression:
         with pytest.raises(Exception, match="prepare_features"):
             pipeline.train()
 
+    def test_cross_stage_alignment_after_train(self, trained_pipeline):
+        """After train(), predictions and all test arrays must have the same length."""
+        preds = trained_pipeline._test_results["predictions"]
+        assert len(preds) == len(trained_pipeline._symbols_test), (
+            f"Predictions length {len(preds)} != symbols_test length {len(trained_pipeline._symbols_test)}"
+        )
+        assert len(preds) == len(trained_pipeline._dates_test), (
+            f"Predictions length {len(preds)} != dates_test length {len(trained_pipeline._dates_test)}"
+        )
+        assert len(preds) == len(trained_pipeline._prices_test), (
+            f"Predictions length {len(preds)} != prices_test length {len(trained_pipeline._prices_test)}"
+        )
+        assert len(preds) == len(trained_pipeline._y_test), (
+            f"Predictions length {len(preds)} != y_test length {len(trained_pipeline._y_test)}"
+        )
+
     def test_feature_partitions_populated_after_prepare(self, prepared_pipeline):
         """After prepare_features(), feature partition dicts must be filled."""
         assert prepared_pipeline.feature_partitions, "feature_partitions should not be empty"
@@ -219,3 +235,15 @@ class TestStackedPipelineRegression:
         for split in ("train", "test"):
             for key in ("targets", "dates", "prices", "symbols"):
                 assert key in ttd[split], f"Key '{key}' missing from '{split}' split"
+
+    def test_stock_data_freed_after_prepare_features(self, prepared_pipeline):
+        """_stock_data must be None after prepare_features() to release raw OHLCV memory."""
+        assert prepared_pipeline._stock_data is None, "_stock_data should be None after prepare_features()"
+
+    def test_feature_matrix_uses_float32(self, prepared_pipeline):
+        """Numeric feature columns in the train/test splits must be float32, not float64."""
+        default_iv = prepared_pipeline.default_interval
+        for split in ("train", "test"):
+            df = prepared_pipeline._test_train_data[split][default_iv]
+            float64_cols = [c for c in df.columns if df[c].dtype == "float64"]
+            assert float64_cols == [], f"Expected no float64 columns in {split} split, found: {float64_cols}"
