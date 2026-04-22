@@ -6,6 +6,7 @@
 PERIOD          ?= 2y
 INTERVALS       ?= 1d,1h
 TEST_SIZE       ?= 0.2
+VAL_SIZE        ?= 0.1
 TARGET_DAYS     ?= 10
 N_TRIALS        ?= 1000
 R2_SAVE         ?= 0.0012
@@ -17,6 +18,7 @@ ARGS            ?=
 _RUN_ARGS = --period $(PERIOD) \
             --intervals $(INTERVALS) \
             --test-size $(TEST_SIZE) \
+            --val-size $(VAL_SIZE) \
             --target-days $(TARGET_DAYS) \
             --n-trials $(N_TRIALS) \
             --r2-save-threshold $(R2_SAVE) \
