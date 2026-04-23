@@ -42,6 +42,12 @@ def _parse_args() -> HyperionConfig:
         help="Fraction of data reserved for testing (0 < test_size < 1).",
     )
     parser.add_argument(
+        "--val-size",
+        type=float,
+        default=defaults.val_size,
+        help="Fraction of data reserved for validation (0 < val_size < 1); train_size = 1 - test_size - val_size.",
+    )
+    parser.add_argument(
         "--target-days",
         type=int,
         default=defaults.target_days,
@@ -112,6 +118,7 @@ def _parse_args() -> HyperionConfig:
         period=args.period,
         intervals=[i.strip() for i in args.intervals.split(",")],
         test_size=args.test_size,
+        val_size=args.val_size,
         target_days=args.target_days,
         target_horizons=horizons,
         target_risk_adjusted=args.target_risk_adjusted,
@@ -148,6 +155,7 @@ if __name__ == "__main__":
         period=config.period,
         intervals=config.intervals,
         test_size=config.test_size,
+        val_size=config.val_size,
         n_trials=config.n_trials,
         target_days=config.target_days,
         target_horizons=config.target_horizons,
@@ -172,6 +180,7 @@ if __name__ == "__main__":
         period=config.period,
         interval=config.intervals[0],
         test_size=config.test_size,
+        val_size=config.val_size,
         n_trials=config.n_trials,
         target_days=config.target_days,
         target_horizons=config.target_horizons,
