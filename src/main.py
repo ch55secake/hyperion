@@ -45,7 +45,7 @@ def _parse_args() -> HyperionConfig:
         "--val-size",
         type=float,
         default=defaults.val_size,
-        help="Fraction of data reserved for validation (0 < val_size < 1 - test_size).",
+        help="Fraction of data reserved for validation (0 < val_size < 1); train_size = 1 - test_size - val_size.",
     )
     parser.add_argument(
         "--target-days",

@@ -3,7 +3,7 @@
 from src.main import _parse_args
 
 
-def test_parse_args_uses_default_val_size(monkeypatch):
+def test_parse_args_default_val_size(monkeypatch):
     monkeypatch.setattr("sys.argv", ["main.py"])
 
     config = _parse_args()
