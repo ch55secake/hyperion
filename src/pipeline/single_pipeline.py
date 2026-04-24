@@ -52,9 +52,17 @@ class SingleModelTrainingPipeline(BaseTrainingPipeline):
         if self.model_type == "xgboost":
             optimizer.optimize_xgboost()
             self._model_params = optimizer.best_xgb_params
-        else:
+        elif self.model_type == "lightgbm":
             optimizer.optimize_lightgbm()
             self._model_params = optimizer.best_lgb_params
+        else:
+            logger.warning(
+                "No Optuna optimizer is available for model_type '%s'. "
+                "Skipping hyperparameter optimisation and using defaults.",
+                self.model_type,
+            )
+            self._model_params = None
+            return
 
         optimizer.save_results(f"params/{self.model_type.upper()}_best_params.json")
 

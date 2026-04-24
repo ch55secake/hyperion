@@ -3,6 +3,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from src.util import logger
+
 
 class StockRanker:
     """
@@ -289,7 +291,7 @@ class StockRanker:
         df = self.apply_confidence_threshold(df)
 
         if df.empty:
-            print("⚠️  No stocks meet the confidence threshold – skipping trade execution.")
+            logger.warning("No stocks meet the confidence threshold – skipping trade execution.")
             return df.assign(volatility=np.nan, priority_score=np.nan, rank=np.nan, allocation=0.0)
 
         if historical_volatility is not None:
