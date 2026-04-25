@@ -1,5 +1,6 @@
 from .walk_foward_validation import (
     WalkForwardValidator,
+    WindowType,
     WALK_FORWARD_TEST_WINDOW,
     WALK_FORWARD_TRAIN_WINDOW,
     WALK_FORWARD_RETRAIN_FREQ,
