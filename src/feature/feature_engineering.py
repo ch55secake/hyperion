@@ -318,7 +318,17 @@ class FeatureEngineering:
             ._add_momentum()
             ._add_rate_of_change()
             ._add_directional_indicators()
-            ._add_sharpe()
+        )
+
+        # Defragment the DataFrame before adding further indicators.  By this
+        # point many individual columns have been inserted one-by-one, leaving
+        # the internal block list highly fragmented.  A copy() consolidates all
+        # blocks into a single contiguous block and eliminates PerformanceWarnings
+        # from pandas for the remaining indicator calculations.
+        self.df = self.df.copy()
+
+        (
+            self._add_sharpe()
             ._add_candlestick_patterns()
             ._add_regime_features()
         )
