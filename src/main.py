@@ -107,10 +107,37 @@ def _parse_args() -> HyperionConfig:
         help="Proportional transaction cost per trade (e.g. 0.001 = 0.1 %%).",
     )
     args = parser.parse_args()
-    horizons = [int(h.strip()) for h in args.target_horizons.split(",")] if args.target_horizons else None
+    intervals = [interval.strip() for interval in args.intervals.split(",") if interval.strip()]
+    if not intervals:
+        parser.error("--intervals must contain at least one non-empty interval.")
+
+    if not 0 < args.test_size < 1:
+        parser.error("--test-size must be between 0 and 1 (exclusive).")
+
+    if args.target_days <= 0:
+        parser.error("--target-days must be greater than 0.")
+
+    if args.n_trials <= 0:
+        parser.error("--n-trials must be greater than 0.")
+
+    if args.transaction_cost < 0:
+        parser.error("--transaction-cost must be non-negative.")
+
+    if args.target_down_threshold >= args.target_up_threshold:
+        parser.error("--target-down-threshold must be less than --target-up-threshold.")
+
+    horizons = None
+    if args.target_horizons:
+        try:
+            horizons = [int(h.strip()) for h in args.target_horizons.split(",") if h.strip()]
+        except ValueError:
+            parser.error("--target-horizons must be a comma-separated list of integers.")
+        if not horizons or any(h <= 0 for h in horizons):
+            parser.error("--target-horizons must contain only positive integers.")
+
     return HyperionConfig(
         period=args.period,
-        intervals=[i.strip() for i in args.intervals.split(",")],
+        intervals=intervals,
         test_size=args.test_size,
         target_days=args.target_days,
         target_horizons=horizons,
