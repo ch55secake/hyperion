@@ -24,6 +24,7 @@ def persist_results(
     symbol: str,
     test_results: Series | Any,
     valid_strategies: list[tuple[str, dict[str, DataFrame | float | int | Any], "TradingSimulator"]],
+    initial_capital: float = 10_000.0,
 ):
     # Step 10: Save detailed results
     results_file = f"results/{symbol}_results.txt"
@@ -51,7 +52,7 @@ def persist_results(
 
         # Write results for all strategies
         f.write("Trading Simulation Results:\n")
-        f.write("  Initial Capital: $10,000.00\n\n")
+        f.write(f"  Initial Capital: ${initial_capital:,.2f}\n\n")
 
         for strategy_name, strategy_results, _ in strategies:
             f.write(f"  {strategy_name} Strategy:\n")
