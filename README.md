@@ -99,7 +99,7 @@ All parameters have sensible defaults but can be overridden via Make variables o
 make run PERIOD=5y N_TRIALS=200
 
 # Override multiple parameters
-make run PERIOD=5y TEST_SIZE=0.3 INITIAL_CAPITAL=50000
+make run PERIOD=5y TEST_SIZE=0.3 VAL_SIZE=0.1 INITIAL_CAPITAL=50000
 
 # Pass arbitrary CLI flags directly
 make run ARGS="--period 5y --n-trials 200 --transaction-cost 0.002"
@@ -113,6 +113,7 @@ make help
 | `PERIOD` | `--period` | `2y` | Historical data window |
 | `INTERVALS` | `--intervals` | `1d,1h` | OHLCV intervals (comma-separated) |
 | `TEST_SIZE` | `--test-size` | `0.2` | Train/test split fraction |
+| `VAL_SIZE` | `--val-size` | `0.1` | Validation split fraction (from training window) |
 | `TARGET_DAYS` | `--target-days` | `10` | Forward-return horizon (days) |
 | `N_TRIALS` | `--n-trials` | `1000` | Optuna trials per model |
 | `R2_SAVE` | `--r2-save-threshold` | `0.0012` | Min R² to persist a model |
@@ -159,5 +160,4 @@ GitHub Actions runs the following checks on every push and PR to `main`:
 | **ruff** | Linting and formatting check with ruff |
 | **build** | Dependency installation smoke test |
 | **test** | Unit tests with coverage reporting |
-
 
