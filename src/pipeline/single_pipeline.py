@@ -52,9 +52,15 @@ class SingleModelTrainingPipeline(BaseTrainingPipeline):
         if self.model_type == "xgboost":
             optimizer.optimize_xgboost()
             self._model_params = optimizer.best_xgb_params
-        else:
+        elif self.model_type == "lightgbm":
             optimizer.optimize_lightgbm()
             self._model_params = optimizer.best_lgb_params
+        else:
+            logger.warning(
+                "Hyperparameter optimisation is not supported for model_type='%s'. "
+                "Training will proceed with default parameters.",
+                self.model_type,
+            )
 
         optimizer.save_results(f"params/{self.model_type.upper()}_best_params.json")
 
