@@ -1,4 +1,3 @@
-import traceback
 from abc import ABC, abstractmethod
 from typing import Any
 
@@ -175,8 +174,7 @@ class BaseTrainingPipeline(ABC):
                 )
 
             except Exception as e:
-                logger.error(f"Error processing {symbol}: {str(e)}")
-                traceback.print_exc()
+                logger.exception("Error processing %s: %s", symbol, e)
                 continue
 
         logger.info("=" * 60)
@@ -244,17 +242,21 @@ class BaseTrainingPipeline(ABC):
         :param symbol:
         :return:
         """
-        df["ticker"] = symbol
-        df["sector"] = self._downloader.get_sector(symbol)
-        df["industry"] = self._downloader.get_industry(symbol)
-        df["beta"] = np.float32(self._downloader.get_beta(symbol))
-        df["avg_volume_log"] = np.float32(np.log(self._downloader.get_avg_volume(symbol) + 1))
         raw_market_cap = self._downloader.get_market_cap(symbol)
-        df["market_cap_log"] = (
-            np.float32(np.log(raw_market_cap + 1)) if raw_market_cap is not None else np.float32(np.nan)
+        stock_cols = pd.DataFrame(
+            {
+                "ticker": symbol,
+                "sector": self._downloader.get_sector(symbol),
+                "industry": self._downloader.get_industry(symbol),
+                "beta": np.float32(self._downloader.get_beta(symbol)),
+                "avg_volume_log": np.float32(np.log(self._downloader.get_avg_volume(symbol) + 1)),
+                "market_cap_log": (
+                    np.float32(np.log(raw_market_cap + 1)) if raw_market_cap is not None else np.float32(np.nan)
+                ),
+            },
+            index=df.index,
         )
-
-        return df
+        return pd.concat([df, stock_cols], axis=1)
 
     def _create_categorical_features(self, train_daily, train_hourly, test_daily, test_hourly):
         """

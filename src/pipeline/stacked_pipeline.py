@@ -1,5 +1,4 @@
 import time
-import traceback
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from typing import Any
 
@@ -216,8 +215,7 @@ class StackedModelTrainingPipeline(BaseTrainingPipeline):
             )
             return symbol, x, y, dates, prices, val_split_idx, test_split_idx
         except Exception as e:
-            logger.error(f"Error processing {symbol}: {str(e)}")
-            traceback.print_exc()
+            logger.exception("Error processing %s: %s", symbol, e)
             return symbol, None, None, None, None, None, None
 
     @override

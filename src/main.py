@@ -1,6 +1,5 @@
 import argparse
 import os
-import warnings
 
 # ppo_worker has no ML imports at module level — safe to import before
 # LightGBM / PyTorch are loaded.  initialize() must be called first thing
@@ -8,8 +7,6 @@ import warnings
 import src.util.ppo_worker as _ppo_worker
 
 from src.config import HyperionConfig
-
-warnings.filterwarnings("ignore")
 
 os.makedirs("./historic_data", exist_ok=True)
 os.makedirs("./plots", exist_ok=True)
