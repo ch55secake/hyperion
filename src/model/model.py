@@ -8,7 +8,7 @@ import pandas as pd
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from sklearn.preprocessing import StandardScaler
 
-from src.util import logger
+from src.util import atomic_write, logger
 
 
 class Model(ABC):
@@ -65,8 +65,9 @@ class Model(ABC):
 
         os.makedirs(save_path, exist_ok=True)
         filename = f"{save_path}/{symbol}_{self.model_name}_model.pkl"
-        with open(filename, "wb") as f:
-            pickle.dump(model_data, f)
+        with atomic_write(filename) as tmp_path:
+            with open(tmp_path, "wb") as f:
+                pickle.dump(model_data, f)
 
         logger.info(f"Model saved to: {filename}")
         return filename

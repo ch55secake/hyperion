@@ -135,6 +135,22 @@ class TestSaveLoadStockInfo:
                 data = json.load(f)
             assert data["FAKE"]["beta"] == 1.2
 
+    def test_failed_save_preserves_existing_cache(self):
+        # A crash mid-write must not corrupt an existing cache file (issue #127).
+        _inject_stock_info("FAKE", {"sector": "Tech"})
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "stock_info.json")
+            StockDataDownloader.save_stock_info(path=path)
+            # A non-serialisable value makes json.dump fail after partial output
+            _inject_stock_info("BAD", {"obj": object()})
+            StockDataDownloader.save_stock_info(path=path)
+            with open(path) as f:
+                data = json.load(f)
+            assert data["FAKE"]["sector"] == "Tech"
+            assert "BAD" not in data
+            leftovers = [f for f in os.listdir(tmpdir) if f != "stock_info.json"]
+            assert leftovers == []
+
 
 # ---------------------------------------------------------------------------
 # get_sector / get_industry / get_beta
