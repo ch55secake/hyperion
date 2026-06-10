@@ -7,7 +7,7 @@ import pandas as pd
 from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
 from scipy.optimize import minimize
 
-from src.util import logger
+from src.util import atomic_write, logger
 
 
 class StackedStockPredictor:
@@ -185,8 +185,9 @@ class StackedStockPredictor:
 
         model_data = {"stacked_predictor": self, "feature_columns_per_model": feature_columns_per_model}
 
-        with open(filename, "wb") as f:
-            pickle.dump(model_data, f)
+        with atomic_write(filename) as tmp_path:
+            with open(tmp_path, "wb") as f:
+                pickle.dump(model_data, f)
 
         logger.info(f"Saved full stacked model to {filename}")
         for name, cols in feature_columns_per_model.items():

@@ -9,7 +9,7 @@ from typing import Any, cast
 import pandas as pd
 import yfinance as yf
 
-from src.util import logger
+from src.util import atomic_write, logger
 
 REQUIRED_COLUMNS: frozenset[str] = frozenset({"Open", "High", "Low", "Close", "Volume"})
 
@@ -57,8 +57,9 @@ class StockDataDownloader:
         Save cached stock info to disk.
         """
         try:
-            with open(path, "w", encoding="UTF-8") as f:
-                json.dump(cls._stock_info, f, indent=4)
+            with atomic_write(path) as tmp_path:
+                with open(tmp_path, "w", encoding="UTF-8") as f:
+                    json.dump(cls._stock_info, f, indent=4)
             logger.info(f"Saved stock info ({len(cls._stock_info)} entries)")
         except Exception as e:
             logger.warning(f"Failed to save stock info: {e}")
@@ -143,7 +144,8 @@ class StockDataDownloader:
                 return symbol, None
 
             parquet_path = f"./historic_data/{filename}"
-            df.to_parquet(parquet_path)
+            with atomic_write(parquet_path) as tmp_path:
+                df.to_parquet(tmp_path)
 
             with self._lock:
                 self._stock_info[symbol] = ticker.info
